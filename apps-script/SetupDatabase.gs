@@ -43,7 +43,7 @@ function setupGpsFmDatabase() {
 
   const users = ss.getSheetByName('Users');
   const rows = users.getDataRange().getValues();
-  const hasAdmin = rows.slice(1).some(function(r) { return String(r[3]) === 'superadmin' && String(r[6]) === 'TRUE'; });
+  const hasAdmin = rows.slice(1).some(function(r) { return String(r[3]) === 'superadmin' && (r[6] === true || String(r[6]).toLowerCase() === 'true'); });
   if (!hasAdmin) {
     const initialPassword = props.getProperty('GPSFM_INITIAL_ADMIN_PASSWORD');
     if (!initialPassword || initialPassword.length < 12) {
