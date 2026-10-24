@@ -18,8 +18,23 @@ function gpsfmHashPassword_(password, salt) {
 }
 
 function gpsfmDb_() {
+  // Saat berjalan dari spreadsheet induk, gunakan spreadsheet yang terikat langsung.
+  // Saat Web App berjalan tanpa konteks spreadsheet aktif, gunakan ID yang disimpan
+  // oleh setupGpsFmDatabase() dari spreadsheet induk yang sama.
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) {
+    const id = active.getId();
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('GPSFM_SPREADSHEET_ID') !== id) {
+      props.setProperty('GPSFM_SPREADSHEET_ID', id);
+    }
+    return active;
+  }
+
   const id = PropertiesService.getScriptProperties().getProperty('GPSFM_SPREADSHEET_ID');
-  if (!id) throw new Error('Database belum disiapkan. Jalankan setupGpsFmDatabase() terlebih dahulu.');
+  if (!id) {
+    throw new Error('Spreadsheet induk belum terhubung. Buka Apps Script melalui Ekstensi → Apps Script dari spreadsheet GPS FM, lalu jalankan setupGpsFmDatabase().');
+  }
   return SpreadsheetApp.openById(id);
 }
 
