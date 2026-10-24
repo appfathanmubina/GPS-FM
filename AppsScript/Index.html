@@ -15,7 +15,9 @@
 (function(){
   var allowedParentOrigin = "https://appfathanmubina.github.io";
   if (window.top !== window.self && document.referrer.indexOf(allowedParentOrigin + "/") !== 0) {
-    document.documentElement.innerHTML = "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"font:16px system-ui;padding:24px;color:#541793\">Aplikasi GPS FM hanya dapat disematkan melalui PWA resmi.</body>";
+    document.open();
+    document.write('<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPS FM</title></head><body style="font:16px system-ui;padding:24px;color:#541793">Aplikasi GPS FM hanya dapat disematkan melalui PWA resmi.</body></html>');
+    document.close();
   }
 })();
 </script></head>
