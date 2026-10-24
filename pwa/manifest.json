@@ -1,0 +1,11 @@
+{
+  "name": "GPS FM — Absensi Guru Pembina Santri",
+  "short_name": "GPS FM",
+  "description": "Sistem Absensi Guru Pembina Santri Pesantren Fathan Mubina",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fc",
+  "theme_color": "#4338ca",
+  "icons": []
+}
