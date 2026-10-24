@@ -3,7 +3,9 @@
  * Jalankan setupGpsFmDatabase() dari editor Apps Script yang dibuka melalui
  * Ekstensi → Apps Script pada spreadsheet GPS FM.
  * Setup memakai spreadsheet induk yang sudah ada; tidak membuat spreadsheet baru.
- * Opsional: isi Script Properties GPSFM_INITIAL_ADMIN_PASSWORD sebelum setup.
+ * Sebelum setup awal, isi Script Property GPSFM_INITIAL_ADMIN_PASSWORD.
+ * Username awal default: abanadheera (dapat diganti melalui GPSFM_INITIAL_ADMIN_USERNAME).
+ * Password awal boleh 6 karakter; setelah login, segera ganti dengan password yang lebih kuat.
  * ID spreadsheet induk disimpan untuk akses Web App ketika konteks aktif tidak tersedia.
  */
 const GPSFM_SCHEMA = {
@@ -47,13 +49,20 @@ function setupGpsFmDatabase() {
   const hasAdmin = rows.slice(1).some(function(r) { return String(r[3]) === 'superadmin' && (r[6] === true || String(r[6]).toLowerCase() === 'true'); });
   if (!hasAdmin) {
     const initialPassword = props.getProperty('GPSFM_INITIAL_ADMIN_PASSWORD');
-    if (!initialPassword || initialPassword.length < 12) {
-      throw new Error('Database siap, tetapi superadmin belum dibuat. Atur Script Property GPSFM_INITIAL_ADMIN_PASSWORD dengan password awal minimal 12 karakter, lalu jalankan setupGpsFmDatabase() lagi. Setelah login pertama, segera ganti password.');
+    if (!initialPassword || initialPassword.length < 6) {
+      throw new Error('Database siap, tetapi superadmin belum dibuat. Atur Script Property GPSFM_INITIAL_ADMIN_PASSWORD dengan password awal minimal 6 karakter, lalu jalankan setupGpsFmDatabase() lagi. Password awal hanya untuk bootstrap; setelah login, segera ganti dengan password yang kuat.');
     }
+    const initialUsername = String(props.getProperty('GPSFM_INITIAL_ADMIN_USERNAME') || 'abanadheera').trim().toLowerCase();
+    if (!/^[a-z0-9._-]{3,40}$/.test(initialUsername)) {
+      throw new Error('GPSFM_INITIAL_ADMIN_USERNAME hanya boleh berisi huruf kecil, angka, titik, garis bawah, atau tanda hubung (3–40 karakter).');
+    }
+    const duplicateUsername = rows.slice(1).some(function(r) { return String(r[1]).trim().toLowerCase() === initialUsername; });
+    if (duplicateUsername) throw new Error('Username awal ' + initialUsername + ' sudah digunakan. Periksa sheet Users atau atur GPSFM_INITIAL_ADMIN_USERNAME.');
     const salt = Utilities.getUuid().replace(/-/g, '');
     const hash = gpsfmHashPassword_(initialPassword, salt);
-    users.appendRow([Utilities.getUuid(), 'superadmin', 'Superadmin GPS FM', 'superadmin', salt, hash, true, new Date().toISOString(), new Date().toISOString()]);
+    users.appendRow([Utilities.getUuid(), initialUsername, 'Superadmin GPS FM', 'superadmin', salt, hash, true, new Date().toISOString(), new Date().toISOString()]);
     props.deleteProperty('GPSFM_INITIAL_ADMIN_PASSWORD');
+    props.deleteProperty('GPSFM_INITIAL_ADMIN_USERNAME');
   }
 
   const settings = ss.getSheetByName('AppSettings');
