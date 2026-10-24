@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#6d28d9">
+  <title>GPS FM — Guru Pembina Santri</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#201a2e;background:#f7f5fb;--p:#6d28d9;--pl:#ede9fe;--line:#e6e0ef}
+    *{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:12px 16px;background:var(--p);color:#fff;font-weight:650}button.secondary{background:#fff;color:var(--p);border:1px solid var(--line)}button:disabled{opacity:.5}
+    header{background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:#fff;padding:20px max(16px,env(safe-area-inset-left));border-radius:0 0 22px 22px}header .brand{font-size:22px;font-weight:800}header p{margin:5px 0 0;opacity:.9;font-size:13px}
+    main{max-width:900px;margin:auto;padding:16px 14px 40px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 4px 20px #2b174208}.hidden{display:none!important}.muted{color:#766d84;font-size:13px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{background:var(--pl);border-radius:14px;padding:14px}.metric strong{display:block;font-size:25px;color:var(--p)}label{display:block;font-size:13px;font-weight:650;margin:12px 0 6px}input,select{width:100%;padding:12px;border:1px solid #d9d1e5;border-radius:11px;background:#fff}h2{font-size:18px;margin:0 0 12px}h3{font-size:15px;margin:0 0 6px}.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.item{padding:12px 0;border-bottom:1px solid var(--line)}.item:last-child{border-bottom:0}.status{font-size:12px;border-radius:99px;padding:4px 8px;background:#f3e8ff;color:#6b21a8}.notice{padding:12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px;margin-bottom:12px}#message{font-size:13px;margin:10px 0;color:#b91c1c}.full{width:100%;margin-top:14px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}@media(min-width:650px){main{padding:24px}.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.login{max-width:430px;margin:5vh auto}}
+  </style>
+<script>
+(function(){
+  var allowedParentOrigin = "https://appfathanmubina.github.io";
+  if (window.top !== window.self && document.referrer.indexOf(allowedParentOrigin + "/") !== 0) {
+    document.documentElement.innerHTML = "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><body style=\"font:16px system-ui;padding:24px;color:#541793\">Aplikasi GPS FM hanya dapat disematkan melalui PWA resmi.</body>";
+  }
+})();
+</script></head>
+<body>
+<header><div class="brand">GPS FM</div><p>Guru Pembina Santri · Pesantren Fathan Mubina</p></header>
+<main>
+  <section id="loginView" class="card login">
+    <h2>Masuk ke GPS FM</h2><p class="muted">Gunakan akun yang diberikan administrator.</p>
+    <form id="loginForm"><label for="username">Username</label><input id="username" autocomplete="username" required>
+      <label for="password">Kata sandi</label><input id="password" type="password" autocomplete="current-password" required>
+      <div id="message" role="status"></div><button class="full" id="loginBtn">Masuk</button></form>
+  </section>
+  <section id="appView" class="hidden">
+    <div class="card"><div class="row"><div><h2 id="welcome">Dashboard</h2><div class="muted" id="roleLabel"></div></div><button class="secondary" id="logoutBtn">Keluar</button></div>
+      <div class="grid" style="margin-top:14px"><div class="metric"><span class="muted">Kegiatan</span><strong id="activityCount">0</strong></div><div class="metric"><span class="muted">Sesi</span><strong id="sessionCount">0</strong></div><div class="metric"><span class="muted">Catatan</span><strong id="recordCount">0</strong></div><div class="metric"><span class="muted">Periode</span><strong style="font-size:17px" id="monthLabel">—</strong></div></div>
+    </div>
+    <div id="changePasswordCard" class="card hidden"><h2>Ganti kata sandi</h2><label>Kata sandi saat ini</label><input id="currentPassword" type="password" autocomplete="current-password"><label>Kata sandi baru (minimal 12 karakter)</label><input id="newPassword" type="password" autocomplete="new-password"><button id="changePasswordBtn" class="full">Simpan kata sandi</button></div>
+    <div class="card"><div class="row"><h2>Kegiatan saya</h2><button id="refreshBtn" class="secondary">Muat ulang</button></div><div id="activityList" class="muted">Memuat…</div></div>
+    <div class="card"><h2>Rekapan bulanan</h2><div class="grid"><div><label>Bulan</label><input id="reportMonth" type="month"></div><div><label>Kegiatan (opsional)</label><select id="reportActivity"><option value="">Semua yang dapat diakses</option></select></div></div><div class="actions"><button id="reportBtn">Tampilkan rekapan</button><button id="csvBtn" class="secondary">Unduh CSV</button></div><div id="reportSummary" class="muted" style="margin-top:12px">Pilih bulan lalu tampilkan rekapan.</div><div id="reportRows"></div></div>
+    <div id="adminCard" class="card hidden"><h2>Pengguna (Superadmin / Administrasi)</h2><div id="userList" class="muted">Gunakan pengelolaan akun pada tahap admin berikutnya.</div></div>
+  </section>
+  <p class="muted">GPS FM · Data kehadiran resmi mengikuti catatan yang disimpan oleh PJ dan kebijakan administrasi pesantren.</p>
+</main>
+<script>
+const state={token:'',user:null,activities:[],report:null};
+const $=id=>document.getElementById(id);
+function call(name,...args){return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e&&e.message||'Terjadi kesalahan')))[name](...args))}
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function msg(t){$('message').textContent=t||''}
+function setBusy(btn,busy,label){btn.disabled=busy;if(busy)btn.dataset.old=btn.textContent;btn.textContent=busy?(label||'Memproses…'):(btn.dataset.old||btn.textContent)}
+function fmtRole(r){return ({superadmin:'Superadmin',administrasi:'Administrasi',pj:'PJ Kegiatan',guru:'Dewan Guru'})[r]||r}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=$('loginBtn');setBusy(b,true,'Memeriksa…');msg('');try{const r=await call('apiLogin',$('username').value,$('password').value);state.token=r.token;state.user=r.user;$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('welcome').textContent='Assalamu’alaikum, '+r.user.full_name;$('roleLabel').textContent=fmtRole(r.user.role);$('changePasswordCard').classList.toggle('hidden',!r.mustChangePassword);$('adminCard').classList.toggle('hidden',!['superadmin','administrasi'].includes(r.user.role));$('monthLabel').textContent=new Date().toLocaleDateString('id-ID',{month:'short',year:'numeric'});const now=new Date();$('reportMonth').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');await refresh()}catch(err){msg(err.message)}finally{setBusy(b,false)}})
+async function refresh(){try{const r=await call('apiGetBootstrap',state.token);state.user=r.user;state.activities=r.activities||[];$('activityCount').textContent=r.dashboard.activityCount;$('sessionCount').textContent=r.dashboard.sessionCount;$('recordCount').textContent=r.dashboard.attendanceRecordCount;renderActivities();$('reportActivity').innerHTML='<option value="">Semua yang dapat diakses</option>'+state.activities.map(a=>'<option value="'+esc(a.activity_id)+'">'+esc(a.name)+'</option>').join('')}catch(e){alert(e.message)}}
+function renderActivities(){const el=$('activityList');if(!state.activities.length){el.textContent='Belum ada kegiatan yang dapat ditampilkan.';return}el.innerHTML=state.activities.map(a=>'<div class="item"><div class="row"><div><h3>'+esc(a.name)+'</h3><div class="muted">'+esc(a.activity_type)+' · '+esc(a.description||'Tanpa keterangan')+'</div></div><span class="status">'+(a.pj_user_id===state.user.user_id?'PJ Anda':'Kegiatan')+'</span></div>'+(a.pj_user_id===state.user.user_id||state.user.role==='superadmin'?'<div class="actions"><button onclick="newSession(\''+esc(a.activity_id)+'\')">Input kehadiran</button></div>':'')+'</div>').join('')}
+async function newSession(id){const date=prompt('Tanggal kegiatan (YYYY-MM-DD)',new Date().toISOString().slice(0,10));if(!date)return;try{const r=await call('apiCreateAttendanceSession',state.token,{activity_id:id,session_date:date});const s=await call('apiGetSession',state.token,r.sessionId);const statuses=['hadir','izin','sakit','alpa','belum_diisi'];const changes=[];for(const person of s.records){const answer=prompt('Status '+person.full_name+' (hadir/izin/sakit/alpa/belum_diisi)',person.attendance_status);if(answer===null)continue;const val=answer.trim().toLowerCase();if(!statuses.includes(val)){alert('Status tidak dikenal: '+answer);return}changes.push({user_id:person.user_id,attendance_status:val,notes:''})}if(changes.length){await call('apiSaveAttendance',state.token,r.sessionId,changes);alert('Kehadiran tersimpan.')}await refresh()}catch(e){alert(e.message)}}
+$('refreshBtn').onclick=refresh;
+$('logoutBtn').onclick=async()=>{try{await call('apiLogout',state.token)}catch(e){}state.token='';state.user=null;$('appView').classList.add('hidden');$('loginView').classList.remove('hidden');$('password').value='';msg('')};
+$('changePasswordBtn').onclick=async()=>{try{await call('apiChangePassword',state.token,$('currentPassword').value,$('newPassword').value);alert('Kata sandi berhasil diganti.');$('changePasswordCard').classList.add('hidden')}catch(e){alert(e.message)}};
+$('reportBtn').onclick=async()=>{try{const r=await call('apiGetMonthlyReport',state.token,$('reportMonth').value,$('reportActivity').value);state.report=r;$('reportSummary').textContent='Total catatan: '+r.summary.total+' · Hadir: '+r.summary.hadir+' · Izin: '+r.summary.izin+' · Sakit: '+r.summary.sakit+' · Alpa: '+r.summary.alpa+' · Belum diisi: '+r.summary.belumDiisi;$('reportRows').innerHTML=r.rows.slice(0,100).map(x=>'<div class="item"><b>'+esc(x.nama_guru)+'</b><div class="muted">'+esc(x.tanggal)+' · '+esc(x.kegiatan)+' · '+esc(x.status)+'</div></div>').join('')+(r.rows.length>100?'<p class="muted">Menampilkan 100 baris pertama. Unduh CSV untuk seluruh data.</p>':'')}catch(e){alert(e.message)}};
+$('csvBtn').onclick=()=>{if(!state.report){alert('Tampilkan rekapan terlebih dahulu.');return}const rows=[['Tanggal','Kegiatan','PJ','Nama Guru','Status','Catatan'],...state.report.rows.map(r=>[r.tanggal,r.kegiatan,r.pj,r.nama_guru,r.status,r.catatan])];const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='GPS-FM-'+state.report.yearMonth+'.csv';a.click();URL.revokeObjectURL(url)};
+</script>
+</body></html>
