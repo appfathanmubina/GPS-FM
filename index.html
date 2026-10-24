@@ -1,13 +1,57 @@
 <!doctype html>
 <html lang="id">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#6d28d9"><link rel="manifest" href="./manifest.json"><title>GPS FM</title>
-<style>body{font:16px system-ui;margin:0;background:#f7f5fb;color:#241a35}header{background:#6d28d9;color:white;padding:22px;border-radius:0 0 22px 22px}main{max-width:640px;margin:auto;padding:20px}section{background:white;border:1px solid #e6e0ef;border-radius:16px;padding:18px;margin:12px 0}input,button{font:inherit;padding:12px;border-radius:10px}input{width:100%;box-sizing:border-box;border:1px solid #ddd}button{background:#6d28d9;color:white;border:0;width:100%;margin-top:12px}.muted{color:#746a82;font-size:14px}</style>
-</head><body><header><strong style="font-size:24px">GPS FM</strong><div>Guru Pembina Santri · Fathan Mubina</div></header><main>
-<section><h2>Hubungkan ke aplikasi GPS FM</h2><p class="muted">Masukkan URL Web App Google Apps Script yang sudah dideploy. Pengujian bridge lintas domain harus dilakukan setelah URL tersedia.</p><label for="endpoint">URL Web App Apps Script</label><input id="endpoint" type="url" value="https://script.google.com/macros/s/AKfycbyL4HyR75j-duBKliOJLgtNvXVdajQFvy1AKq6zmFWudA5rBK0zI7nFbxH2WuCqkemR/exec" placeholder="https://script.google.com/macros/s/.../exec"><button id="check">Periksa koneksi</button><p id="result" class="muted"></p></section>
-<section><h3>Catatan implementasi</h3><p class="muted">PWA shell ini adalah fondasi instalasi. Login dan transaksi lintas domain belum diaktifkan pada shell GitHub sampai bridge diuji, untuk mencegah data login terkirim melalui jalur yang belum tervalidasi.</p></section>
-</main><script>
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
-document.getElementById('check').onclick=async()=>{const u=document.getElementById('endpoint').value.trim();const out=document.getElementById('result');if(!u.startsWith('https://script.google.com/macros/s/')){out.textContent='Masukkan URL Web App Apps Script yang valid.';return}out.textContent='Memeriksa endpoint…';try{const r=await fetch(u+'?view=api',{method:'GET',redirect:'follow'});const j=await r.json();out.textContent=j.success?'Endpoint dapat dijangkau. Tahap berikutnya: validasi bridge login dan otorisasi.':'Endpoint merespons tetapi belum siap.'}catch(e){out.textContent='Pemeriksaan browser gagal. Kemungkinan redirect/CORS; perlu bridge yang tervalidasi sebelum mengaktifkan login.'}};
-</script></body></html>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#8e33f5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GPS FM">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>GPS FM — Guru Pembina Santri</title>
+  <style>
+    :root{font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;color:#302340;background:#f7f0ff;font-synthesis:none;text-rendering:optimizeLegibility;--purple:#8e33f5;--deep:#541793;--line:#e9def7;--muted:#766985}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(135deg,#e9d9ff 0%,#f7f0ff 48%,#e4d2ff 100%);padding:clamp(16px,4vw,40px);display:grid;place-items:center}
+    .shell{width:min(100%,760px)}.brand{display:flex;align-items:center;gap:16px;padding:clamp(22px,5vw,36px);color:#fff;border-radius:28px 28px 8px 8px;background:linear-gradient(130deg,#541793 0%,#7a1edc 48%,#a259ff 100%);box-shadow:0 18px 48px #54179326;position:relative;overflow:hidden}.brand:after{content:"";position:absolute;width:240px;height:240px;right:-95px;top:-125px;border:1px solid #ffffff38;border-radius:50%;box-shadow:0 0 0 28px #ffffff0d,0 0 0 58px #ffffff0a}.brand-icon{width:64px;height:64px;padding:5px;flex:none;border-radius:18px;background:#fff;box-shadow:0 8px 24px #2e0d5133}.brand-icon img{display:block;width:100%;height:100%;object-fit:contain}.brand-copy{position:relative;z-index:1}.brand h1{font-size:clamp(22px,5vw,30px);line-height:1.2;letter-spacing:-.04em;margin:0;font-weight:800}.brand p{margin:6px 0 0;color:#f2e8ff;font-size:13px;font-weight:500}
+    main{background:#ffffffeb;border:1px solid #fff;border-top:0;border-radius:8px 8px 28px 28px;padding:clamp(18px,5vw,36px);box-shadow:0 22px 60px #54179320;backdrop-filter:blur(14px)}.intro{margin:0 0 24px}.eyebrow{text-transform:uppercase;letter-spacing:.12em;color:var(--purple);font-weight:800;font-size:11px;margin:0 0 7px}.intro h2{font-size:clamp(20px,4vw,25px);letter-spacing:-.035em;margin:0;color:#38254a}.intro p{color:var(--muted);line-height:1.65;font-size:14px;margin:8px 0 0}
+    .card{border:1px solid var(--line);border-radius:20px;background:#fff;padding:clamp(16px,4vw,24px);box-shadow:0 8px 26px #5a317510}.field-label{display:block;font-size:13px;font-weight:700;color:#49385a;margin:0 0 9px}input{width:100%;min-height:50px;padding:13px 15px;border:1px solid #d9caeb;border-radius:13px;background:#fcfaff;color:#39254d;font-size:14px;font-weight:500;font-family:inherit;outline:none;transition:border-color .18s,box-shadow .18s}input:focus{border-color:var(--purple);box-shadow:0 0 0 4px #8e33f51a}button{width:100%;min-height:50px;margin-top:13px;padding:13px 18px;border:0;border-radius:13px;background:linear-gradient(115deg,#7a1edc,#a259ff);color:#fff;font-size:14px;font-weight:700;font-family:inherit;letter-spacing:.01em;cursor:pointer;box-shadow:0 8px 18px #8e33f536;transition:transform .15s,box-shadow .15s}button:hover{transform:translateY(-1px);box-shadow:0 11px 22px #8e33f548}button:focus-visible{outline:3px solid #cba7ff;outline-offset:3px}button:disabled{opacity:.7;cursor:wait;transform:none}
+    .result{min-height:22px;margin:14px 2px 0;color:var(--muted);font-size:13px;line-height:1.55}.result[data-state="success"]{color:#24744c}.result[data-state="error"]{color:#a63b52}.note{display:flex;gap:13px;align-items:flex-start;margin-top:16px;padding:16px;border:1px solid #eadbff;border-radius:16px;background:linear-gradient(135deg,#fbf8ff,#f4eeff)}.note-icon{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:10px;background:#e7d7ff;color:#7a1edc;font-weight:800}.note h3{margin:1px 0 5px;font-size:13px;color:#49385a}.note p{margin:0;color:var(--muted);font-size:12px;line-height:1.6}.footer{text-align:center;color:#857991;font-size:11px;padding:16px 8px 0}
+    @media(max-width:480px){body{padding:12px}.brand{border-radius:23px 23px 7px 7px;gap:13px}.brand-icon{width:54px;height:54px;border-radius:15px}main{border-radius:7px 7px 23px 23px}.footer{line-height:1.6}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="brand">
+      <div class="brand-icon"><img src="./icons/icon.svg" alt=""></div>
+      <div class="brand-copy"><h1>GPS FM</h1><p>Guru Pembina Santri · Pesantren Fathan Mubina</p></div>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Aplikasi kehadiran</p>
+        <h2 id="page-title">Hubungkan ke GPS FM</h2>
+        <p>Periksa koneksi ke Web App Google Apps Script yang digunakan untuk aplikasi GPS FM.</p>
+      </section>
+      <section class="card" aria-label="Pemeriksaan koneksi">
+        <label class="field-label" for="endpoint">URL Web App Apps Script</label>
+        <input id="endpoint" type="url" inputmode="url" autocomplete="url" value="https://script.google.com/macros/s/AKfycbyL4HyR75j-duBKliOJLgtNvXVdajQFvy1AKq6zmFWudA5rBK0zI7nFbxH2WuCqkemR/exec" placeholder="https://script.google.com/macros/s/.../exec">
+        <button id="check" type="button">Periksa koneksi</button>
+        <p id="result" class="result" role="status" aria-live="polite"></p>
+      </section>
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">i</span>
+        <div><h3>Login PWA belum diaktifkan</h3><p>Shell ini hanya memeriksa endpoint. Login dan transaksi lintas domain tetap dinonaktifkan sampai bridge Apps Script diuji dan diamankan.</p></div>
+      </aside>
+      <footer class="footer">GPS FM · Rekap kehadiran Guru Pembina Santri</footer>
+    </main>
+  </div>
+  <script>
+    if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+    document.getElementById('check').onclick=async()=>{const u=document.getElementById('endpoint').value.trim();const out=document.getElementById('result');out.dataset.state='';if(!u.startsWith('https://script.google.com/macros/s/')){out.dataset.state='error';out.textContent='Masukkan URL Web App Apps Script yang valid.';return}out.textContent='Memeriksa endpoint…';try{const r=await fetch(u+'?view=api',{method:'GET',redirect:'follow'});const j=await r.json();if(j.success){out.dataset.state='success';out.textContent='Endpoint dapat dijangkau. Tahap berikutnya: validasi bridge login dan otorisasi.'}else{out.dataset.state='error';out.textContent='Endpoint merespons tetapi belum siap.'}}catch(e){out.dataset.state='error';out.textContent='Pemeriksaan browser gagal. Kemungkinan redirect/CORS; perlu bridge yang tervalidasi sebelum mengaktifkan login.'}};
+  </script>
+</body>
+</html>
