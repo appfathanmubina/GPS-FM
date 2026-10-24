@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#6d28d9"><link rel="manifest" href="./manifest.json"><title>GPS FM</title>
+<style>body{font:16px system-ui;margin:0;background:#f7f5fb;color:#241a35}header{background:#6d28d9;color:white;padding:22px;border-radius:0 0 22px 22px}main{max-width:640px;margin:auto;padding:20px}section{background:white;border:1px solid #e6e0ef;border-radius:16px;padding:18px;margin:12px 0}input,button{font:inherit;padding:12px;border-radius:10px}input{width:100%;box-sizing:border-box;border:1px solid #ddd}button{background:#6d28d9;color:white;border:0;width:100%;margin-top:12px}.muted{color:#746a82;font-size:14px}</style>
+</head><body><header><strong style="font-size:24px">GPS FM</strong><div>Guru Pembina Santri · Fathan Mubina</div></header><main>
+<section><h2>Hubungkan ke aplikasi GPS FM</h2><p class="muted">Masukkan URL Web App Google Apps Script yang sudah dideploy. Pengujian bridge lintas domain harus dilakukan setelah URL tersedia.</p><label for="endpoint">URL Web App Apps Script</label><input id="endpoint" type="url" value="https://script.google.com/macros/s/AKfycbyL4HyR75j-duBKliOJLgtNvXVdajQFvy1AKq6zmFWudA5rBK0zI7nFbxH2WuCqkemR/exec" placeholder="https://script.google.com/macros/s/.../exec"><button id="check">Periksa koneksi</button><p id="result" class="muted"></p></section>
+<section><h3>Catatan implementasi</h3><p class="muted">PWA shell ini adalah fondasi instalasi. Login dan transaksi lintas domain belum diaktifkan pada shell GitHub sampai bridge diuji, untuk mencegah data login terkirim melalui jalur yang belum tervalidasi.</p></section>
+</main><script>
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+document.getElementById('check').onclick=async()=>{const u=document.getElementById('endpoint').value.trim();const out=document.getElementById('result');if(!u.startsWith('https://script.google.com/macros/s/')){out.textContent='Masukkan URL Web App Apps Script yang valid.';return}out.textContent='Memeriksa endpoint…';try{const r=await fetch(u+'?view=api',{method:'GET',redirect:'follow'});const j=await r.json();out.textContent=j.success?'Endpoint dapat dijangkau. Tahap berikutnya: validasi bridge login dan otorisasi.':'Endpoint merespons tetapi belum siap.'}catch(e){out.textContent='Pemeriksaan browser gagal. Kemungkinan redirect/CORS; perlu bridge yang tervalidasi sebelum mengaktifkan login.'}};
+</script></body></html>
