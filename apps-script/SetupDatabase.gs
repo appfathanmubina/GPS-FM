@@ -1,8 +1,10 @@
 /**
  * GPS FM — SetupDatabase.gs
- * Jalankan setupGpsFmDatabase() satu kali dari editor Apps Script.
+ * Jalankan setupGpsFmDatabase() dari editor Apps Script yang dibuka melalui
+ * Ekstensi → Apps Script pada spreadsheet GPS FM.
+ * Setup memakai spreadsheet induk yang sudah ada; tidak membuat spreadsheet baru.
  * Opsional: isi Script Properties GPSFM_INITIAL_ADMIN_PASSWORD sebelum setup.
- * Spreadsheet ID disimpan di Script Properties, bukan ditanam di source code.
+ * ID spreadsheet induk disimpan untuk akses Web App ketika konteks aktif tidak tersedia.
  */
 const GPSFM_SCHEMA = {
   Users: ['userId','username','fullName','role','passwordSalt','passwordHash','active','createdAt','updatedAt'],
@@ -16,15 +18,14 @@ const GPSFM_SCHEMA = {
 
 function setupGpsFmDatabase() {
   const props = PropertiesService.getScriptProperties();
-  let id = props.getProperty('GPSFM_SPREADSHEET_ID');
-  let ss;
-  if (id) {
-    ss = SpreadsheetApp.openById(id);
-  } else {
-    ss = SpreadsheetApp.create('GPS FM — Database');
-    id = ss.getId();
-    props.setProperty('GPSFM_SPREADSHEET_ID', id);
+  // Wajib container-bound: sumber ID adalah spreadsheet tempat ekstensi Apps Script dibuka.
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('Spreadsheet induk tidak ditemukan. Buka project ini melalui Ekstensi → Apps Script dari spreadsheet GPS FM, lalu jalankan setup kembali.');
   }
+  const id = ss.getId();
+  // Simpan ID induk agar backend Web App tetap dapat membuka spreadsheet yang benar.
+  props.setProperty('GPSFM_SPREADSHEET_ID', id);
 
   Object.keys(GPSFM_SCHEMA).forEach(function(name) {
     let sh = ss.getSheetByName(name);
@@ -62,8 +63,7 @@ function setupGpsFmDatabase() {
     if (known.indexOf(pair[0]) < 0) settings.appendRow([pair[0], pair[1], new Date().toISOString()]);
   });
 
-  const defaultSheet = ss.getSheetByName('Sheet1');
-  if (defaultSheet && ss.getSheets().length > 1 && defaultSheet.getLastRow() === 0) ss.deleteSheet(defaultSheet);
+  // Tidak menghapus sheet lain dari spreadsheet induk; sheet non-GPS FM tetap dipertahankan.
   Logger.log('GPS FM database siap: ' + ss.getUrl());
   return {spreadsheetId:id, spreadsheetUrl:ss.getUrl(), sheets:Object.keys(GPSFM_SCHEMA)};
 }
