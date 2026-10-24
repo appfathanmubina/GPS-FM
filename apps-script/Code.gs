@@ -247,8 +247,7 @@ function apiGetMonthlyReport(token, year, month) {
   const acts = gpsfmRows_('Activities');
   const rows = gpsfmRows_('Attendance').filter(function(a) {
     if (String(a.attendanceDate).slice(0,7) !== prefix) return false;
-    if (s.user.role === 'superadmin') return true;
-    return gpsfmIsPJ_(s.user.userId,a.activityId);
+    return true; // Semua guru GPS dapat melihat rekap; hak input tetap dibatasi di apiSaveAttendance.
   });
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
