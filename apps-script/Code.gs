@@ -93,14 +93,22 @@ function apiLogin(username, password) {
   username = gpsfmText_(username, 80).toLowerCase();
   password = String(password || '');
   if (!username || !password || password.length > 200) throw new Error('Username dan password wajib diisi.');
+  const cache = CacheService.getScriptCache();
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username, Utilities.Charset.UTF_8);
+  const rateKey = 'gpsfm_login_fail_' + digest.map(function(b) { return ('0' + ((b+256)%256).toString(16)).slice(-2); }).join('');
+  const failures = Number(cache.get(rateKey) || 0);
+  if (failures >= 5) throw new Error('Terlalu banyak percobaan login. Coba lagi sekitar 15 menit.');
   const users = gpsfmRows_('Users');
   const user = users.find(function(u) { return String(u.username).toLowerCase() === username; });
   if (!user || !gpsfmBool_(user.active) || gpsfmHashPassword_(password, user.passwordSalt) !== String(user.passwordHash)) {
+    const nextFailures = failures + 1;
+    cache.put(rateKey, String(nextFailures), nextFailures >= 5 ? 900 : 600);
     Utilities.sleep(350);
     throw new Error('Username atau password tidak sesuai.');
   }
+  cache.remove(rateKey);
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g,'');
-  CacheService.getScriptCache().put(gpsfmTokenKey_(token), JSON.stringify({userId:String(user.userId), issuedAt:Date.now()}), GPSFM_SESSION_TTL);
+  cache.put(gpsfmTokenKey_(token), JSON.stringify({userId:String(user.userId), issuedAt:Date.now()}), GPSFM_SESSION_TTL);
   gpsfmAudit_(user.userId, 'LOGIN', 'Users', user.userId, {});
   return {token:token, user:gpsfmPublicUser_(user), expiresIn:GPSFM_SESSION_TTL};
 }
