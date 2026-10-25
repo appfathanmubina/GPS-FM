@@ -272,6 +272,38 @@ body{touch-action:auto}
 .gps-modal-actions{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:20px}
 .gps-modal .btn{min-height:42px}
 
+
+/* GPS FM: warna menu mobile emas, menu aktif berlatar ungu */
+@media(max-width:780px){
+  .nav button,
+  .nav button:visited{
+    color:#d4a72c !important;
+    background:transparent !important;
+    border:1px solid transparent;
+  }
+  .nav button svg{
+    color:#d4a72c !important;
+    stroke:#d4a72c !important;
+  }
+  .nav button span{color:#d4a72c !important}
+  .nav button:hover{
+    color:#f0c75e !important;
+    background:#80008012 !important;
+  }
+  .nav button:hover svg{color:#f0c75e !important;stroke:#f0c75e !important}
+  .nav button.active,
+  .nav button.active:hover{
+    color:#f4cf62 !important;
+    background:linear-gradient(145deg,#650065 0%,#800080 65%,#922792 100%) !important;
+    border-color:#b77cbd !important;
+    box-shadow:0 4px 12px #80008030,inset 0 1px 0 #ffffff20 !important;
+  }
+  .nav button.active span{color:#f4cf62 !important}
+  .nav button.active svg{color:#f4cf62 !important;stroke:#f4cf62 !important}
+  .nav button.active:before{background:#f4cf62 !important}
+  .nav button:focus-visible{outline:2px solid #d4a72c !important;outline-offset:1px}
+}
+
 </style>
 </head>
 <body>
