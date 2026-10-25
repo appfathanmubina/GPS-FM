@@ -197,7 +197,7 @@ function apiSaveUser(token, data) {
     gpsfmUpdateRow_('Users', existing._row, record);
   } else {
     const password = String(data.password || '');
-    if (password.length < 12) throw new Error('Password awal minimal 12 karakter.');
+    if (password.length < 6) throw new Error('Password awal minimal 6 karakter.');
     const salt = gpsfmId_().replace(/-/g,'');
     record = {userId:gpsfmId_(),username:username,fullName:fullName,role:role,passwordSalt:salt,passwordHash:gpsfmHashPassword_(password,salt),active:true,createdAt:now,updatedAt:now};
     gpsfmAppend_('Users', record);
@@ -208,7 +208,7 @@ function apiSaveUser(token, data) {
 
 function apiSetUserPassword(token, userId, newPassword) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  if (String(newPassword || '').length < 12) throw new Error('Password minimal 12 karakter.');
+  if (String(newPassword || '').length < 6) throw new Error('Password minimal 6 karakter.');
   const u = gpsfmRows_('Users').find(function(x) { return String(x.userId) === String(userId); });
   if (!u) throw new Error('Akun tidak ditemukan.');
   const salt = gpsfmId_().replace(/-/g,'');
@@ -433,7 +433,7 @@ function apiSetPeriodLock(token, year, month, locked) {
 
 function apiChangeOwnPassword(token, oldPassword, newPassword) {
   const s = gpsfmSession_(token);
-  if (String(newPassword || '').length < 12) throw new Error('Password baru minimal 12 karakter.');
+  if (String(newPassword || '').length < 6) throw new Error('Password baru minimal 6 karakter.');
   if (gpsfmHashPassword_(String(oldPassword || ''),s.user.passwordSalt) !== String(s.user.passwordHash)) throw new Error('Password lama tidak sesuai.');
   const salt = gpsfmId_().replace(/-/g,'');
   gpsfmUpdateRow_('Users',s.user._row,{passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),updatedAt:gpsfmNow_()});
