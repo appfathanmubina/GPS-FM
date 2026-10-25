@@ -11,10 +11,21 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui;
 main{width:100%;height:100%;height:100dvh}
 iframe{display:block;width:100%;height:100%;border:0}
 section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-radius:16px;line-height:1.6}
+#installGpsFm{position:fixed;z-index:100;right:16px;bottom:calc(100px + env(safe-area-inset-bottom));display:none;align-items:center;gap:9px;padding:13px 17px;border:0;border-radius:999px;background:#800080;color:#fff;font:700 14px system-ui;box-shadow:0 8px 28px #4a004a45;cursor:pointer}
+#installGpsFm svg{width:19px;height:19px;flex:none}
+#installHelp{position:fixed;z-index:101;inset:0;display:none;align-items:flex-end;justify-content:center;padding:16px;background:#170d1f70}
+#installHelp .sheet{width:min(100%,440px);padding:22px 20px calc(22px + env(safe-area-inset-bottom));border-radius:22px;background:#fff;color:#242033;box-shadow:0 15px 50px #0003;line-height:1.55}
+#installHelp h2{font-size:19px;margin:0 0 10px}
+#installHelp p{font-size:14px;margin:8px 0}
+#installHelp button{margin-top:14px;width:100%;padding:12px;border:0;border-radius:12px;background:#800080;color:#fff;font:700 14px system-ui}
+@media(min-width:781px){#installGpsFm{bottom:24px}}
+@media(max-width:380px){#installGpsFm{right:10px;padding:11px 13px;font-size:12px}}
 </style>
 </head>
 <body>
 <main id="app"><section><h2>GPS FM belum dikonfigurasi</h2><p>Tambahkan URL Web App Apps Script pada file <code>pwa/config.js</code>.</p></section></main>
+<button id="installGpsFm" type="button" aria-label="Install aplikasi GPS FM"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 16v4h14v-4"/></svg><span>Install GPS FM</span></button>
+<div id="installHelp" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle"><div class="sheet"><h2 id="installHelpTitle">Pasang GPS FM di HP</h2><p id="installHelpText">Gunakan menu browser untuk menambahkan GPS FM ke layar utama.</p><button id="closeInstallHelp" type="button">Mengerti</button></div></div>
 <script src="./config.js"></script>
 <script>
 const u=window.GPSFM_CONFIG&&window.GPSFM_CONFIG.appsScriptUrl;
@@ -24,6 +35,35 @@ if(u&&u.indexOf('https://script.google.com/macros/s/')===0){
  f.src=u;
  document.getElementById('app').replaceChildren(f);
 }
+let deferredInstallPrompt=null;
+const installButton=document.getElementById('installGpsFm');
+const installHelp=document.getElementById('installHelp');
+const installHelpText=document.getElementById('installHelpText');
+const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+function syncInstallButton(){installButton.style.display=(!isStandalone()?'flex':'none');}
+function showInstallHelp(text){installHelpText.textContent=text;installHelp.style.display='flex';}
+window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstallPrompt=event;syncInstallButton();});
+window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;installButton.style.display='none';});
+installButton.addEventListener('click',async()=>{
+ if(deferredInstallPrompt){
+  deferredInstallPrompt.prompt();
+  const choice=await deferredInstallPrompt.userChoice;
+  if(choice&&choice.outcome==='accepted')installButton.style.display='none';
+  deferredInstallPrompt=null;
+  return;
+ }
+ const ua=navigator.userAgent||'';
+ if(/iphone|ipad|ipod/i.test(ua)){
+  showInstallHelp('Di Safari, ketuk tombol Bagikan, lalu pilih “Tambahkan ke Layar Utama” dan ketuk Tambah.');
+ }else if(/android/i.test(ua)){
+  showInstallHelp('Buka menu ⋮ pada Chrome, lalu pilih “Install app” atau “Tambahkan ke layar utama”. Jika pilihan belum muncul, muat ulang halaman dan coba lagi.');
+ }else{
+  showInstallHelp('Buka menu browser lalu pilih “Install GPS FM” atau “Tambahkan ke layar utama”, jika tersedia.');
+ }
+});
+document.getElementById('closeInstallHelp').addEventListener('click',()=>{installHelp.style.display='none';});
+installHelp.addEventListener('click',event=>{if(event.target===installHelp)installHelp.style.display='none';});
+syncInstallButton();
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script>
 </body>
