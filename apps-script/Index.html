@@ -73,7 +73,90 @@
   .nav{padding-left:5px;padding-right:5px}
   .nav button{font-size:9px}
   .row>.field{min-width:100%}
-}</style>
+}
+/* GPS FM visual refinement v1 */
+:root{--ink:#251b2d;--muted:#786d80;--line:#e9dfed;--bg:#f8f5fa;--primary:#800080;--primary2:#620062;--primary-soft:#f5e8f7}
+body{background:linear-gradient(180deg,#faf7fc 0%,#f6f2f8 100%)}
+button,.btn{transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #d9b5e3;outline-offset:2px}
+.btn-primary{background:linear-gradient(135deg,#800080,#690069);box-shadow:0 7px 16px #80008024}
+.btn-primary:hover{background:linear-gradient(135deg,#700070,#570057);box-shadow:0 9px 20px #80008030;transform:translateY(-1px)}
+.btn-light{border-color:#e6dce9;box-shadow:0 2px 5px #251b2d05}
+.btn-light:hover{border-color:#cfaed6;background:#fbf6fc}
+.topbar{background:linear-gradient(115deg,#570057 0%,#800080 58%,#a64ca6 100%);box-shadow:0 5px 22px #4d124d16}
+.brand p{color:#f1dcf4}
+.logo{box-shadow:inset 0 1px 0 #ffffff24}
+.wrap{padding-top:28px}
+.page-title{margin-bottom:22px}
+.page-title h2{color:#2b1b31;font-size:clamp(23px,2vw,29px);letter-spacing:-.7px}
+.page-title p{font-size:13px;line-height:1.55}
+.stat,.panel{border-color:#ece3ef;box-shadow:0 7px 24px #32143c08}
+.stat{position:relative;overflow:hidden}
+.stat:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:#b66bc1;opacity:.75}
+.stat-value{color:#39213f}
+.panel h3{color:#39213f}
+.field input,.field select,.field textarea{border-color:#ded3e3;background:#fff;transition:border-color .16s ease,box-shadow .16s ease}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#a64ca6;box-shadow:0 0 0 3px #80008018}
+table{min-width:560px}
+th{background:#faf5fb;color:#78647f}
+tr:hover td{background:#fdf9fe}
+.pill{background:#f3e8f5;color:#6d2474}
+.nav button.active{background:#f4e8f6;color:#780078}
+.empty{line-height:1.6}
+.login{position:relative;isolation:isolate;min-height:100vh;min-height:100dvh;grid-template-columns:minmax(0,1.08fr) minmax(420px,.92fr);background:#fbf9fc}
+.login-hero{padding:clamp(36px,6vw,96px);background:radial-gradient(circle at 18% 18%,#ffffff1c 0 2px,transparent 3px),linear-gradient(145deg,#4d004d 0%,#760076 52%,#a64ca6 100%)}
+.login-hero:before{content:"";position:absolute;width:min(42vw,520px);height:min(42vw,520px);border:1px solid #ffffff22;border-radius:50%;top:-190px;left:-190px;box-shadow:0 0 0 35px #ffffff08,0 0 0 75px #ffffff06;pointer-events:none}
+.login-hero:after{width:440px;height:440px;right:-185px;bottom:-205px;border-color:#ffffff2b;box-shadow:0 0 0 35px #ffffff09,0 0 0 75px #ffffff06,0 0 0 120px #ffffff04}
+.hero-badge{position:relative;z-index:1;padding:9px 14px;letter-spacing:.65px;font-size:10px;background:#ffffff10;border-color:#ffffff4d;backdrop-filter:blur(8px)}
+.login-hero>.logo{position:relative;z-index:1;width:60px;height:60px;margin-top:38px!important;border-radius:19px;font-size:28px;background:#ffffff20;border-color:#ffffff55;box-shadow:0 10px 28px #25002535}
+.login-hero h1{position:relative;z-index:1;font-size:clamp(42px,5vw,68px);line-height:1;letter-spacing:-2.8px;margin:24px 0 17px}
+.login-hero p{position:relative;z-index:1;max-width:410px;color:#f0dff4;font-size:15px;line-height:1.8}
+.login-side{position:relative;z-index:2;padding:clamp(28px,5vw,76px);background:linear-gradient(180deg,#fff 0%,#fcf9fd 100%)}
+.login-box{width:min(400px,100%);padding:clamp(24px,3vw,40px);border:1px solid #eee4f1;border-radius:24px;background:#fff;box-shadow:0 18px 55px #3c17400c}
+.login-box h2{font-size:30px;letter-spacing:-.8px;color:#2d1a33;margin-bottom:9px}
+.login-box>p{font-size:13px;line-height:1.65;margin-bottom:27px}
+.login-box .field{margin:17px 0}
+.login-box .field label{font-size:12px;color:#514159}
+.login-box .field input{min-height:48px;border-radius:12px;padding:13px 14px;background:#fdfbfe}
+.login-box .btn{min-height:48px;margin-top:13px;border-radius:12px;font-size:14px;letter-spacing:.1px}
+.error{border:1px solid #fecaca}
+.checkitem{background:#fff;transition:border-color .15s ease,background .15s ease}
+.checkitem:has(input:checked){border-color:#c58ad0;background:#fcf5fd}
+@media(min-width:781px){
+ .login-side{min-height:100vh}
+ .login-box{padding:38px}
+ .nav{background:#fff}
+}
+@media(max-width:780px){
+ .login{display:flex;flex-direction:column;min-height:100dvh;background:#fbf8fc}
+ .login-hero{min-height:0;padding:28px 24px 38px}
+ .login-hero:before{width:250px;height:250px;top:-150px;left:auto;right:-70px}
+ .login-hero:after{width:240px;height:240px;right:-100px;bottom:-150px;box-shadow:0 0 0 30px #ffffff08,0 0 0 60px #ffffff05}
+ .hero-badge{font-size:9px;letter-spacing:.45px;max-width:100%;white-space:normal}
+ .login-hero>.logo{width:46px;height:46px;margin-top:22px!important;border-radius:15px;font-size:22px}
+ .login-hero h1{font-size:39px;letter-spacing:-1.7px;margin:15px 0 10px}
+ .login-hero p{font-size:12px;line-height:1.65;max-width:360px}
+ .login-side{flex:1;display:block;padding:0 16px 30px;background:transparent}
+ .login-box{position:relative;width:min(440px,100%);margin:-13px auto 0;padding:25px 22px 24px;border-radius:21px;border-color:#eee4f1;box-shadow:0 12px 35px #3c174012}
+ .login-box h2{font-size:25px}
+ .login-box>p{margin-bottom:22px}
+ .login-box .field{margin:14px 0}
+ .login-box .field input{min-height:48px;font-size:16px}
+ .login-box .btn{margin-top:12px}
+ .page-title h2{font-size:22px}
+ .panel{box-shadow:0 4px 16px #32143c07}
+ .stat:before{width:2px}
+ .nav{border-top-color:#e9dfed}
+}
+@media(max-width:380px){
+ .login-hero{padding:24px 18px 34px}
+ .login-side{padding-left:12px;padding-right:12px}
+ .login-box{padding:22px 18px}
+}
+@media(prefers-reduced-motion:reduce){
+ *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
 </head>
 <body>
 <div id="loginScreen" class="login">
