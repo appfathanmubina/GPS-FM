@@ -182,11 +182,37 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
   #loginScreen .login-hero p{font-size:11px}
 }
 
+
+/* GPS FM scroll reliability + centered login branding */
+html,body{min-height:100%;height:auto;overflow-x:hidden;overflow-y:auto}
+body{touch-action:pan-y}
+.logo-image img{object-fit:contain}
+.login-brand{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;margin:24px 0 18px}
+.login-brand>.logo{width:132px;height:132px;min-width:132px;border-radius:28px;margin:0!important;padding:8px;background:#fff;border:1px solid #f0e2f2;box-shadow:0 16px 36px #25002538}
+.login-brand>.logo img{width:100%;height:100%;object-fit:contain}
+.login-brand h1{margin:18px 0 0;font-size:clamp(36px,4.4vw,54px);line-height:1.08;letter-spacing:-1.7px;text-align:center}
+.login-hero>p{position:relative;z-index:2}
+@media(max-width:780px){
+  html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+  body{overscroll-behavior-y:auto;touch-action:pan-y}
+  #appScreen.shell{height:auto;min-height:100dvh;overflow:visible}
+  #appScreen .wrap{height:auto;min-height:0;overflow:visible;overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
+  #appScreen #page{height:auto;min-height:0;overflow:visible;touch-action:pan-y}
+  #appScreen .panel,#appScreen .table-wrap{touch-action:pan-y}
+  #appScreen .table-wrap{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  #appScreen .nav{touch-action:pan-x;overscroll-behavior:contain}
+  #loginScreen.login{height:auto;min-height:100dvh;overflow:visible}
+  #loginScreen .login-hero{align-items:stretch;overflow:hidden}
+  #loginScreen .login-brand{margin:20px 0 16px}
+  #loginScreen .login-brand>.logo{width:108px;height:108px;min-width:108px;border-radius:24px;padding:7px}
+  #loginScreen .login-brand h1{font-size:clamp(34px,9vw,43px);margin-top:14px;letter-spacing:-1.3px}
+  #loginScreen .login-hero>p{text-align:center;margin-left:auto;margin-right:auto}
+}
 </style>
 </head>
 <body>
 <div id="loginScreen" class="login">
- <section class="login-hero"><div class="hero-badge">PESANTREN CIAWI BOGOR FATHAN MUBINA</div><div class="logo logo-image" style="margin-top:30px"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><h1>GPS FM</h1><p>Sistem Absensi Guru Pembina Santri. Catat kehadiran kegiatan, pantau rekap, dan siapkan laporan bulanan dalam satu aplikasi.</p></section>
+ <section class="login-hero"><div class="hero-badge">PESANTREN CIAWI BOGOR FATHAN MUBINA</div><div class="login-brand"><div class="logo logo-image"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><h1>GPS FM</h1></div><p>Sistem Absensi Guru Pembina Santri. Catat kehadiran kegiatan, pantau rekap, dan siapkan laporan bulanan dalam satu aplikasi.</p></section>
  <section class="login-side"><form class="login-box" id="loginForm"><h2>Selamat datang</h2><p>Masuk menggunakan akun GPS FM Anda.</p><div id="loginError" class="error hidden"></div><div class="field"><label for="username">Username</label><input id="username" autocomplete="username" required maxlength="50" placeholder="Masukkan username"></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required maxlength="200" placeholder="Masukkan password"></div><button class="btn btn-primary" id="loginButton" type="submit">Masuk ke GPS FM</button></form></section>
 </div>
 <div id="appScreen" class="shell hidden">
