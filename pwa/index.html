@@ -1,6 +1,30 @@
 <!doctype html>
 <html lang="id">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#4338ca"><link rel="manifest" href="./manifest.json"><title>GPS FM</title>
-<style>html,body{margin:0;height:100%;font-family:system-ui;background:#f5f7fc;color:#18213b}header{height:54px;background:#3730a3;color:white;display:flex;align-items:center;padding:0 16px;font-weight:800}main{height:calc(100% - 54px)}iframe{width:100%;height:100%;border:0}section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-radius:16px;line-height:1.6}</style>
-</head><body><header>GPS FM · Absensi Guru Pembina Santri</header><main id="app"><section><h2>GPS FM belum dikonfigurasi</h2><p>Tambahkan URL Web App Apps Script pada file <code>pwa/config.js</code>.</p></section></main><script src="./config.js"></script><script>const u=window.GPSFM_CONFIG&&window.GPSFM_CONFIG.appsScriptUrl;if(u&&u.indexOf('https://script.google.com/macros/s/')===0){const f=document.createElement('iframe');f.title='GPS FM';f.src=u;document.getElementById('app').replaceChildren(f)}if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));</script></body></html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#800080">
+<link rel="manifest" href="./manifest.json">
+<title>GPS FM</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui;background:#f5f7fc;color:#18213b}
+main{width:100%;height:100%;height:100dvh}
+iframe{display:block;width:100%;height:100%;border:0}
+section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-radius:16px;line-height:1.6}
+</style>
+</head>
+<body>
+<main id="app"><section><h2>GPS FM belum dikonfigurasi</h2><p>Tambahkan URL Web App Apps Script pada file <code>pwa/config.js</code>.</p></section></main>
+<script src="./config.js"></script>
+<script>
+const u=window.GPSFM_CONFIG&&window.GPSFM_CONFIG.appsScriptUrl;
+if(u&&u.indexOf('https://script.google.com/macros/s/')===0){
+ const f=document.createElement('iframe');
+ f.title='GPS FM';
+ f.src=u;
+ document.getElementById('app').replaceChildren(f);
+}
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
