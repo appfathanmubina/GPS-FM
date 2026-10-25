@@ -304,6 +304,43 @@ body{touch-action:auto}
   .nav button:focus-visible{outline:2px solid #d4a72c !important;outline-offset:1px}
 }
 
+
+/* Pastikan seluruh ikon menu SVG 3D benar-benar berwarna emas */
+@media(max-width:780px){
+  .nav button .nav-3d-icon,
+  .nav button.active .nav-3d-icon{
+    color:#d4a72c !important;
+    stroke:#d4a72c !important;
+  }
+  .nav button .nav-3d-icon stop,
+  .nav button.active .nav-3d-icon stop{
+    stop-color:#d4a72c !important;
+  }
+  .nav button .nav-3d-icon rect,
+  .nav button.active .nav-3d-icon rect{
+    stroke:#b88716 !important;
+  }
+  .nav button .nav-3d-icon path,
+  .nav button .nav-3d-icon line,
+  .nav button .nav-3d-icon polyline,
+  .nav button .nav-3d-icon circle,
+  .nav button .nav-3d-icon ellipse{
+    stroke:#d4a72c !important;
+  }
+  .nav button.active .nav-3d-icon stop{
+    stop-color:#f4cf62 !important;
+  }
+  .nav button.active .nav-3d-icon,
+  .nav button.active .nav-3d-icon path,
+  .nav button.active .nav-3d-icon line,
+  .nav button.active .nav-3d-icon polyline,
+  .nav button.active .nav-3d-icon circle,
+  .nav button.active .nav-3d-icon ellipse{
+    stroke:#f4cf62 !important;
+  }
+  .nav button.active .nav-3d-icon rect{stroke:#f4cf62 !important}
+}
+
 </style>
 </head>
 <body>
