@@ -357,7 +357,7 @@ function apiSaveAttendance(token, data) {
   lock.waitLock(10000);
   try {
     const records = gpsfmRows_('Attendance');
-    const old = records.find(function(a) { return String(a.activityId) === activityId && String(a.teacherId) === teacherId && String(a.attendanceDate).slice(0,10) === date; });
+    const old = records.find(function(a) { return String(a.activityId) === activityId && String(a.teacherId) === teacherId && gpsfmDateKey_(a.attendanceDate) === date; });
     const now = gpsfmNow_();
     if (old) {
       if (u.role !== 'superadmin' && String(old.recordedBy) !== String(u.userId)) throw new Error('Absensi ini sudah dicatat PJ lain; hubungi superadmin untuk koreksi.');
