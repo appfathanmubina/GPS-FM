@@ -329,6 +329,79 @@ body{touch-action:auto}
   .nav .nav-3d-icon{width:28px;height:28px;flex-basis:28px}
   .nav button.active .nav-3d-icon{filter:drop-shadow(0 2px 2px #6e4d0b55) drop-shadow(0 0 4px #f6d77865)}
 }
+
+
+/* GPS FM visual refinement: professional purple/lavender surfaces, without changing layout or actions */
+#appScreen{
+  background:
+    radial-gradient(ellipse at 8% 0%,rgba(214,177,224,.18),transparent 34%),
+    linear-gradient(180deg,#f8f4fb 0%,#f3eef8 100%);
+}
+#appScreen .page-title h2{color:#5b1768}
+#appScreen .page-title p{color:#786681}
+#appScreen .panel{
+  background:linear-gradient(145deg,#fff 0%,#fdfaff 100%);
+  border:1px solid #e6d9ed;
+  box-shadow:0 8px 24px rgba(75,24,91,.065),0 1px 2px rgba(75,24,91,.035);
+}
+#appScreen .panel h3{
+  color:#65116f;
+  padding-bottom:9px;
+  border-bottom:1px solid #efe4f3;
+}
+#appScreen .stat{
+  background:linear-gradient(145deg,#fff 0%,#f7effa 100%);
+  border:1px solid #e7d7ed;
+  box-shadow:0 7px 22px rgba(75,24,91,.07);
+}
+#appScreen .stat:nth-child(2){background:linear-gradient(145deg,#fff 0%,#effaf4 100%);border-color:#d6eee0}
+#appScreen .stat:nth-child(3){background:linear-gradient(145deg,#fff 0%,#fff8e8 100%);border-color:#f0e3bf}
+#appScreen .stat:nth-child(4){background:linear-gradient(145deg,#fff 0%,#fff0f0 100%);border-color:#f1dada}
+#appScreen .stat-value{color:#5e176b}
+#appScreen .stat:nth-child(2) .stat-value{color:#147448}
+#appScreen .stat:nth-child(3) .stat-value{color:#9a6708}
+#appScreen .stat:nth-child(4) .stat-value{color:#b42332}
+#appScreen .field label{color:#5d4268}
+#appScreen .field input,#appScreen .field select,#appScreen .field textarea{
+  border-color:#dfd0e7;
+  background:#fff;
+}
+#appScreen .field input:focus,#appScreen .field select:focus,#appScreen .field textarea:focus{
+  border-color:#9c55aa;
+  box-shadow:0 0 0 3px rgba(128,0,128,.12);
+}
+#appScreen .checkitem{background:#fdfaff;border-color:#e7d9ed}
+#appScreen .checkitem:hover{background:#f7eefb;border-color:#d5b8e0}
+#appScreen .table-wrap{
+  border:1px solid #d8c3e2;
+  border-radius:13px;
+  box-shadow:0 4px 14px rgba(75,24,91,.045);
+}
+#appScreen table{background:#fff}
+#appScreen thead th,
+#appScreen table th{
+  background:linear-gradient(120deg,#650065 0%,#800080 62%,#913391 100%) !important;
+  color:#fff !important;
+  font-weight:800;
+  border-bottom:1px solid #5a005a;
+  border-right:1px solid rgba(255,255,255,.13);
+  padding-top:13px;
+  padding-bottom:13px;
+}
+#appScreen thead th:last-child{border-right:0}
+#appScreen tbody tr:nth-child(even) td{background:#f8f1fb}
+#appScreen tbody tr:nth-child(odd) td{background:#fff}
+#appScreen tbody tr:hover td{background:#eee0f4}
+#appScreen tbody td{border-bottom:1px solid #eadfed}
+#appScreen .empty{background:linear-gradient(135deg,#fcf8fe,#f5edf9);border:1px dashed #d9c1e2;border-radius:12px}
+#appScreen .btn-light{background:linear-gradient(180deg,#fff,#faf5fc);border-color:#ddcce5;color:#5f286b}
+#appScreen .btn-light:hover{background:#f3e6f7;border-color:#c8a4d4}
+@media(max-width:780px){
+  #appScreen .panel{border-radius:15px;box-shadow:0 5px 17px rgba(75,24,91,.06)}
+  #appScreen .table-wrap{border-radius:11px}
+  #appScreen thead th,#appScreen table th{padding:11px 12px;font-size:10px}
+}
+
 </style>
 </head>
 <body>
