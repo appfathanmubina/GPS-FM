@@ -403,7 +403,7 @@ function apiGetMonthlyReport(token, year, month) {
 
   const rows = gpsfmRows_('Attendance').filter(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
-    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0;
+    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0 && (s.user.role === 'superadmin' || String(a.teacherId) === String(s.user.userId));
   });
   const result = rows.map(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
