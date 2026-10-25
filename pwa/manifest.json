@@ -13,6 +13,12 @@
       "sizes": "250x250",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }
