@@ -183,6 +183,12 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 }
 
 
+/* Header icon controls: white, accessible, preserve existing action IDs */
+.header-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;min-width:42px;padding:0;color:#fff!important;background:#ffffff16;border:1px solid #ffffff55;border-radius:12px;box-shadow:inset 0 1px 0 #ffffff18}
+.header-icon-btn svg{display:block;width:21px;height:21px;stroke:#fff;flex:0 0 auto}
+.header-icon-btn:hover{background:#ffffff2b;border-color:#ffffff8a}
+.header-icon-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.pill.Tugas{background:#ede9fe;color:#5b21b6}
 /* GPS FM scroll reliability + centered login branding */
 html,body{min-height:100%;height:auto;overflow-x:hidden;overflow-y:auto}
 body{touch-action:auto}
@@ -219,7 +225,7 @@ body{touch-action:auto}
  <section class="login-side"><form class="login-box" id="loginForm"><h2>Selamat datang</h2><p>Masuk menggunakan akun GPS FM Anda.</p><div id="loginError" class="error hidden"></div><div class="field"><label for="username">Username</label><input id="username" autocomplete="username" required maxlength="50" placeholder="Masukkan username"></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required maxlength="200" placeholder="Masukkan password"></div><button class="btn btn-primary" id="loginButton" type="submit">Masuk ke GPS FM</button></form></section>
 </div>
 <div id="appScreen" class="shell hidden">
- <header class="topbar"><div class="brand"><div class="logo logo-image"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><div><h1>GPS FM</h1><p>Absensi Guru Pembina Santri</p></div></div><div class="profile"><div class="avatar" id="avatar">G</div><div class="user-name"><b id="profileName">Guru GPS</b><div class="small" id="profileRole" style="color:#dbeafe">Guru GPS</div></div><button class="btn btn-ghost" id="changePassBtn">Ganti Password</button><button class="btn btn-ghost" id="logoutBtn">Keluar</button></div></header>
+ <header class="topbar"><div class="brand"><div class="logo logo-image"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><div><h1>GPS FM</h1><p>Absensi Guru Pembina Santri</p></div></div><div class="profile"><div class="avatar" id="avatar">G</div><div class="user-name"><b id="profileName">Guru GPS</b><div class="small" id="profileRole" style="color:#dbeafe">Guru GPS</div></div><button class="btn btn-ghost header-icon-btn change-pass" id="changePassBtn" type="button" title="Ganti Password" aria-label="Ganti Password"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5zM12 14v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="btn btn-ghost header-icon-btn" id="logoutBtn" type="button" title="Keluar" aria-label="Keluar"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></header>
  <main class="wrap"><nav class="nav" id="nav"></nav><section id="page"></section><div class="footnote">GPS FM · Sistem Absensi Guru Pembina Santri · Pesantren Fathan Mubina</div></main>
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
