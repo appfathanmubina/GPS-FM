@@ -3,7 +3,7 @@
  * Backend untuk Web App Apps Script. Otorisasi selalu dilakukan di server.
  */
 const GPSFM_SESSION_TTL = 21600; // 6 jam
-const GPSFM_STATUSES = ['Hadir','Izin','Sakit','Alpa'];
+const GPSFM_STATUSES = ['Hadir','Izin','Sakit','Alpa','Tugas'];
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -365,7 +365,7 @@ function apiGetMonthlyReport(token, year, month) {
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   acts.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
   const result = rows.map(function(a) { return {date:String(a.attendanceDate).slice(0,10),teacherId:String(a.teacherId),teacherName:userMap[String(a.teacherId)] || 'Guru tidak ditemukan',activityId:String(a.activityId),activityName:actMap[String(a.activityId)] || 'Kegiatan tidak ditemukan',status:String(a.status),note:String(a.note || '')}; });
-  const summary = {Hadir:0,Izin:0,Sakit:0,Alpa:0};
+  const summary = {Hadir:0,Izin:0,Sakit:0,Alpa:0,Tugas:0};
   result.forEach(function(r) { summary[r.status] = (summary[r.status] || 0) + 1; });
   return {year:year,month:month,summary:summary,rows:result};
 }
