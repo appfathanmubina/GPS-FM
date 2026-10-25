@@ -69,6 +69,28 @@ function gpsfmUpdateRow_(name, rowNumber, obj) {
 
 function gpsfmId_() { return Utilities.getUuid(); }
 function gpsfmNow_() { return new Date().toISOString(); }
+function gpsfmDateKey_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd');
+  }
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  // ISO dates/timestamps are the preferred stored format.
+  const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  // Also support legacy date strings such as M/D/YYYY or D/M/YYYY.
+  const local = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (local) {
+    const a = Number(local[1]), b = Number(local[2]), year = local[3];
+    const month = a > 12 ? b : (b > 12 ? a : b);
+    const day = a > 12 ? a : (b > 12 ? b : a);
+    return year + '-' + ('0' + month).slice(-2) + '-' + ('0' + day).slice(-2);
+  }
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) return Utilities.formatDate(parsed, Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd');
+  return raw.slice(0, 10);
+}
+
 function gpsfmText_(value, max) {
   const s = String(value == null ? '' : value).trim();
   if (s.length > (max || 250)) throw new Error('Input terlalu panjang.');
@@ -267,7 +289,7 @@ function apiGetAttendanceForDate(token, activityId, date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
   const allowed = apiGetActivityTeachers(token, activityId).map(function(t){return t.userId;});
   return gpsfmRows_('Attendance').filter(function(a) {
-    return String(a.activityId) === String(activityId) && String(a.attendanceDate).slice(0,10) === date && allowed.indexOf(String(a.teacherId)) >= 0;
+    return String(a.activityId) === String(activityId) && gpsfmDateKey_(a.attendanceDate) === date && allowed.indexOf(String(a.teacherId)) >= 0;
   }).map(function(a){return {teacherId:String(a.teacherId),status:String(a.status),note:String(a.note||''),recordedBy:String(a.recordedBy||'')};});
 }
 
@@ -298,7 +320,7 @@ function apiSaveAttendanceBatch(token, data) {
   try {
     const records = gpsfmRows_('Attendance');
     const existing = entries.map(function(e) {
-      return {entry:e,old:records.find(function(a){return String(a.activityId)===activityId && String(a.teacherId)===String(e.teacherId) && String(a.attendanceDate).slice(0,10)===date;})};
+      return {entry:e,old:records.find(function(a){return String(a.activityId)===activityId && String(a.teacherId)===String(e.teacherId) && gpsfmDateKey_(a.attendanceDate)===date;})};
     });
     if (u.role !== 'superadmin' && existing.some(function(x){return x.old && String(x.old.recordedBy)!==String(u.userId);})) throw new Error('Sebagian absensi sudah dicatat PJ lain. Hubungi superadmin untuk koreksi; tidak ada data yang disimpan.');
     const now = gpsfmNow_();
@@ -356,18 +378,40 @@ function apiGetMonthlyReport(token, year, month) {
   if (!Number.isInteger(year) || year < 2020 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) throw new Error('Periode laporan tidak valid.');
   const prefix = year + '-' + ('0'+month).slice(-2);
   const users = gpsfmRows_('Users').filter(function(u) { return String(u.role) === 'gps'; });
-  const acts = gpsfmRows_('Activities');
-  const rows = gpsfmRows_('Attendance').filter(function(a) {
-    if (String(a.attendanceDate).slice(0,7) !== prefix) return false;
-    return true; // Semua guru GPS dapat melihat rekap; hak input tetap dibatasi di apiSaveAttendance.
-  });
+  const allActivities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
-  acts.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
-  const result = rows.map(function(a) { return {date:String(a.attendanceDate).slice(0,10),teacherId:String(a.teacherId),teacherName:userMap[String(a.teacherId)] || 'Guru tidak ditemukan',activityId:String(a.activityId),activityName:actMap[String(a.activityId)] || 'Kegiatan tidak ditemukan',status:String(a.status),note:String(a.note || '')}; });
+  allActivities.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
+
+  // Guru hanya memperoleh pilihan kegiatan yang memang menugaskannya.
+  // Superadmin tetap dapat melihat seluruh kegiatan aktif.
+  let allowedActivityIds;
+  if (s.user.role === 'superadmin') {
+    allowedActivityIds = allActivities.map(function(a) { return String(a.activityId); });
+  } else {
+    allowedActivityIds = gpsfmRows_('ActivityTeachers').filter(function(a) {
+      return String(a.teacherId) === String(s.user.userId) && gpsfmBool_(a.active);
+    }).map(function(a) { return String(a.activityId); }).filter(function(id) {
+      return Object.prototype.hasOwnProperty.call(actMap, id);
+    });
+  }
+  const activities = allActivities.filter(function(a) {
+    return allowedActivityIds.indexOf(String(a.activityId)) >= 0;
+  }).map(function(a) {
+    return {activityId:String(a.activityId), activityName:String(a.name)};
+  }).sort(function(a,b) { return a.activityName.localeCompare(b.activityName); });
+
+  const rows = gpsfmRows_('Attendance').filter(function(a) {
+    const date = gpsfmDateKey_(a.attendanceDate);
+    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0;
+  });
+  const result = rows.map(function(a) {
+    const date = gpsfmDateKey_(a.attendanceDate);
+    return {date:date,teacherId:String(a.teacherId),teacherName:userMap[String(a.teacherId)] || 'Guru tidak ditemukan',activityId:String(a.activityId),activityName:actMap[String(a.activityId)] || 'Kegiatan tidak ditemukan',status:String(a.status),note:String(a.note || '')};
+  }).sort(function(a,b) { return a.date.localeCompare(b.date) || a.activityName.localeCompare(b.activityName) || a.teacherName.localeCompare(b.teacherName); });
   const summary = {Hadir:0,Izin:0,Sakit:0,Alpa:0,Tugas:0};
   result.forEach(function(r) { summary[r.status] = (summary[r.status] || 0) + 1; });
-  return {year:year,month:month,summary:summary,rows:result};
+  return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
 
 function apiGetTeachers(token) {
