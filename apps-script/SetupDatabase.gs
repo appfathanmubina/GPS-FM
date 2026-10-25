@@ -12,6 +12,7 @@ const GPSFM_SCHEMA = {
   Users: ['userId','username','fullName','role','passwordSalt','passwordHash','active','createdAt','updatedAt'],
   Activities: ['activityId','name','description','schedule','active','createdAt','updatedAt'],
   ActivityPJ: ['assignmentId','activityId','userId','active','assignedAt','assignedBy'],
+  ActivityTeachers: ['assignmentId','activityId','teacherId','active','assignedAt','assignedBy','updatedAt'],
   Attendance: ['attendanceId','activityId','teacherId','attendanceDate','status','note','recordedBy','createdAt','updatedAt'],
   Periods: ['periodId','year','month','status','lockedAt','lockedBy'],
   AuditLogs: ['logId','actorId','action','entityType','entityId','details','createdAt'],
