@@ -69,7 +69,7 @@ function setupGpsFmDatabase() {
   const settings = ss.getSheetByName('AppSettings');
   const settingRows = settings.getDataRange().getValues();
   const known = settingRows.slice(1).map(function(r) { return String(r[0]); });
-  [['APP_NAME','GPS FM'],['TIMEZONE','Asia/Jakarta'],['ATTENDANCE_STATUSES','Hadir,Izin,Sakit,Alpa']].forEach(function(pair) {
+  [['APP_NAME','GPS FM'],['TIMEZONE','Asia/Jakarta'],['ATTENDANCE_STATUSES','Hadir,Izin,Sakit,Alpa,Tugas']].forEach(function(pair) {
     if (known.indexOf(pair[0]) < 0) settings.appendRow([pair[0], pair[1], new Date().toISOString()]);
   });
 
