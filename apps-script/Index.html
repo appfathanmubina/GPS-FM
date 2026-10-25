@@ -217,6 +217,22 @@ body{touch-action:auto}
   #loginScreen .login-brand h1{font-size:clamp(34px,9vw,43px);margin-top:14px;letter-spacing:-1.3px}
   #loginScreen .login-hero>p{text-align:center;margin-left:auto;margin-right:auto}
 }
+
+/* GPS FM icon polish: white header actions and purple 3D-style navigation icons */
+.topbar .profile .header-icon-btn{display:inline-flex;align-items:center;justify-content:center;color:#fff!important}
+.topbar .profile .header-icon-btn svg{stroke:#fff;filter:drop-shadow(0 1px 1px #26002655)}
+.nav button svg{color:#800080!important;stroke:#800080;filter:drop-shadow(0 2px 1px #4b004b45) drop-shadow(0 0 3px #80008026);stroke-width:2}
+.nav button:hover svg{filter:drop-shadow(0 3px 1px #4b004b50) drop-shadow(0 0 5px #80008038);transform:translateY(-1px)}
+.nav button.active svg{color:#800080!important;stroke:#800080;filter:drop-shadow(0 2px 1px #4b004b48) drop-shadow(0 0 4px #80008030)}
+.nav button svg{transition:transform .18s ease,filter .18s ease}
+@media(max-width:780px){
+  .topbar .profile .header-icon-btn.change-pass{display:inline-flex!important}
+  .topbar .profile .header-icon-btn{width:36px;height:36px;min-width:36px;padding:0;border-radius:11px}
+  .topbar .profile .header-icon-btn svg{width:19px;height:19px}
+  .nav button svg{width:23px;height:23px;filter:drop-shadow(0 2px 1px #4b004b45) drop-shadow(0 0 4px #8000802b)}
+}
+@media(prefers-reduced-motion:reduce){.nav button svg{transition:none}}
+
 </style>
 </head>
 <body>
@@ -266,7 +282,7 @@ async function attendancePage(root){
      const saved={};existing.forEach(x=>saved[x.teacherId]=x);
      box.innerHTML='<h3>Daftar Guru Terlibat · '+teachers.length+' guru</h3><p class="muted small">Centang guru yang akan disimpan. Status dan catatan dapat diatur per guru. Rekap diperbarui dari catatan yang disimpan.</p>'+
      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0"><label class="checkitem" style="width:max-content"><input type="checkbox" id="selectAllAttendance"><span>Pilih semua guru</span></label><span class="muted small" id="attendanceSelectedCount">0 dipilih</span></div>'+
-     '<div class="checklist" id="attendanceTeacherList">'+teachers.map(t=>{const old=saved[t.userId]||{};return '<div class="checkitem" style="align-items:flex-start;flex-wrap:wrap"><input type="checkbox" class="attendanceTeacherCheck" value="'+esc(t.userId)+'" '+(old.status?'checked':'')+' style="margin-top:4px"><div style="flex:1;min-width:140px"><b>'+esc(t.fullName)+'</b>'+(old.status?'<div class="small muted">Sudah ada catatan: '+esc(old.status)+'</div>':'<div class="small muted">Belum dicatat</div>')+'</div><div class="field" style="min-width:120px;flex:0 1 145px"><label>Status</label><select class="attendanceTeacherStatus" data-teacher="'+esc(t.userId)+'">'+bootstrap.statuses.map(s=>'<option '+(s===(old.status||'Hadir')?'selected':'')+'>'+esc(s)+'</option>').join('')+'</select></div><div class="field" style="min-width:150px;flex:1 1 180px"><label>Catatan (opsional)</label><input class="attendanceTeacherNote" data-teacher="'+esc(t.userId)+'" maxlength="300" value="'+esc(old.note||'')+'" placeholder="Catatan guru"></div></div>';}).join('')+'</div>'+
+     '<div class="checklist" id="attendanceTeacherList">'+teachers.map(t=>{const old=saved[t.userId]||{};return '<div class="checkitem" style="align-items:flex-start;flex-wrap:wrap"><input type="checkbox" class="attendanceTeacherCheck" value="'+esc(t.userId)+'" '+(old.status?'checked':'')+' style="margin-top:4px"><div style="flex:1;min-width:140px"><b>'+esc(t.fullName)+'</b>'+(old.status?'<div class="small muted">Sudah ada catatan: '+esc(old.status)+'</div>':'<div class="small muted">Belum dicatat</div>')+'</div><div class="field" style="min-width:120px;flex:0 1 145px"><label>Status</label><select class="attendanceTeacherStatus" data-teacher="'+esc(t.userId)+'">'+Array.from(new Set([...(bootstrap.statuses||[]),'Tugas'])).map(s=>'<option '+(s===(old.status||'Hadir')?'selected':'')+'>'+esc(s)+'</option>').join('')+'</select></div><div class="field" style="min-width:150px;flex:1 1 180px"><label>Catatan (opsional)</label><input class="attendanceTeacherNote" data-teacher="'+esc(t.userId)+'" maxlength="300" value="'+esc(old.note||'')+'" placeholder="Catatan guru"></div></div>';}).join('')+'</div>'+
      '<div style="margin-top:16px"><button id="saveAttendanceBatch" class="btn btn-primary" type="button">Simpan Absensi Terpilih</button></div>';
      const checks=Array.from(box.querySelectorAll('.attendanceTeacherCheck'));
      const updateCount=()=>{$('attendanceSelectedCount').textContent=checks.filter(x=>x.checked).length+' dipilih';$('selectAllAttendance').checked=checks.length>0&&checks.every(x=>x.checked);$('selectAllAttendance').indeterminate=checks.some(x=>x.checked)&&!checks.every(x=>x.checked);};
