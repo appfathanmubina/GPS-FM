@@ -549,7 +549,7 @@ async function attendancePage(root){
 }
 async function reportPage(root){
  const now=new Date();
- root.innerHTML=title('Rekap Bulanan','Pilih periode dan kegiatan yang ingin ditinjau.')+
+ root.innerHTML=title('Rekap Bulanan',me.role==='superadmin'?'Lihat rekap seluruh guru, lalu filter berdasarkan periode dan kegiatan.':'Lihat catatan rekap kehadiran Anda sendiri, lalu filter berdasarkan periode dan kegiatan.')+
  '<div class="panel"><form id="reportForm" class="row">'+
  '<div class="field"><label>Tahun</label><select id="rYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div>'+
  '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
