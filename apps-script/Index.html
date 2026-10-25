@@ -406,6 +406,26 @@ body{touch-action:auto}
 /* Remember Me control */
 #loginForm .remember-row{display:flex;align-items:center;gap:9px;margin:2px 0 16px;color:var(--muted);font-size:13px;cursor:pointer;user-select:none}
 #loginForm .remember-row input{width:17px;height:17px;margin:0;accent-color:#800080;cursor:pointer;flex:0 0 auto}
+
+/* GPS FM logout confirmation modal — matching purple/lavender theme */
+.gps-logout-backdrop{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(34,12,42,.56);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);animation:gpsLogoutFade .18s ease-out}
+.gps-logout-dialog{width:min(100%,410px);overflow:hidden;border:1px solid #e4d3ed;border-radius:22px;background:linear-gradient(145deg,#fff 0%,#fbf6fe 100%);box-shadow:0 24px 80px rgba(30,8,40,.28);animation:gpsLogoutPop .22s ease-out}
+.gps-logout-accent{height:5px;background:linear-gradient(90deg,#650065,#800080 55%,#d7b5e2)}
+.gps-logout-content{padding:27px 26px 22px;text-align:center}
+.gps-logout-icon{width:62px;height:62px;margin:0 auto 15px;display:grid;place-items:center;border-radius:19px;background:linear-gradient(145deg,#f4e8fa,#fff);border:1px solid #e5d1ee;color:#800080;box-shadow:inset 0 1px 0 #fff,0 8px 20px rgba(92,20,110,.10)}
+.gps-logout-icon svg{width:30px;height:30px}
+.gps-logout-dialog h3{margin:0 0 9px;color:#591264;font-size:21px;font-weight:850;letter-spacing:-.3px}
+.gps-logout-dialog p{margin:0;color:#786681;font-size:14px;line-height:1.65}
+.gps-logout-actions{display:flex;gap:10px;padding:0 26px 25px}
+.gps-logout-actions button{flex:1;min-height:44px;border-radius:12px;font-weight:750;font-size:14px;transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+.gps-logout-cancel{background:#f3eaf7;color:#63216f;border:1px solid #e2cfe9}
+.gps-logout-cancel:hover{background:#ead9f1;transform:translateY(-1px)}
+.gps-logout-confirm{background:linear-gradient(135deg,#650065,#800080 65%,#963b9b);color:#fff;box-shadow:0 5px 13px rgba(101,0,101,.2)}
+.gps-logout-confirm:hover{box-shadow:0 8px 18px rgba(101,0,101,.28);transform:translateY(-1px)}
+.gps-logout-actions button:focus-visible{outline:3px solid #cda4dc;outline-offset:3px}
+@keyframes gpsLogoutFade{from{opacity:0}to{opacity:1}}
+@keyframes gpsLogoutPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:480px){.gps-logout-content{padding:24px 21px 19px}.gps-logout-actions{padding:0 21px 21px}.gps-logout-dialog h3{font-size:19px}}
 </style>
 </head>
 <body>
@@ -465,7 +485,27 @@ function showLogin(){ $('appScreen').classList.add('hidden');$('loginScreen').cl
 function dateDefault(){return bootstrap&&bootstrap.serverDate||new Date().toLocaleDateString('en-CA');}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('loginButton');$('loginError').classList.add('hidden');busy(btn,true,'Memeriksa akun...');try{const r=await call('apiLogin',$('username').value,$('password').value);token=r.token;me=r.user;sessionStorage.setItem('gpsfm_token',token);if($('rememberMe').checked){localStorage.setItem('gpsfm_token',token);localStorage.setItem('gpsfm_remember','1');}else{localStorage.removeItem('gpsfm_token');localStorage.removeItem('gpsfm_remember');}await startApp();$('password').value='';}catch(err){errorBox('loginError',err.message);}finally{busy(btn,false);}});
 async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;$('profileName').textContent=me.fullName;$('profileRole').textContent=me.role==='superadmin'?'Superadmin':'Guru GPS';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();hideLogin();renderNav();await renderPage('dashboard');}
-$('logoutBtn').addEventListener('click',async()=>{try{await call('apiLogout',token);}catch(e){}token='';me=null;sessionStorage.removeItem('gpsfm_token');localStorage.removeItem('gpsfm_token');localStorage.removeItem('gpsfm_remember');$('rememberMe').checked=false;showLogin();});
+$('logoutBtn').addEventListener('click',openLogoutConfirmation);
+function openLogoutConfirmation(){
+ if($('gpsLogoutModal'))return;
+ const wrap=document.createElement('div');wrap.id='gpsLogoutModal';wrap.className='gps-logout-backdrop';
+ wrap.innerHTML='<section class="gps-logout-dialog" role="alertdialog" aria-modal="true" aria-labelledby="gpsLogoutTitle" aria-describedby="gpsLogoutMessage"><div class="gps-logout-accent"></div><div class="gps-logout-content"><div class="gps-logout-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M8 12h10"/></svg></div><h3 id="gpsLogoutTitle">Konfirmasi Keluar</h3><p id="gpsLogoutMessage">Apakah Anda yakin ingin keluar dari GPS FM? Pastikan pekerjaan Anda sudah tersimpan.</p></div><div class="gps-logout-actions"><button type="button" class="gps-logout-cancel" id="gpsLogoutCancel">Batal</button><button type="button" class="gps-logout-confirm" id="gpsLogoutConfirm">Ya, Keluar</button></div></section>';
+ document.body.appendChild(wrap);
+ const cancel=$('gpsLogoutCancel'),confirm=$('gpsLogoutConfirm');
+ const close=()=>{wrap.remove();$('logoutBtn').focus();};
+ cancel.addEventListener('click',()=>{close();document.removeEventListener('keydown',onKey);});
+ wrap.addEventListener('click',e=>{if(e.target===wrap){close();document.removeEventListener('keydown',onKey);}});
+ const onKey=e=>{if(e.key==='Escape'&&wrap.isConnected){close();document.removeEventListener('keydown',onKey);}};
+ document.addEventListener('keydown',onKey);
+ confirm.addEventListener('click',async()=>{
+  confirm.disabled=true;cancel.disabled=true;confirm.textContent='Sedang keluar…';
+  try{await call('apiLogout',token);}catch(e){}
+  token='';me=null;sessionStorage.removeItem('gpsfm_token');localStorage.removeItem('gpsfm_token');localStorage.removeItem('gpsfm_remember');
+  $('rememberMe').checked=false;wrap.remove();document.removeEventListener('keydown',onKey);showLogin();
+  toast('Anda berhasil keluar dari GPS FM.');
+ });
+ cancel.focus();
+}
 $('changePassBtn').addEventListener('click',openChangePasswordModal);
 function navIcon(id){const paths={dashboard:'<rect x="5" y="5" width="5.5" height="5.5" rx="1.2"/><rect x="13.5" y="5" width="5.5" height="4" rx="1.2"/><rect x="13.5" y="12.5" width="5.5" height="6.5" rx="1.2"/><rect x="5" y="13.5" width="5.5" height="5.5" rx="1.2"/>',attendance:'<path d="M8 5V3.8m8 1.2V3.8M5 9h14"/><rect x="4" y="5.5" width="16" height="15" rx="2.2"/><path d="m8 14 2.2 2.2L16 11"/>',report:'<path d="M5 5v14h14"/><path d="m7.5 15 3.4-3.4 2.8 1.9 4.2-5"/>',activities:'<path d="M8 4.5h6.8l3.2 3.2v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>'};const path=paths[id]||paths.dashboard;return '<svg class="nav-3d-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="gpsNavGrad-'+id+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6d778"/><stop offset=".48" stop-color="#fffdf5"/><stop offset="1" stop-color="#b88716"/></linearGradient><linearGradient id="gpsNavShine-'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><filter id="gpsNavShadow-'+id+'" x="-35%" y="-30%" width="170%" height="180%"><feDropShadow dx="0" dy="1.7" stdDeviation="1.1" flood-color="#6e4d0b" flood-opacity=".32"/></filter></defs><g filter="url(#gpsNavShadow-'+id+')"><rect x="2.1" y="2.1" width="19.8" height="19.8" rx="6" fill="url(#gpsNavGrad-'+id+')" stroke="#a87912" stroke-width=".45"/><path d="M8 2.5h8.5a5.4 5.4 0 0 1 5 5v2.2H2.5V8a5.5 5.5 0 0 1 5.5-5.5Z" fill="url(#gpsNavShine-'+id+')"/><g>'+path+'</g></g></svg>';}function renderNav(){const nav=$('nav');const items=[['dashboard','Ringkasan'],['attendance','Input Absensi'],['report','Rekap Bulanan']];if(me.role==='superadmin')items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);nav.classList.toggle('nav-five',me.role==='superadmin');nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
 async function renderPage(page){currentPage=page;renderNav();const root=$('page');root.innerHTML='<div class="panel"><span class="spinner" style="border-color:#c7d2fe;border-top-color:#800080"></span> Memuat data...</div>';try{if(page==='dashboard')await dashboard(root);else if(page==='attendance')await attendancePage(root);else if(page==='report')await reportPage(root);else if(page==='activities')await activitiesPage(root);else if(page==='users')await usersPage(root);}catch(e){root.innerHTML='<div class="panel"><h3>Belum dapat memuat halaman</h3><p class="muted">'+esc(e.message)+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>';$('retry').onclick=()=>renderPage(page);}}
