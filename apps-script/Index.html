@@ -243,6 +243,16 @@ body{touch-action:auto}
   .nav .nav-3d-icon{width:28px;height:28px;flex-basis:28px}
   .topbar .change-pass{display:inline-flex!important}
 }
+
+/* Final contrast and centering refinement for navigation */
+.nav .nav-3d-icon{stroke:#fff!important;filter:drop-shadow(0 2px 2px #51076535) drop-shadow(0 0 2px #80008025)}
+.nav .nav-3d-icon path,.nav .nav-3d-icon rect,.nav .nav-3d-icon circle,.nav .nav-3d-icon line,.nav .nav-3d-icon polyline{stroke:#fff}
+@media(max-width:780px){
+  .nav button{justify-self:center;width:100%;max-width:120px}
+  .nav .nav-3d-icon{filter:drop-shadow(0 2px 2px #51076535)}
+  .nav button.active .nav-3d-icon{filter:drop-shadow(0 2px 2px #51076545) drop-shadow(0 0 3px #80008030)}
+}
+
 </style>
 </head>
 <body>
