@@ -185,24 +185,27 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 
 /* GPS FM scroll reliability + centered login branding */
 html,body{min-height:100%;height:auto;overflow-x:hidden;overflow-y:auto}
-body{touch-action:pan-y}
+body{touch-action:auto}
 .logo-image img{object-fit:contain}
 .login-brand{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;margin:24px 0 18px}
 .login-brand>.logo{width:132px;height:132px;min-width:132px;border-radius:28px;margin:0!important;padding:8px;background:#fff;border:1px solid #f0e2f2;box-shadow:0 16px 36px #25002538}
 .login-brand>.logo img{width:100%;height:100%;object-fit:contain}
 .login-brand h1{margin:18px 0 0;font-size:clamp(36px,4.4vw,54px);line-height:1.08;letter-spacing:-1.7px;text-align:center}
+.login-hero>.hero-badge{align-self:center;width:max-content;max-width:100%;text-align:center;font-size:13px;line-height:1.45;letter-spacing:.6px;padding:10px 15px}
 .login-hero>p{position:relative;z-index:2}
 @media(max-width:780px){
   html,body{height:auto;min-height:100%;overflow-x:hidden;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
-  body{overscroll-behavior-y:auto;touch-action:pan-y}
+  body{overscroll-behavior-y:auto;touch-action:auto}
   #appScreen.shell{height:auto;min-height:100dvh;overflow:visible}
   #appScreen .wrap{height:auto;min-height:0;overflow:visible;overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
-  #appScreen #page{height:auto;min-height:0;overflow:visible;touch-action:pan-y}
-  #appScreen .panel,#appScreen .table-wrap{touch-action:pan-y}
-  #appScreen .table-wrap{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  #appScreen #page{height:auto;min-height:0;overflow:visible;touch-action:auto}
+  #appScreen .panel{touch-action:auto}
+  #appScreen .table-wrap{display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto!important;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y;position:relative}
+  #appScreen .table-wrap>table{width:max-content;min-width:100%;max-width:none}
   #appScreen .nav{touch-action:pan-x;overscroll-behavior:contain}
   #loginScreen.login{height:auto;min-height:100dvh;overflow:visible}
   #loginScreen .login-hero{align-items:stretch;overflow:hidden}
+  #loginScreen .hero-badge{align-self:center;width:max-content;max-width:100%;font-size:12px;line-height:1.5;padding:10px 14px;text-align:center}
   #loginScreen .login-brand{margin:20px 0 16px}
   #loginScreen .login-brand>.logo{width:108px;height:108px;min-width:108px;border-radius:24px;padding:7px}
   #loginScreen .login-brand h1{font-size:clamp(34px,9vw,43px);margin-top:14px;letter-spacing:-1.3px}
