@@ -373,7 +373,54 @@ async function attendancePage(root){
  $('aActivity').onchange=loadTeachers;$('aDate').onchange=loadTeachers;
  await loadTeachers();
 }
-async function reportPage(root){const now=new Date();root.innerHTML=title('Rekap Bulanan','Pilih periode untuk melihat rekap kehadiran.')+'<div class="panel"><form id="reportForm" class="row"><div class="field"><label>Tahun</label><select id="rYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div><div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div><button class="btn btn-primary" type="submit">Tampilkan Rekap</button><button class="btn btn-light" id="exportCsv" type="button">Unduh CSV</button></form></div><div id="reportResult"></div>';async function load(){const y=Number($('rYear').value),m=Number($('rMonth').value);report=await call('apiGetMonthlyReport',token,y,m);$('reportResult').innerHTML='<div class="grid" style="margin-top:14px">'+[['Hadir',report.summary.Hadir||0],['Izin',report.summary.Izin||0],['Sakit',report.summary.Sakit||0],['Alpa',report.summary.Alpa||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">Catatan bulan terpilih</div></div>').join('')+'</div><div class="panel"><h3>Detail absensi · '+$('rMonth').selectedOptions[0].text+' '+y+'</h3>'+(report.rows.length?'<div class="table-wrap"><table id="reportTable"><thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Kegiatan</th><th>Status</th><th>Catatan</th></tr></thead><tbody>'+report.rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran pada periode ini.</div>')+'</div>';}$('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};$('exportCsv').onclick=()=>{if(!report||!report.rows.length){toast('Tidak ada data untuk diunduh.');return;}const rows=[['Tanggal','Nama Guru','Kegiatan','Status','Catatan'],...report.rows.map(x=>[x.date,x.teacherName,x.activityName,x.status,x.note])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='GPS-FM-Rekap-'+$('rYear').value+'-'+String($('rMonth').value).padStart(2,'0')+'.csv';a.click();URL.revokeObjectURL(a.href);};await load();}
+async function reportPage(root){
+ const now=new Date();
+ root.innerHTML=title('Rekap Bulanan','Pilih periode dan kegiatan yang ingin ditinjau.')+
+ '<div class="panel"><form id="reportForm" class="row">'+
+ '<div class="field"><label>Tahun</label><select id="rYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div>'+
+ '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
+ '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">Semua kegiatan yang tersedia</option></select></div>'+
+ '<button class="btn btn-primary" type="submit">Tampilkan Rekap</button><button class="btn btn-light" id="exportCsv" type="button">Unduh CSV</button></form></div><div id="reportResult"></div>';
+
+ function filteredRows(){
+  if(!report)return [];
+  const activityId=$('rActivity').value;
+  return report.rows.filter(x=>!activityId||String(x.activityId)===activityId);
+ }
+ function renderResults(){
+  const rows=filteredRows(), summary={Hadir:0,Izin:0,Sakit:0,Alpa:0,Tugas:0};
+  rows.forEach(x=>{summary[x.status]=(summary[x.status]||0)+1;});
+  const activityLabel=$('rActivity').value?$('rActivity').selectedOptions[0].text:'Semua kegiatan yang tersedia';
+  $('reportResult').innerHTML=
+   '<div class="grid" style="margin-top:14px">'+
+   [['Total catatan',rows.length],['Hadir',summary.Hadir||0],['Izin',summary.Izin||0],['Sakit',summary.Sakit||0],['Alpa',summary.Alpa||0],['Tugas',summary.Tugas||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">Sesuai filter kegiatan</div></div>').join('')+
+   '</div><div class="panel"><h3>Detail absensi · '+esc($('rMonth').selectedOptions[0].text)+' '+esc($('rYear').value)+'</h3><p class="muted small">Kegiatan: '+esc(activityLabel)+' · '+rows.length+' catatan</p>'+
+   (rows.length?'<div class="table-wrap"><table id="reportTable"><thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Kegiatan</th><th>Status</th><th>Catatan</th></tr></thead><tbody>'+
+   rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.activityName.localeCompare(b.activityName)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+
+   '</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran untuk periode dan kegiatan yang dipilih.</div>')+'</div>';
+ }
+ async function load(){
+  const y=Number($('rYear').value),m=Number($('rMonth').value),previousActivity=$('rActivity').value;
+  report=await call('apiGetMonthlyReport',token,y,m);
+  const options=['<option value="">Semua kegiatan yang tersedia</option>'].concat((report.activities||[]).map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.activityName)+'</option>'));
+  $('rActivity').innerHTML=options.join('');
+  if(previousActivity&&(report.activities||[]).some(a=>String(a.activityId)===previousActivity))$('rActivity').value=previousActivity;
+  renderResults();
+ }
+ $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
+ $('rActivity').onchange=renderResults;
+ $('exportCsv').onclick=()=>{
+  const rowsToExport=filteredRows();
+  if(!rowsToExport.length){toast('Tidak ada data untuk diunduh.');return;}
+  const rows=[['Tanggal','Nama Guru','Kegiatan','Status','Catatan'],...rowsToExport.map(x=>[x.date,x.teacherName,x.activityName,x.status,x.note])];
+  const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='GPS-FM-Rekap-'+$('rYear').value+'-'+String($('rMonth').value).padStart(2,'0')+($('rActivity').value?'-Kegiatan':'')+'.csv';
+  a.click();URL.revokeObjectURL(a.href);
+ };
+ await load();
+}
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
 function activityScheduleParts(value){
  const raw=String(value||'').trim();
