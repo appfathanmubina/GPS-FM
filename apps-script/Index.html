@@ -114,11 +114,12 @@ const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
 function activityScheduleParts(value){
  const raw=String(value||'').trim();
  if(!raw)return {days:[],time:''};
- const days=[];
- if(/setiap\\s+hari/i.test(raw)){days.push(...GPSFM_DAYS);}
- else if(/senin\\s*[–-]\\s*jumat/i.test(raw)){days.push('Senin','Selasa','Rabu','Kamis','Jumat');}
- else GPSFM_DAYS.forEach(d=>{if(new RegExp('\\\\b'+d+'\\\\b','i').test(raw))days.push(d);});
- const time=raw.replace(/setiap\\s+hari/ig,'').replace(/senin\\s*[–-]\\s*jumat/ig,'').replace(/senin|selasa|rabu|kamis|jumat|sabtu|minggu/ig,'').replace(/[\\s,;·|–-]+/g,' ').trim();
+ const normalized=raw.toLowerCase().replace(/[–—]/g,'-');
+ let days=[];
+ if(normalized.includes('setiap hari'))days=[...GPSFM_DAYS];
+ else if(normalized.includes('senin-jumat'))days=['Senin','Selasa','Rabu','Kamis','Jumat'];
+ else days=GPSFM_DAYS.filter(d=>new RegExp('(^|[^a-z])'+d+'([^a-z]|$)','i').test(raw));
+ const time=raw.replace(/setiap\s+hari/ig,'').replace(/senin\s*[–—-]\s*jumat/ig,'').replace(/senin|selasa|rabu|kamis|jumat|sabtu|minggu/ig,'').replace(/[\s,;·|–—-]+/g,' ').trim();
  return {days:[...new Set(days)],time};
 }
 function selectedActivityDays(){return Array.from(document.querySelectorAll('input[name="activityDay"]:checked')).map(x=>x.value);}
