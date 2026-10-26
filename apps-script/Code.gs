@@ -3,7 +3,7 @@
  * Backend untuk Web App Apps Script. Otorisasi selalu dilakukan di server.
  */
 const GPSFM_SESSION_TTL = 21600; // 6 jam
-const GPSFM_STATUSES = ['Hadir','Izin','Sakit','Alpa','Tugas'];
+const GPSFM_STATUSES = ['Hadir','A. Sakit','B. Tugas','C. Izin Pribadi','D. Alfa'];
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -415,6 +415,21 @@ function apiGetMonthlyReport(token, year, month) {
   const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas':0,'C. Izin Pribadi':0,'D. Alfa':0};
   result.forEach(function(r) { summary[r.status] = (summary[r.status] || 0) + 1; });
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
+}
+
+function apiGetActivityReport(token, activityId) {
+  const s = gpsfmSession_(token);
+  activityId = gpsfmText_(activityId,80);
+  if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
+  const activity = gpsfmActivity_(activityId);
+  if (!activity) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
+  const teachers = apiGetActivityTeachers(token, activityId);
+  const teacherIds = teachers.map(function(t){return String(t.userId);});
+  const rows = gpsfmRows_('Attendance').filter(function(a){return String(a.activityId) === activityId && teacherIds.indexOf(String(a.teacherId)) >= 0;});
+  const dates = Array.from(new Set(rows.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
+  const values = {};
+  rows.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)] = String(a.status).replace(/^[A-D]\\. /,'');});
+  return {activityName:String(activity.name),dates:dates,teachers:teachers.map(function(t){return {userId:String(t.userId),fullName:String(t.fullName),statuses:dates.map(function(d){return values[String(t.userId)+'|'+d] || '—';})};})};
 }
 
 function apiGetTeachers(token) {
