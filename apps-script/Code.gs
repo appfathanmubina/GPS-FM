@@ -412,7 +412,7 @@ function apiGetMonthlyReport(token, year, month) {
     const date = gpsfmDateKey_(a.attendanceDate);
     return {date:date,teacherId:String(a.teacherId),teacherName:userMap[String(a.teacherId)] || 'Guru tidak ditemukan',activityId:String(a.activityId),activityName:actMap[String(a.activityId)] || 'Kegiatan tidak ditemukan',status:String(a.status),note:String(a.note || '')};
   }).sort(function(a,b) { return a.date.localeCompare(b.date) || a.activityName.localeCompare(b.activityName) || a.teacherName.localeCompare(b.teacherName); });
-  const summary = {Hadir:0,Izin:0,Sakit:0,Alpa:0,Tugas:0};
+  const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas':0,'C. Izin Pribadi':0,'D. Alfa':0};
   result.forEach(function(r) { summary[r.status] = (summary[r.status] || 0) + 1; });
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
