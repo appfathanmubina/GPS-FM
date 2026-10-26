@@ -261,11 +261,14 @@ function apiGetActivityTeachers(token, activityId) {
   if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   const assigned = gpsfmRows_('ActivityTeachers').filter(function(a) { return String(a.activityId) === String(activityId) && gpsfmBool_(a.active); });
-  const users = gpsfmRows_('Users');
-  return assigned.map(function(a) {
-    const u = users.find(function(x) { return String(x.userId) === String(a.teacherId) && gpsfmBool_(x.active) && String(x.role) === 'gps'; });
-    return u ? {userId:String(u.userId),fullName:String(u.fullName)} : null;
-  }).filter(Boolean).sort(function(a,b){return a.fullName.localeCompare(b.fullName);});
+  const assignedIds = {};
+  assigned.forEach(function(a) { assignedIds[String(a.teacherId)] = true; });
+  // Keep the order from the Users sheet; do not alphabetically sort attendance teachers.
+  return gpsfmRows_('Users').filter(function(u) {
+    return assignedIds[String(u.userId)] && gpsfmBool_(u.active) && String(u.role) === 'gps';
+  }).map(function(u) {
+    return {userId:String(u.userId),fullName:String(u.fullName)};
+  });
 }
 
 function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
