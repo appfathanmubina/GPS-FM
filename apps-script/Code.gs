@@ -3,7 +3,7 @@
  * Backend untuk Web App Apps Script. Otorisasi selalu dilakukan di server.
  */
 const GPSFM_SESSION_TTL = 21600; // 6 jam
-const GPSFM_STATUSES = ['Hadir','A. Sakit','B. Tugas','C. Izin Pribadi','D. Alfa'];
+const GPSFM_STATUSES = ['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
