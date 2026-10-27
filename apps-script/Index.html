@@ -587,12 +587,20 @@ async function reportPage(root){
   return report.rows.filter(x=>!activityId||String(x.activityId)===activityId);
  }
  function renderResults(){
-  const rows=filteredRows(), summary={Hadir:0,Izin:0,Sakit:0,Alpa:0,Tugas:0};
-  rows.forEach(x=>{summary[x.status]=(summary[x.status]||0)+1;});
+  const rows=filteredRows(), summary={Hadir:0,Sakit:0,TugasPondok:0,IzinPribadi:0,Alfa:0};
+  // Samakan status lama dan baru agar rekap tidak menjadi nol setelah perubahan label.
+  rows.forEach(x=>{
+   const status=String(x.status||'').trim();
+   if(status==='Hadir')summary.Hadir++;
+   else if(status==='Sakit'||status==='A. Sakit')summary.Sakit++;
+   else if(status==='Tugas'||status==='B. Tugas'||status==='Tugas Pondok'||status==='B. Tugas Pondok')summary.TugasPondok++;
+   else if(status==='Izin'||status==='C. Izin Pribadi')summary.IzinPribadi++;
+   else if(status==='Alpa'||status==='Alfa'||status==='D. Alfa')summary.Alfa++;
+  });
   const activityLabel=$('rActivity').value?$('rActivity').selectedOptions[0].text:'Semua kegiatan yang tersedia';
   $('reportResult').innerHTML=
    '<div class="grid" style="margin-top:14px">'+
-   [['Total catatan',rows.length],['Hadir',summary.Hadir||0],['Izin',summary.Izin||0],['Sakit',summary.Sakit||0],['Alpa',summary.Alpa||0],['Tugas',summary.Tugas||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">Sesuai filter kegiatan</div></div>').join('')+
+   [['Total catatan',rows.length],['Hadir',summary.Hadir],['Sakit',summary.Sakit],['Tugas Pondok',summary.TugasPondok],['Izin Pribadi',summary.IzinPribadi],['Alfa',summary.Alfa]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">Sesuai filter kegiatan</div></div>').join('')+
    '</div><div class="panel"><h3>Detail absensi · '+esc($('rMonth').selectedOptions[0].text)+' '+esc($('rYear').value)+'</h3><p class="muted small">Kegiatan: '+esc(activityLabel)+' · '+rows.length+' catatan</p>'+
    (rows.length?'<div class="table-wrap"><table id="reportTable"><thead><tr><th>Tanggal</th><th>Nama Guru</th><th>Kegiatan</th><th>Status</th><th>Catatan</th></tr></thead><tbody>'+
    rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.activityName.localeCompare(b.activityName)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+
