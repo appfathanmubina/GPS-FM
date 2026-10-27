@@ -447,7 +447,7 @@ body{touch-action:auto}
 }
 @media(prefers-reduced-motion:reduce){.nav .nav-flat-icon{transition:none}}
 
-</style>
+.skeleton-line{height:12px;width:70%;margin-top:12px;border-radius:8px;background:linear-gradient(90deg,#eee8f3 25%,#f8f5fa 50%,#eee8f3 75%);background-size:200% 100%;animation:gpsfmShimmer 1.4s ease-in-out infinite}@keyframes gpsfmShimmer{to{background-position:-200% 0}}</style>
 </head>
 <body>
 <div id="loginScreen" class="login">
@@ -466,7 +466,10 @@ body{touch-action:auto}
 try { if (window.self !== window.top) document.body.classList.add('embedded-app'); } catch (e) { document.body.classList.add('embedded-app'); }
 const $=id=>document.getElementById(id);
 let token='',me=null,bootstrap=null,currentPage='dashboard',users=[],activities=[],report=null;
-function call(name,...args){return new Promise((resolve,reject)=>{if(!window.google||!google.script||!google.script.run){reject(new Error('Aplikasi harus dibuka melalui URL Web App Google Apps Script.'));return;}google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error((e&&e.message)||String(e)||'Terjadi kesalahan.')))[name](...args);});}
+const gpsfmPageDomCache=Object.create(null);
+const gpsfmMutatingApi=/^(apiSave|apiAssign|apiSet|apiChange|apiDelete|apiLock|apiUnlock|apiClose|apiReopen|apiImport|apiReset)/;
+function gpsfmInvalidatePageCache(){Object.keys(gpsfmPageDomCache).forEach(k=>delete gpsfmPageDomCache[k]);}
+function call(name,...args){return new Promise((resolve,reject)=>{if(!window.google||!google.script||!google.script.run){reject(new Error('Aplikasi harus dibuka melalui URL Web App Google Apps Script.'));return;}google.script.run.withSuccessHandler(result=>{if(gpsfmMutatingApi.test(name))gpsfmInvalidatePageCache();resolve(result);}).withFailureHandler(e=>reject(new Error((e&&e.message)||String(e)||'Terjadi kesalahan.')))[name](...args);});}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),3200);}
 let gpsProcessTimer=null;
@@ -529,7 +532,34 @@ function openLogoutConfirmation(){
 }
 $('changePassBtn').addEventListener('click',openChangePasswordModal);
 function navIcon(id){const paths={dashboard:'<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/>',attendance:'<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14l2.2 2.2L16 12"/>',report:'<path d="M5 4v16h15"/><path d="m8 15 3.5-4 3 2 4.5-6"/>',activityReport:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M8 4.5v15M13 12h4M13 15.5h4"/>',activities:'<path d="M8 4.5h6.8L18 7.7v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>'};return '<svg class="nav-flat-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]||paths.dashboard)+'</svg>';} function renderNav(){const nav=$('nav');const items=[['dashboard','Ringkasan'],['attendance','Input Absensi'],['report','Evaluasi Diri'],['activityReport','Rekapan']];if(me.role==='superadmin')items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);nav.classList.toggle('nav-five',me.role==='superadmin');nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
-async function renderPage(page){currentPage=page;renderNav();const root=$('page');root.innerHTML='<div class="panel"><span class="spinner" style="border-color:#c7d2fe;border-top-color:#800080"></span> Memuat data...</div>';try{if(page==='dashboard')await dashboard(root);else if(page==='attendance')await attendancePage(root);else if(page==='report')await reportPage(root);else if(page==='activityReport')await activityReportPage(root);else if(page==='activities')await activitiesPage(root);else if(page==='users')await usersPage(root);}catch(e){root.innerHTML='<div class="panel"><h3>Belum dapat memuat halaman</h3><p class="muted">'+esc(e.message)+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>';$('retry').onclick=()=>renderPage(page);}}
+async function renderPage(page){
+ const root=$('page'),previous=currentPage;
+ if(previous&&previous!==page&&root.childNodes.length){
+  const saved=document.createElement('div');
+  while(root.firstChild)saved.appendChild(root.firstChild);
+  gpsfmPageDomCache[previous]=saved;
+ }
+ currentPage=page;renderNav();
+ if(gpsfmPageDomCache[page]&&gpsfmPageDomCache[page].childNodes.length){
+  root.replaceChildren();
+  while(gpsfmPageDomCache[page].firstChild)root.appendChild(gpsfmPageDomCache[page].firstChild);
+  return;
+ }
+ const cached=document.createElement('div');
+ cached.className='page-loading-state';
+ cached.innerHTML='<div class="panel"><div style="display:flex;align-items:center;gap:10px"><span class="spinner" style="border-color:#c7d2fe;border-top-color:#800080"></span><div><b>Menyiapkan '+esc(({dashboard:'Ringkasan',attendance:'Input Absensi',report:'Evaluasi Diri',activityReport:'Rekapan',activities:'Kegiatan & PJ',users:'Akun Guru'})[page]||'halaman')+'…</b><div class="muted small">Data sedang dimuat. Halaman akan tampil otomatis setelah selesai.</div></div></div><div class="grid" style="margin-top:16px"><div class="stat"><div class="stat-label">Memuat data</div><div class="skeleton-line"></div></div><div class="stat"><div class="stat-label">Menyiapkan tampilan</div><div class="skeleton-line"></div></div></div></div>';
+ root.replaceChildren(cached);
+ try{
+  const content=document.createElement('div');
+  if(page==='dashboard')await dashboard(content);else if(page==='attendance')await attendancePage(content);else if(page==='report')await reportPage(content);else if(page==='activityReport')await activityReportPage(content);else if(page==='activities')await activitiesPage(content);else if(page==='users')await usersPage(content);else throw new Error('Halaman tidak dikenal.');
+  if(currentPage!==page)return;
+  root.replaceChildren(content);
+ }catch(e){
+  if(currentPage!==page)return;
+  root.innerHTML='<div class="panel"><h3>Belum dapat memuat halaman</h3><p class="muted">'+esc(e.message)+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>';
+  $('retry').onclick=()=>renderPage(page);
+ }
+}
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
 async function dashboard(root){
  const [r,targets]=await Promise.all([call('apiGetMonthlyReport',token,new Date().getFullYear(),new Date().getMonth()+1),call('apiGetAttendanceTargets',token)]);
