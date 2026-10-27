@@ -296,6 +296,16 @@ function apiGetAttendanceForDate(token, activityId, date) {
   }).map(function(a){return {teacherId:String(a.teacherId),status:String(a.status),note:String(a.note||''),recordedBy:String(a.recordedBy||'')};});
 }
 
+function gpsfmValidatePJAttendanceMonth_(user, date) {
+  // PJ dapat mengisi absensi selama bulan kalender berjalan, termasuk tanggal terakhir.
+  // Superadmin tetap mengikuti mekanisme penguncian periode yang sudah ada.
+  if (String(user.role) === 'superadmin') return;
+  const currentMonth = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM');
+  if (String(date).slice(0, 7) !== currentMonth) {
+    throw new Error('PJ dapat menginput absensi untuk bulan berjalan sampai tanggal terakhir bulan ini. Untuk periode bulan lain, hubungi superadmin.');
+  }
+}
+
 function apiSaveAttendanceBatch(token, data) {
   const s = gpsfmSession_(token), u = s.user;
   data = data || {};
@@ -304,6 +314,7 @@ function apiSaveAttendanceBatch(token, data) {
   if (u.role !== 'superadmin' && !gpsfmIsPJ_(u.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  gpsfmValidatePJAttendanceMonth_(u, date);
   if (!entries.length || entries.length > 200) throw new Error('Pilih minimal satu guru dan maksimal 200 guru untuk disimpan.');
   const period = date.slice(0,7).split('-');
   const p = gpsfmRows_('Periods').find(function(x) { return Number(x.year) === Number(period[0]) && Number(x.month) === Number(period[1]); });
@@ -353,6 +364,7 @@ function apiSaveAttendance(token, data) {
   if (!teacher) throw new Error('Guru GPS tidak ditemukan atau tidak aktif.');
   if (!gpsfmIsActivityTeacher_(teacherId,activityId)) throw new Error('Guru tersebut belum ditetapkan sebagai guru yang terlibat dalam kegiatan ini.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  gpsfmValidatePJAttendanceMonth_(u, date);
   if (GPSFM_STATUSES.indexOf(status) < 0) throw new Error('Status kehadiran tidak valid.');
   const period = date.slice(0,7).split('-'), p = gpsfmRows_('Periods').find(function(x) { return Number(x.year) === Number(period[0]) && Number(x.month) === Number(period[1]); });
   if (p && String(p.status) === 'locked') throw new Error('Periode laporan sudah dikunci.');
