@@ -14,6 +14,7 @@ const GPSFM_SCHEMA = {
   ActivityPJ: ['assignmentId','activityId','userId','active','assignedAt','assignedBy'],
   ActivityTeachers: ['assignmentId','activityId','teacherId','active','assignedAt','assignedBy','updatedAt'],
   Attendance: ['attendanceId','activityId','teacherId','attendanceDate','status','note','recordedBy','createdAt','updatedAt'],
+  ActivityOccurrences: ['occurrenceId','activityId','occurrenceDate','status','reason','teacherIdsJson','updatedBy','updatedAt','createdAt'],
   Periods: ['periodId','year','month','status','lockedAt','lockedBy'],
   AuditLogs: ['logId','actorId','action','entityType','entityId','details','createdAt'],
   AppSettings: ['key','value','updatedAt']
