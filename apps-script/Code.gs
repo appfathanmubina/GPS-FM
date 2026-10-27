@@ -413,15 +413,16 @@ function apiGetMonthlyReport(token, year, month) {
     return {date:date,teacherId:String(a.teacherId),teacherName:userMap[String(a.teacherId)] || 'Guru tidak ditemukan',activityId:String(a.activityId),activityName:actMap[String(a.activityId)] || 'Kegiatan tidak ditemukan',status:String(a.status),note:String(a.note || '')};
   }).sort(function(a,b) { return a.date.localeCompare(b.date) || a.activityName.localeCompare(b.activityName) || a.teacherName.localeCompare(b.teacherName); });
   const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas Pondok':0,'C. Izin Pribadi':0,'D. Alfa':0};
-  // Hitung status baru dan data lama yang mungkin masih tersimpan di sheet.
+  // Normalisasi label agar variasi spasi, kapital, dan label lama tetap terhitung.
   result.forEach(function(r) {
-    const status = String(r.status || '').trim();
-    let key = status;
-    if (status === 'Sakit' || status === 'A. Sakit') key = 'A. Sakit';
-    else if (status === 'Tugas' || status === 'B. Tugas' || status === 'Tugas Pondok' || status === 'B. Tugas Pondok') key = 'B. Tugas Pondok';
-    else if (status === 'Izin' || status === 'C. Izin Pribadi') key = 'C. Izin Pribadi';
-    else if (status === 'Alpa' || status === 'Alfa' || status === 'D. Alfa') key = 'D. Alfa';
-    if (Object.prototype.hasOwnProperty.call(summary, key)) summary[key]++;
+    const raw = String(r.status || '').trim().replace(/^[A-D]\\.\\s*/i, '').toLowerCase().replace(/\\s+/g, ' ');
+    let key = '';
+    if (raw === 'hadir') key = 'Hadir';
+    else if (raw === 'sakit') key = 'A. Sakit';
+    else if (raw === 'tugas' || raw === 'tugas pondok') key = 'B. Tugas Pondok';
+    else if (raw === 'izin' || raw === 'izin pribadi') key = 'C. Izin Pribadi';
+    else if (raw === 'alpa' || raw === 'alfa') key = 'D. Alfa';
+    if (key) summary[key]++;
   });
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
