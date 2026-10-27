@@ -278,6 +278,8 @@ function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
   if (!activity || !teacher) throw new Error('Kegiatan atau akun guru tidak valid.');
   const list = gpsfmRows_('ActivityTeachers');
   const old = list.find(function(a) { return String(a.activityId) === String(activityId) && String(a.teacherId) === String(teacherId); });
+  // Bekukan roster occurrence lampau sebelum perubahan penugasan guru.
+  gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId));
   if (old) gpsfmUpdateRow_('ActivityTeachers',old._row,{active:!!assigned,updatedAt:gpsfmNow_()});
   else if (assigned) gpsfmAppend_('ActivityTeachers',{assignmentId:gpsfmId_(),activityId:activityId,teacherId:teacherId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId,updatedAt:gpsfmNow_()});
   gpsfmAudit_(s.user.userId,assigned?'ASSIGN_ACTIVITY_TEACHER':'UNASSIGN_ACTIVITY_TEACHER','ActivityTeachers',activityId,{teacherId:teacherId});
@@ -385,6 +387,79 @@ function apiSaveAttendance(token, data) {
     }
   } finally { lock.releaseLock(); }
   return {ok:true};
+}
+
+
+/* Target absensi mingguan dan pengecualian pertemuan. Semua pemeriksaan akses di server. */
+function gpsfmParseScheduleDays_(schedule) {
+  const raw=String(schedule||'').toLowerCase().replace(/[–—]/g,'-'), days=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+  if(raw.indexOf('setiap hari')>=0)return days;
+  if(raw.indexOf('senin-jumat')>=0)return days.slice(0,5);
+  return days.filter(function(day){return new RegExp('(^|[^a-z])'+day.toLowerCase()+'([^a-z]|$)').test(raw);});
+}
+function gpsfmDateFromKey_(key){const p=String(key).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2],12,0,0));}
+function gpsfmDateKeyUTC_(d){return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);}
+function gpsfmWeekdayName_(key){return ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][gpsfmDateFromKey_(key).getUTCDay()];}
+function gpsfmGetOccurrence_(activityId,date){return gpsfmRows_('ActivityOccurrences').find(function(o){return String(o.activityId)===String(activityId)&&gpsfmDateKey_(o.occurrenceDate)===String(date);});}
+function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds){
+ const old=gpsfmGetOccurrence_(activityId,date),now=gpsfmNow_(),values={activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now};
+ if(old)gpsfmUpdateRow_('ActivityOccurrences',old._row,values);
+ else gpsfmAppend_('ActivityOccurrences',{occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now,createdAt:now});
+ return gpsfmGetOccurrence_(activityId,date);
+}
+function gpsfmActiveTeacherIds_(activityId){
+ const active={};gpsfmRows_('ActivityTeachers').filter(function(a){return String(a.activityId)===String(activityId)&&gpsfmBool_(a.active);}).forEach(function(a){active[String(a.teacherId)]=true;});
+ return gpsfmRows_('Users').filter(function(u){return active[String(u.userId)]&&gpsfmBool_(u.active)&&String(u.role)==='gps';}).map(function(u){return String(u.userId);});
+}
+function gpsfmSnapshotPastOccurrences_(activityId,teacherIds){
+ const a=gpsfmRows_('Activities').find(function(x){return String(x.activityId)===String(activityId);});if(!a)return;
+ const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
+ const today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),startRaw=gpsfmDateKey_(a.createdAt)||today,end=gpsfmDateFromKey_(today),start=gpsfmDateFromKey_(startRaw),earliest=new Date(end.getTime());
+ earliest.setUTCDate(earliest.getUTCDate()-730);const cursor=start<earliest?earliest:start;cursor.setUTCHours(12,0,0,0);
+ while(cursor<end){const date=gpsfmDateKeyUTC_(cursor);if(days.indexOf(gpsfmWeekdayName_(date))>=0&&!gpsfmGetOccurrence_(activityId,date))gpsfmSaveOccurrence_(activityId,date,'scheduled','', '',teacherIds);cursor.setUTCDate(cursor.getUTCDate()+1);}
+}
+function gpsfmOccurrenceTeacherIds_(o,id){
+ if(o&&o.teacherIdsJson){try{const ids=JSON.parse(String(o.teacherIdsJson));if(Array.isArray(ids))return ids.map(String);}catch(e){}}
+ return gpsfmActiveTeacherIds_(id);
+}
+function apiGetAttendanceTargets(token){
+ const s=gpsfmSession_(token),admin=String(s.user.role)==='superadmin',today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),end=gpsfmDateFromKey_(today);
+ const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance'),users=gpsfmRows_('Users'),userMap={};
+ users.forEach(function(u){userMap[String(u.userId)]=String(u.fullName);});
+ const result=[];
+ activities.forEach(function(a){
+  const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
+  const currentTeachers=gpsfmActiveTeacherIds_(a.activityId),start=gpsfmDateFromKey_(gpsfmDateKey_(a.createdAt)||today),earliest=new Date(end.getTime());
+  earliest.setUTCDate(earliest.getUTCDate()-730);const cursor=start<earliest?earliest:start;cursor.setUTCHours(12,0,0,0);const occurrences=[];
+  while(cursor<end){
+   const date=gpsfmDateKeyUTC_(cursor);
+   if(days.indexOf(gpsfmWeekdayName_(date))>=0){
+    let o=gpsfmGetOccurrence_(a.activityId,date);
+    if(!o){gpsfmSaveOccurrence_(a.activityId,date,'scheduled','', '',currentTeachers);o=gpsfmGetOccurrence_(a.activityId,date);}
+    else if(!o.teacherIdsJson){gpsfmUpdateRow_('ActivityOccurrences',o._row,{teacherIdsJson:JSON.stringify(currentTeachers)});o=gpsfmGetOccurrence_(a.activityId,date);}
+    if(String(o.status||'scheduled')!=='holiday'&&String(o.status||'scheduled')!=='cancelled'){
+     const ids=gpsfmOccurrenceTeacherIds_(o,a.activityId),missing=ids.filter(function(id){return !attendance.some(function(row){return String(row.activityId)===String(a.activityId)&&String(row.teacherId)===String(id)&&gpsfmDateKey_(row.attendanceDate)===date;});});
+     if(missing.length)occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:missing.length,missingTeachers:missing.map(function(id){return {teacherId:id,fullName:userMap[id]||'Guru tidak ditemukan'};}),status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+    }
+   }
+   cursor.setUTCDate(cursor.getUTCDate()+1);
+  }
+  if(occurrences.length)result.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),overdueCount:occurrences.length,missingTotal:occurrences.reduce(function(n,o){return n+o.missingCount;},0),occurrences:occurrences.sort(function(x,y){return y.date.localeCompare(x.date);})});
+ });
+ return {asOf:today,totalOccurrences:result.reduce(function(n,a){return n+a.overdueCount;},0),totalMissing:result.reduce(function(n,a){return n+a.missingTotal;},0),activities:result};
+}
+function apiSetOccurrenceException(token,activityId,date,status,reason){
+ const s=gpsfmSession_(token),id=gpsfmText_(activityId,80),key=gpsfmText_(date,10);status=String(status||'');reason=gpsfmText_(reason,300);
+ if(s.user.role!=='superadmin'&&!gpsfmIsPJ_(s.user.userId,id))throw new Error('Anda bukan PJ untuk kegiatan ini.');
+ const a=gpsfmActivity_(id);if(!a)throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(key))throw new Error('Tanggal tidak valid.');
+ if(gpsfmParseScheduleDays_(a.schedule).indexOf(gpsfmWeekdayName_(key))<0)throw new Error('Tanggal tersebut bukan hari jadwal kegiatan ini.');
+ if(['holiday','cancelled','scheduled'].indexOf(status)<0)throw new Error('Status pengecualian tidak valid.');
+ if(status!=='scheduled'&&!reason)throw new Error('Alasan libur/batal wajib diisi.');
+ if(key>=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'))throw new Error('Pengecualian hanya dapat ditetapkan untuk pertemuan yang sudah lewat.');
+ const old=gpsfmGetOccurrence_(id,key),ids=gpsfmOccurrenceTeacherIds_(old,id);
+ gpsfmSaveOccurrence_(id,key,status,status==='scheduled'?'':reason,s.user.userId,ids);
+ gpsfmAudit_(s.user.userId,'SET_OCCURRENCE_EXCEPTION','ActivityOccurrences',id,{date:key,status:status,reason:reason});return {ok:true};
 }
 
 function apiGetMonthlyReport(token, year, month) {
