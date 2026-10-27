@@ -1,2 +1,2 @@
 // URL Web App Apps Script GPS FM (deployment /exec).
-window.GPSFM_CONFIG = { appsScriptUrl: "https://script.google.com/macros/s/AKfycbyL4HyR75j-duBKliOJLgtNvXVdajQFvy1AKq6zmFWudA5rBK0zI7nFbxH2WuCqkemR/exec" };
+window.GPSFM_CONFIG = { appsScriptUrl: "https://script.google.com/macros/s/AKfycbzIIT1avQicNGtzsuFCcdnzjKwpQIsHVhmZTDYqNor2kfnQNJyw2X_KJBtd5A9K6is6/exec" };
