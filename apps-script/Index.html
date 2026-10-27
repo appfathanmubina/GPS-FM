@@ -587,7 +587,7 @@ async function reportPage(root){
   return report.rows.filter(x=>!activityId||String(x.activityId)===activityId);
  }
  function normalizeAttendanceStatus(value){
-  const status=String(value||'').trim().replace(/^[A-D]\\.\\s*/i,'').toLowerCase().replace(/\\s+/g,' ');
+  const status=String(value||'').trim().replace(/^[A-D][.]\s*/i,'').toLowerCase().replace(/\s+/g,' ');
   if(status==='hadir')return 'Hadir';
   if(status==='sakit')return 'Sakit';
   if(status==='tugas'||status==='tugas pondok')return 'Tugas Pondok';
