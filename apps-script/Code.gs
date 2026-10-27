@@ -400,7 +400,19 @@ function gpsfmParseScheduleDays_(schedule) {
 function gpsfmDateFromKey_(key){const p=String(key).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2],12,0,0));}
 function gpsfmDateKeyUTC_(d){return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);}
 function gpsfmWeekdayName_(key){return ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][gpsfmDateFromKey_(key).getUTCDay()];}
-function gpsfmGetOccurrence_(activityId,date){return gpsfmRows_('ActivityOccurrences').find(function(o){return String(o.activityId)===String(activityId)&&gpsfmDateKey_(o.occurrenceDate)===String(date);});}
+function gpsfmEnsureOccurrenceSheet_(){
+ const ss=gpsfmDb_();let sh=ss.getSheetByName('ActivityOccurrences');
+ if(!sh){
+  sh=ss.insertSheet('ActivityOccurrences');
+  sh.getRange(1,1,1,9).setValues([['occurrenceId','activityId','occurrenceDate','status','reason','teacherIdsJson','updatedBy','updatedAt','createdAt']]);
+  sh.setFrozenRows(1);
+ }
+ return sh;
+}
+function gpsfmGetOccurrence_(activityId,date){
+ gpsfmEnsureOccurrenceSheet_();
+ return gpsfmRows_('ActivityOccurrences').find(function(o){return String(o.activityId)===String(activityId)&&gpsfmDateKey_(o.occurrenceDate)===String(date);});
+}
 function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds){
  const lock=LockService.getScriptLock();lock.waitLock(10000);
  try{
