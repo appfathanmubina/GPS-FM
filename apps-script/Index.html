@@ -532,7 +532,7 @@ function openLogoutConfirmation(){
 }
 $('changePassBtn').addEventListener('click',openChangePasswordModal);
 function navIcon(id){const paths={dashboard:'<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/>',attendance:'<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14l2.2 2.2L16 12"/>',report:'<path d="M5 4v16h15"/><path d="m8 15 3.5-4 3 2 4.5-6"/>',activityReport:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M8 4.5v15M13 12h4M13 15.5h4"/>',activities:'<path d="M8 4.5h6.8L18 7.7v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>'};return '<svg class="nav-flat-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]||paths.dashboard)+'</svg>';} function renderNav(){const nav=$('nav');const items=[['dashboard','Ringkasan'],['attendance','Input Absensi'],['report','Evaluasi Diri'],['activityReport','Rekapan']];if(me.role==='superadmin')items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);nav.classList.toggle('nav-five',me.role==='superadmin');nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
-async function renderPage(page){
+async async function renderPage(page){
  const root=$('page'),previous=currentPage;
  if(previous&&previous!==page&&root.childNodes.length&&!root.querySelector('.page-loading-state')){
   const saved=document.createElement('div');
@@ -545,28 +545,31 @@ async function renderPage(page){
   while(gpsfmPageDomCache[page].firstChild)root.appendChild(gpsfmPageDomCache[page].firstChild);
   return;
  }
- const cached=document.createElement('div');
- cached.className='page-loading-state';
- cached.innerHTML='<div class="panel"><div style="display:flex;align-items:center;gap:10px"><span class="spinner" style="border-color:#c7d2fe;border-top-color:#800080"></span><div><b>Menyiapkan '+esc(({dashboard:'Ringkasan',attendance:'Input Absensi',report:'Evaluasi Diri',activityReport:'Rekapan',activities:'Kegiatan & PJ',users:'Akun Guru'})[page]||'halaman')+'…</b><div class="muted small">Data sedang dimuat. Halaman akan tampil otomatis setelah selesai.</div></div></div><div class="grid" style="margin-top:16px"><div class="stat"><div class="stat-label">Memuat data</div><div class="skeleton-line"></div></div><div class="stat"><div class="stat-label">Menyiapkan tampilan</div><div class="skeleton-line"></div></div></div></div>';
- root.replaceChildren(cached);
+ const pageNames={dashboard:'Ringkasan',attendance:'Input Absensi',report:'Evaluasi Diri',activities:'Kegiatan & PJ',activityReport:'Rekapan',users:'Akun Guru'};
+ const targetPages=['dashboard','attendance','report','activities'];
+ const shouldNotify=targetPages.includes(page);
+ if(shouldNotify)processNotice('Memuat '+(pageNames[page]||'halaman'),'Halaman ditampilkan terlebih dahulu. Data sedang diambil di latar belakang…','working');
+ root.replaceChildren();
  try{
-  const content=document.createElement('div');
-  content.style.cssText='position:absolute;left:-100000px;top:0;width:calc(100% - 32px);visibility:hidden;pointer-events:none';
-  content.setAttribute('aria-hidden','true');document.body.appendChild(content);
-  try{
-   if(page==='dashboard')await dashboard(content);else if(page==='attendance')await attendancePage(content);else if(page==='report')await reportPage(content);else if(page==='activityReport')await activityReportPage(content);else if(page==='activities')await activitiesPage(content);else if(page==='users')await usersPage(content);else throw new Error('Halaman tidak dikenal.');
-   if(currentPage!==page)return;
-   root.replaceChildren();
-   while(content.firstChild)root.appendChild(content.firstChild);
-  }finally{content.remove();}
+  if(page==='dashboard')await dashboard(root);
+  else if(page==='attendance')await attendancePage(root);
+  else if(page==='report')await reportPage(root);
+  else if(page==='activityReport')await activityReportPage(root);
+  else if(page==='activities')await activitiesPage(root);
+  else if(page==='users')await usersPage(root);
+  else throw new Error('Halaman tidak dikenal.');
+  if(currentPage!==page)return;
+  if(shouldNotify)closeProcessNotice();
  }catch(e){
   if(currentPage!==page)return;
-  root.innerHTML='<div class="panel"><h3>Belum dapat memuat halaman</h3><p class="muted">'+esc(e.message)+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>';
-  $('retry').onclick=()=>renderPage(page);
+  if(shouldNotify)processNotice('Data belum berhasil dimuat',e.message||'Terjadi kesalahan saat mengambil data.','error');
+  root.insertAdjacentHTML('beforeend','<div class="panel"><h3>Belum dapat memuat data</h3><p class="muted">'+esc(e.message||'Terjadi kesalahan.')+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>');
+  const retry=$('retry');if(retry)retry.onclick=()=>renderPage(page);
  }
 }
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
 async function dashboard(root){
+ root.innerHTML=title('Ringkasan Kehadiran','Pantau catatan kehadiran dan target absensi kegiatan mingguan.')+'<div class="grid"><div class="stat"><div class="stat-label">Total catatan</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Hadir</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Sakit & Izin Pribadi</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Alfa</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div></div><div class="panel"><h3>Target Absensi</h3><p class="muted small">Mengambil target pertemuan dan status absensi…</p><div class="grid"><div class="stat"><div class="stat-label">Pertemuan tertinggal</div><div class="stat-value skeleton-line">&nbsp;</div></div><div class="stat"><div class="stat-label">Absensi belum masuk</div><div class="stat-value skeleton-line">&nbsp;</div></div></div></div>';
  const [r,targets]=await Promise.all([call('apiGetMonthlyReport',token,new Date().getFullYear(),new Date().getMonth()+1),call('apiGetAttendanceTargets',token)]);
  const s=r.summary;
  root.innerHTML=title('Ringkasan Kehadiran','Pantau catatan kehadiran dan target absensi kegiatan mingguan.')+
@@ -581,7 +584,9 @@ async function dashboard(root){
  $('quickReport').onclick=()=>renderPage('report');
 }
 async function attendancePage(root){
+ root.innerHTML=title('Input Absensi','Pilih kegiatan dan tanggal, lalu centang guru yang akan dicatat bersama.')+'<div class="panel"><form class="row"><div class="field"><label>Kegiatan</label><select disabled><option>Memuat daftar kegiatan…</option></select></div><div class="field"><label>Tanggal</label><input type="date" value="'+dateDefault()+'" disabled></div></form></div><div id="attendanceTeachers" class="panel"><div class="empty">Menyiapkan formulir absensi dan daftar guru…</div></div>';
  activities=await call('apiListActivities',token);
+ if(currentPage!=='attendance')return;
  if(!activities.length){root.innerHTML=title('Input Absensi','Pencatatan kehadiran guru GPS.')+'<div class="panel empty">Belum ada kegiatan yang tersedia untuk akun ini. Hubungi superadmin untuk penugasan PJ.</div>';return;}
  root.innerHTML=title('Input Absensi','Pilih kegiatan dan tanggal, lalu centang guru yang akan dicatat bersama.')+
  '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required>'+activities.map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('')+'</select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div></form></div>'+
@@ -715,7 +720,9 @@ function activityScheduleParts(value){
 function selectedActivityDays(){return Array.from(document.querySelectorAll('input[name="activityDay"]:checked')).map(x=>x.value);}
 function setActivityDays(days){document.querySelectorAll('input[name="activityDay"]').forEach(x=>{x.checked=days.includes(x.value);});}
 async function activitiesPage(root){
- activities=await call('apiListActivities',token);users=await call('apiListUsers',token);
+ const dayChoices=GPSFM_DAYS.map(d=>'<label class="checkitem"><input type="checkbox" name="activityDay" value="'+d+'"><span>'+d+'</span></label>').join('');
+ root.innerHTML=title('Kegiatan & PJ','Kelola daftar kegiatan dan penugasan penanggung jawab.')+'<div class="panel"><h3>Tambah / ubah kegiatan</h3><p class="muted small">Formulir disiapkan. Data kegiatan dan penanggung jawab sedang dimuat…</p><form id="activityForm"><input type="hidden" id="activityId"><div class="field"><label>Nama kegiatan</label><input id="activityName" required maxlength="120" placeholder="Contoh: Tahfiz pagi"></div><div class="field" style="margin-top:12px"><label>Hari kegiatan</label><div class="checklist" style="grid-template-columns:repeat(auto-fit,minmax(105px,1fr))">'+dayChoices+'</div></div><div class="field" style="margin-top:12px"><label>Waktu / keterangan jadwal (opsional)</label><input id="activityScheduleTime" maxlength="120" placeholder="Contoh: 07.00 atau setelah Subuh"></div><div class="field" style="margin-top:12px"><label>Deskripsi (opsional)</label><input id="activityDescription" maxlength="500" placeholder="Keterangan kegiatan"></div></form></div><div class="panel"><h3>Daftar kegiatan</h3><div class="empty">Memuat daftar kegiatan…</div></div>';
+ activities=await call('apiListActivities',token);if(currentPage!=='activities')return;users=await call('apiListUsers',token);if(currentPage!=='activities')return;
  const dayChoices=GPSFM_DAYS.map(d=>'<label class="checkitem"><input type="checkbox" name="activityDay" value="'+d+'"><span>'+d+'</span></label>').join('');
  root.innerHTML=title('Kegiatan & PJ','Kelola daftar kegiatan dan penugasan penanggung jawab.')+
  '<div class="panel"><h3>Tambah / ubah kegiatan</h3><form id="activityForm"><input type="hidden" id="activityId">'+
