@@ -551,9 +551,14 @@ async function renderPage(page){
  root.replaceChildren(cached);
  try{
   const content=document.createElement('div');
-  if(page==='dashboard')await dashboard(content);else if(page==='attendance')await attendancePage(content);else if(page==='report')await reportPage(content);else if(page==='activityReport')await activityReportPage(content);else if(page==='activities')await activitiesPage(content);else if(page==='users')await usersPage(content);else throw new Error('Halaman tidak dikenal.');
-  if(currentPage!==page)return;
-  root.replaceChildren(content);
+  content.style.cssText='position:absolute;left:-100000px;top:0;width:calc(100% - 32px);visibility:hidden;pointer-events:none';
+  content.setAttribute('aria-hidden','true');document.body.appendChild(content);
+  try{
+   if(page==='dashboard')await dashboard(content);else if(page==='attendance')await attendancePage(content);else if(page==='report')await reportPage(content);else if(page==='activityReport')await activityReportPage(content);else if(page==='activities')await activitiesPage(content);else if(page==='users')await usersPage(content);else throw new Error('Halaman tidak dikenal.');
+   if(currentPage!==page)return;
+   root.replaceChildren();
+   while(content.firstChild)root.appendChild(content.firstChild);
+  }finally{content.remove();}
  }catch(e){
   if(currentPage!==page)return;
   root.innerHTML='<div class="panel"><h3>Belum dapat memuat halaman</h3><p class="muted">'+esc(e.message)+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>';
