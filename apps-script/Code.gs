@@ -437,6 +437,18 @@ function gpsfmOccurrenceTeacherIds_(o,id){
  if(o&&o.teacherIdsJson){try{const ids=JSON.parse(String(o.teacherIdsJson));if(Array.isArray(ids))return ids.map(String);}catch(e){}}
  return gpsfmActiveTeacherIds_(id);
 }
+function gpsfmScheduleStartMinutes_(schedule){
+  const match=String(schedule||'').match(/(?:^|[^0-9])([0-9]{1,2})[.:]([0-9]{2})(?![0-9])/);
+  if(!match)return null;
+  const hour=Number(match[1]),minute=Number(match[2]);
+  if(hour>23||minute>59)return null;
+  return hour*60+minute;
+}
+function gpsfmScheduledDueKey_(schedule,date){
+  const mins=gpsfmScheduleStartMinutes_(schedule);
+  if(mins===null)return date+' 00:00';
+  return date+' '+('0'+Math.floor(mins/60)).slice(-2)+':'+('0'+(mins%60)).slice(-2);
+}
 function apiGetAttendanceTargets(token){
   const s=gpsfmSession_(token),admin=String(s.user.role)==='superadmin',today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),end=gpsfmDateFromKey_(today);
   const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance');
@@ -447,18 +459,21 @@ function apiGetAttendanceTargets(token){
     const key=String(row.activityId)+'|'+gpsfmDateKey_(row.attendanceDate);
     attendanceDates[key]=true;
   });
+  const nowJakarta=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd HH:mm');
   const result=[];
   activities.forEach(function(a){
     const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
-    const start=gpsfmDateFromKey_(gpsfmDateKey_(a.createdAt)||today),earliest=new Date(end.getTime());
-    earliest.setUTCDate(earliest.getUTCDate()-730);const cursor=start<earliest?earliest:start;cursor.setUTCHours(12,0,0,0);const occurrences=[];
-    while(cursor<end){
+    const startDate=gpsfmDateFromKey_(gpsfmDateKey_(a.createdAt)||today),earliest=new Date(end.getTime());
+    earliest.setUTCDate(earliest.getUTCDate()-730);const cursor=startDate<earliest?earliest:startDate;cursor.setUTCHours(12,0,0,0);const occurrences=[];
+    while(cursor<=end){
       const date=gpsfmDateKeyUTC_(cursor);
       if(days.indexOf(gpsfmWeekdayName_(date))>=0){
-        let o=gpsfmGetOccurrence_(a.activityId,date);
-        if(!o){gpsfmSaveOccurrence_(a.activityId,date,'scheduled','', '',[]);o=gpsfmGetOccurrence_(a.activityId,date);}
-        if(String(o.status||'scheduled')!=='holiday'&&String(o.status||'scheduled')!=='cancelled'&&!attendanceDates[String(a.activityId)+'|'+date]){
-          occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+        const due=gpsfmScheduledDueKey_(a.schedule,date),hasClock=gpsfmScheduleStartMinutes_(a.schedule)!==null;
+        const isDue=hasClock?nowJakarta>=due:date<today;
+        if(isDue){
+          let o=gpsfmGetOccurrence_(a.activityId,date);
+          if(!o){gpsfmSaveOccurrence_(a.activityId,date,'scheduled','', '',[]);o=gpsfmGetOccurrence_(a.activityId,date);}
+          if(String(o.status||'scheduled')!=='holiday'&&!attendanceDates[String(a.activityId)+'|'+date])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
         }
       }
       cursor.setUTCDate(cursor.getUTCDate()+1);
@@ -473,8 +488,8 @@ function apiSetOccurrenceException(token,activityId,date,status,reason){
  const a=gpsfmActivity_(id);if(!a)throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(key))throw new Error('Tanggal tidak valid.');
  if(gpsfmParseScheduleDays_(a.schedule).indexOf(gpsfmWeekdayName_(key))<0)throw new Error('Tanggal tersebut bukan hari jadwal kegiatan ini.');
- if(['holiday','cancelled','scheduled'].indexOf(status)<0)throw new Error('Status pengecualian tidak valid.');
- if(status!=='scheduled'&&!reason)throw new Error('Alasan libur/batal wajib diisi.');
+ if(['holiday','scheduled'].indexOf(status)<0)throw new Error('Status pengecualian tidak valid.');
+ if(status==='holiday'&&!reason)throw new Error('Alasan libur wajib diisi.');
  if(key>=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'))throw new Error('Pengecualian hanya dapat ditetapkan untuk pertemuan yang sudah lewat.');
  const old=gpsfmGetOccurrence_(id,key),ids=gpsfmOccurrenceTeacherIds_(old,id);
  gpsfmSaveOccurrence_(id,key,status,status==='scheduled'?'':reason,s.user.userId,ids);
