@@ -439,7 +439,7 @@ function gpsfmOccurrenceTeacherIds_(o,id){
 }
 function apiGetAttendanceTargets(token){
  const s=gpsfmSession_(token),admin=String(s.user.role)==='superadmin',today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),end=gpsfmDateFromKey_(today);
- const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance'),attendance=gpsfmRows_('Attendance');
+ const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance');
  const result=[];
  activities.forEach(function(a){
   const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
