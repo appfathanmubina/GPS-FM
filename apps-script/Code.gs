@@ -439,8 +439,7 @@ function gpsfmOccurrenceTeacherIds_(o,id){
 }
 function apiGetAttendanceTargets(token){
  const s=gpsfmSession_(token),admin=String(s.user.role)==='superadmin',today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),end=gpsfmDateFromKey_(today);
- const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance'),users=gpsfmRows_('Users'),userMap={};
- users.forEach(function(u){userMap[String(u.userId)]=String(u.fullName);});
+ const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance'),attendance=gpsfmRows_('Attendance');
  const result=[];
  activities.forEach(function(a){
   const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
@@ -454,7 +453,7 @@ function apiGetAttendanceTargets(token){
     else if(!o.teacherIdsJson){gpsfmUpdateRow_('ActivityOccurrences',o._row,{teacherIdsJson:JSON.stringify(currentTeachers)});o=gpsfmGetOccurrence_(a.activityId,date);}
     if(String(o.status||'scheduled')!=='holiday'&&String(o.status||'scheduled')!=='cancelled'){
      const ids=gpsfmOccurrenceTeacherIds_(o,a.activityId),missing=ids.filter(function(id){return !attendance.some(function(row){return String(row.activityId)===String(a.activityId)&&String(row.teacherId)===String(id)&&gpsfmDateKey_(row.attendanceDate)===date;});});
-     if(missing.length)occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:missing.length,missingTeachers:missing.map(function(id){return {teacherId:id,fullName:userMap[id]||'Guru tidak ditemukan'};}),status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+     if(missing.length)occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:missing.length,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
     }
    }
    cursor.setUTCDate(cursor.getUTCDate()+1);
