@@ -531,6 +531,21 @@ function apiSetOccurrenceException(token,activityId,date,status,reason){
  gpsfmAudit_(s.user.userId,'SET_OCCURRENCE_EXCEPTION','ActivityOccurrences',id,{date:key,status:status,reason:reason});return {ok:true};
 }
 
+function apiListMyAttendanceActivities(token) {
+  const s = gpsfmSession_(token);
+  const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
+  if (s.user.role === 'superadmin') return activities.map(function(a) {
+    return {activityId:String(a.activityId),name:String(a.name),schedule:String(a.schedule||'')};
+  }).sort(function(a,b) { return a.name.localeCompare(b.name); });
+  const ids = {};
+  gpsfmRows_('Attendance').forEach(function(row) {
+    if (String(row.teacherId) === String(s.user.userId)) ids[String(row.activityId)] = true;
+  });
+  return activities.filter(function(a) { return !!ids[String(a.activityId)]; }).map(function(a) {
+    return {activityId:String(a.activityId),name:String(a.name),schedule:String(a.schedule||'')};
+  }).sort(function(a,b) { return a.name.localeCompare(b.name); });
+}
+
 function apiGetMonthlyReport(token, year, month) {
   const s = gpsfmSession_(token);
   year = Number(year); month = Number(month);
@@ -542,17 +557,15 @@ function apiGetMonthlyReport(token, year, month) {
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   allActivities.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
 
-  // Guru hanya memperoleh pilihan kegiatan yang memang menugaskannya.
-  // Superadmin tetap dapat melihat seluruh kegiatan aktif.
+  // Evaluasi Diri menampilkan kegiatan yang memiliki catatan Attendance milik guru ini.
+  // Tidak mensyaratkan penugasan ActivityTeachers/PJ karena data absensi adalah sumber partisipasi.
   let allowedActivityIds;
   if (s.user.role === 'superadmin') {
     allowedActivityIds = allActivities.map(function(a) { return String(a.activityId); });
   } else {
-    allowedActivityIds = gpsfmRows_('ActivityTeachers').filter(function(a) {
-      return String(a.teacherId) === String(s.user.userId) && gpsfmBool_(a.active);
-    }).map(function(a) { return String(a.activityId); }).filter(function(id) {
-      return Object.prototype.hasOwnProperty.call(actMap, id);
-    });
+    allowedActivityIds = Array.from(new Set(gpsfmRows_('Attendance').filter(function(a) {
+      return String(a.teacherId) === String(s.user.userId) && Object.prototype.hasOwnProperty.call(actMap,String(a.activityId));
+    }).map(function(a) { return String(a.activityId); })));
   }
   const activities = allActivities.filter(function(a) {
     return allowedActivityIds.indexOf(String(a.activityId)) >= 0;
