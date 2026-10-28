@@ -465,6 +465,14 @@ function apiGetAttendanceTargets(token){
     const key=String(row.activityId)+'|'+gpsfmDateKey_(row.attendanceDate);
     attendanceDates[key]=true;
   });
+  // Indeks occurrence dibangun sekali; jangan baca seluruh ActivityOccurrences untuk tiap tanggal.
+  // Jika ada duplikat lama, pertahankan perilaku lama: gunakan baris pertama yang cocok.
+  gpsfmEnsureOccurrenceSheet_();
+  const occurrenceByKey={};
+  gpsfmRows_('ActivityOccurrences').forEach(function(row){
+    const key=String(row.activityId)+'|'+gpsfmDateKey_(row.occurrenceDate);
+    if(!Object.prototype.hasOwnProperty.call(occurrenceByKey,key))occurrenceByKey[key]=row;
+  });
   const nowJakarta=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd HH:mm');
   const result=[];
   activities.forEach(function(a){
@@ -477,9 +485,13 @@ function apiGetAttendanceTargets(token){
         const due=gpsfmScheduledDueKey_(a.schedule,date),hasClock=gpsfmScheduleStartMinutes_(a.schedule)!==null;
         const isDue=hasClock?nowJakarta>=due:date<today;
         if(isDue){
-          let o=gpsfmGetOccurrence_(a.activityId,date);
-          if(!o){gpsfmSaveOccurrence_(a.activityId,date,'scheduled','', '',[]);o=gpsfmGetOccurrence_(a.activityId,date);}
-          if(String(o.status||'scheduled')!=='holiday'&&!attendanceDates[String(a.activityId)+'|'+date])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+          const occurrenceKey=String(a.activityId)+'|'+date;
+          let o=occurrenceByKey[occurrenceKey];
+          if(!o){
+            o=gpsfmSaveOccurrence_(a.activityId,date,'scheduled','', '',[]);
+            occurrenceByKey[occurrenceKey]=o;
+          }
+          if(String(o.status||'scheduled')!=='holiday'&&!attendanceDates[occurrenceKey])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
         }
       }
       cursor.setUTCDate(cursor.getUTCDate()+1);
