@@ -589,7 +589,8 @@ async function renderPage(page){
 }
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
 async function dashboard(root){
- root.innerHTML=title('Dashboard','Pantau catatan kehadiran dan target absensi kegiatan mingguan.')+'<div class="grid" id="dashboardStats"><div class="stat"><div class="stat-label">Total catatan</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Hadir</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Sakit & Izin Pribadi</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Alfa</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div></div><div class="panel" id="attendanceTargetsPanel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Target Absensi</h3><button class="btn btn-primary" id="reloadAttendanceTargets" type="button">↻ Reload Target Absensi</button></div><p class="muted small">Target dimuat hanya saat tombol diklik. Pertemuan terlewat dihitung sesuai jadwal; status absensi apa pun yang tersimpan dianggap sudah masuk.</p><div class="empty" id="attendanceTargetsState">Target absensi belum dimuat.</div></div>';
+ const canViewTargets=me.role==='superadmin'||!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.length);
+ root.innerHTML=title('Dashboard','Pantau catatan kehadiran dan target absensi kegiatan mingguan.')+'<div class="grid" id="dashboardStats"><div class="stat"><div class="stat-label">Total catatan</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Hadir</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Sakit & Izin Pribadi</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Alfa</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div></div>'+(canViewTargets?'<div class="panel" id="attendanceTargetsPanel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Target Absensi</h3><button class="btn btn-primary" id="reloadAttendanceTargets" type="button">↻ Reload Target Absensi</button></div><p class="muted small">Target dimuat hanya saat tombol diklik. Pertemuan terlewat dihitung sesuai jadwal; status absensi apa pun yang tersimpan dianggap sudah masuk.</p><div class="empty" id="attendanceTargetsState">Target absensi belum dimuat.</div></div>':'');
  root.insertAdjacentHTML('beforeend','<div class="panel"><h3>Akses cepat</h3><button class="btn btn-primary" id="quickAttendance">Buka Input Absensi</button> <button class="btn btn-light" id="quickReport">Lihat Evaluasi Diri</button></div>'+
  '<div class="panel"><h3>Aktivitas yang dapat dikelola</h3>'+(bootstrap.activities.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Jadwal</th><th>Akses</th></tr></thead><tbody>'+bootstrap.activities.map(a=>'<tr><td><b>'+esc(a.name)+'</b><div class="small muted">'+esc(a.description)+'</div></td><td>'+esc(a.schedule||'—')+'</td><td><span class="pill">'+(a.isPJ?'PJ kegiatan':'Superadmin')+'</span></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Belum ada kegiatan yang ditugaskan ke akun ini.</div>')+'</div>');
  $('quickAttendance').onclick=()=>{window.gpsfmPendingAttendance=null;renderPage('attendance');};
@@ -631,7 +632,7 @@ async function dashboard(root){
    if(currentPage==='dashboard'&&requestId===targetsRequest){const btn=$('reloadAttendanceTargets');if(btn){btn.disabled=false;btn.textContent='↻ Reload Target Absensi';}}
   }
  }
- $('reloadAttendanceTargets').onclick=loadTargets;
+ const reloadTargetsButton=$('reloadAttendanceTargets');if(reloadTargetsButton)reloadTargetsButton.onclick=loadTargets;
 }
 async function attendancePage(root){
  root.innerHTML=title('Input Absensi','Pilih kegiatan untuk memuat daftar guru, lalu tentukan tanggal absensi.')+
@@ -713,7 +714,7 @@ async function reportPage(root){
  '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
  '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
  '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">Pilih kegiatan...</option></select></div>'+
- '<button class="btn btn-primary" type="submit">Tampilkan Rekap</button><button class="btn btn-light" id="exportCsv" type="button">Unduh CSV</button></form></div><div id="reportResult"></div>';
+ '<button class="btn btn-primary" type="submit" style="flex:1;min-width:180px">Tampilkan Rekap</button></form></div><div id="reportResult"></div>';
 
  function filteredRows(){
   if(!report)return [];
@@ -776,16 +777,6 @@ async function reportPage(root){
  $('rActivity').onfocus=loadActivityOptions;$('rActivity').onclick=loadActivityOptions;
  $('rActivity').onchange=()=>{if($('rActivity').value)load();else{report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';}};
  $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
- $('exportCsv').onclick=()=>{
-  const rowsToExport=filteredRows();
-  if(!rowsToExport.length){toast('Tidak ada data untuk diunduh.');return;}
-  const rows=[['Tanggal','Nama Guru','Kegiatan','Status','Catatan'],...rowsToExport.map(x=>[x.date,x.teacherName,x.activityName,x.status,x.note])];
-  const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
-  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='GPS-FM-Rekap-'+$('rYear').value+'-'+String($('rMonth').value).padStart(2,'0')+($('rActivity').value?'-Kegiatan':'')+'.csv';
-  a.click();URL.revokeObjectURL(a.href);
- };
  $('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';
 }
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
