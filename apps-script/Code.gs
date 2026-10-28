@@ -250,8 +250,10 @@ function apiAssignPJ(token, activityId, userId, assigned) {
 
 function apiGetPJAssignments(token, activityId) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
+  const usersById = {};
+  gpsfmRows_('Users').forEach(function(u) { usersById[String(u.userId)] = u; });
   return gpsfmRows_('ActivityPJ').filter(function(a) { return String(a.activityId) === String(activityId) && gpsfmBool_(a.active); }).map(function(a) {
-    const u = gpsfmRows_('Users').find(function(x) { return String(x.userId) === String(a.userId); });
+    const u = usersById[String(a.userId)];
     return {userId:String(a.userId),fullName:u?String(u.fullName):'Akun tidak ditemukan'};
   });
 }
@@ -451,7 +453,11 @@ function gpsfmScheduledDueKey_(schedule,date){
 }
 function apiGetAttendanceTargets(token){
   const s=gpsfmSession_(token),admin=String(s.user.role)==='superadmin',today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),end=gpsfmDateFromKey_(today);
-  const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||gpsfmIsPJ_(s.user.userId,a.activityId));}),attendance=gpsfmRows_('Attendance');
+  // Baca daftar PJ sekali, lalu gunakan indeks agar tidak membaca seluruh sheet ActivityPJ
+  // berulang kali untuk setiap kegiatan.
+  const pjRows=admin?[]:gpsfmRows_('ActivityPJ'),pjActivityIds={};
+  if(!admin)pjRows.forEach(function(row){if(gpsfmBool_(row.active)&&String(row.userId)===String(s.user.userId))pjActivityIds[String(row.activityId)]=true;});
+  const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||!!pjActivityIds[String(a.activityId)]);}),attendance=gpsfmRows_('Attendance');
   // Target ditentukan per kegiatan dan tanggal jadwal, bukan per guru.
   // Satu catatan absensi apa pun untuk kegiatan/tanggal tersebut menandakan target sudah diisi.
   const attendanceDates={};
