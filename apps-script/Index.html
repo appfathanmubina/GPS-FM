@@ -742,10 +742,17 @@ async function reportPage(root){
    rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.activityName.localeCompare(b.activityName)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+
    '</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran untuk periode dan kegiatan yang dipilih.</div>')+'</div>';
  }
- let reportActivitiesLoaded=false,reportActivitiesLoading=false;
+ let reportActivitiesLoaded=false,reportActivitiesLoading=false,reportDataLoading=false;
+ function showReportLoadingNotice(message){
+  processNotice('Memuat data Evaluasi Diri',message,'working');
+  const pop=$('gpsProcessPop');
+  if(pop){pop.style.top='calc(12px + env(safe-area-inset-top))';pop.style.left='50%';pop.style.transform='translateX(-50%)';}
+ }
+ function hideReportLoadingNotice(){if(currentPage==='report')closeProcessNotice();}
  async function loadActivityOptions(){
   if(reportActivitiesLoaded||reportActivitiesLoading)return;
   reportActivitiesLoading=true;$('rActivity').disabled=true;
+  showReportLoadingNotice('Mengambil daftar kegiatan yang tersedia untuk akun Anda…');
   try{
    const list=await call('apiListMyAttendanceActivities',token);
    if(currentPage!=='report')return;
@@ -753,14 +760,18 @@ async function reportPage(root){
    reportActivitiesLoaded=true;
    if(!(list||[]).length)$('reportResult').innerHTML='<div class="panel empty">Belum ada kegiatan yang tersedia untuk akun ini.</div>';
   }catch(err){toast(err.message||'Daftar kegiatan gagal dimuat.');}
-  finally{reportActivitiesLoading=false;$('rActivity').disabled=false;}
+  finally{reportActivitiesLoading=false;$('rActivity').disabled=false;hideReportLoadingNotice();}
  }
  async function load(){
   const activityId=$('rActivity').value;
   if(!activityId){report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';return;}
+  if(reportDataLoading)return;
+  reportDataLoading=true;
   const y=Number($('rYear').value),m=Number($('rMonth').value);
+  showReportLoadingNotice('Mengambil catatan absensi sesuai bulan dan kegiatan yang dipilih…');
   try{report=await call('apiGetMonthlyReport',token,y,m);if(currentPage!=='report')return;renderResults();}
   catch(err){report=null;$('reportResult').innerHTML='<div class="panel empty">'+esc(err.message||'Rekap tidak dapat dimuat.')+'</div>';throw err;}
+  finally{reportDataLoading=false;hideReportLoadingNotice();}
  }
  $('rActivity').onfocus=loadActivityOptions;$('rActivity').onclick=loadActivityOptions;
  $('rActivity').onchange=()=>{if($('rActivity').value)load();else{report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';}};
