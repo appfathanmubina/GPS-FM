@@ -477,8 +477,10 @@ function apiGetAttendanceTargets(token){
   const result=[];
   activities.forEach(function(a){
     const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
-    const startDate=gpsfmDateFromKey_(gpsfmDateKey_(a.createdAt)||today),monthStart=gpsfmDateFromKey_(today.slice(0,7)+'-01');
-    const cursor=startDate>monthStart?startDate:monthStart;cursor.setUTCHours(12,0,0,0);const occurrences=[];
+    const monthStart=gpsfmDateFromKey_(today.slice(0,7)+'-01');
+    // Target selalu menelusuri seluruh jadwal sejak tanggal 1 bulan berjalan,
+    // tanpa membatasi rentang berdasarkan createdAt kegiatan.
+    const cursor=monthStart;cursor.setUTCHours(12,0,0,0);const occurrences=[];
     while(cursor<=end){
       const date=gpsfmDateKeyUTC_(cursor);
       if(days.indexOf(gpsfmWeekdayName_(date))>=0){
