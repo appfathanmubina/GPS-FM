@@ -665,9 +665,7 @@ async function activityReportPage(root){
    const dates=data.dates.filter(d=>d.slice(0,7)===prefix);
    if(!data.teachers.length){out.innerHTML='<div class="empty">Belum ada guru yang ditetapkan untuk kegiatan ini.</div>';return;}
    if(!dates.length){out.innerHTML='<div class="empty">Belum ada absensi pada bulan yang dipilih.</div>';return;}
-   const byTeacher={};data.teachers.forEach(t=>{byTeacher[t.userId]={name:t.fullName,statuses:[]};});
-   const report=await call('apiGetActivityReport',token,sel.value);
-   const dateIndex={};report.dates.forEach((d,i)=>dateIndex[d]=i);
+   const dateIndex={};data.dates.forEach((d,i)=>dateIndex[d]=i);
    out.innerHTML='<h3>'+esc(data.activityName)+' · '+esc(month.options[month.selectedIndex].text)+' '+esc(year.value)+'</h3><p class="muted small">Baris guru mengikuti urutan sheet Users. Kolom hanya menampilkan tanggal dengan absensi pada bulan yang dipilih.</p><div class="table-wrap"><table><thead><tr><th>Nama Guru</th>'+dates.map(d=>'<th>'+esc(d)+'</th>').join('')+'</tr></thead><tbody>'+data.teachers.map(t=>'<tr><td><b>'+esc(t.fullName)+'</b></td>'+dates.map(d=>{const i=dateIndex[d];return '<td>'+esc(i===undefined?'—':(t.statuses[i]||'—'))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table></div>';
   }catch(e){out.innerHTML='<div class="empty">'+esc(e.message||'Laporan tidak dapat dimuat.')+'</div>';}
  }
