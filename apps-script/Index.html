@@ -747,7 +747,7 @@ async function reportPage(root){
   if(reportActivitiesLoaded||reportActivitiesLoading)return;
   reportActivitiesLoading=true;$('rActivity').disabled=true;
   try{
-   const list=await call('apiListActivities',token);
+   const list=await call('apiListMyAttendanceActivities',token);
    if(currentPage!=='report')return;
    $('rActivity').innerHTML='<option value="">Pilih kegiatan...</option>'+((list||[]).map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>')).join('');
    reportActivitiesLoaded=true;
