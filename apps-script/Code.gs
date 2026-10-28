@@ -98,7 +98,20 @@ function gpsfmText_(value, max) {
 }
 function gpsfmBool_(v) { return v === true || String(v).toLowerCase() === 'true'; }
 function gpsfmPublicUser_(u) {
-  return {userId:String(u.userId), username:String(u.username), fullName:String(u.fullName), role:String(u.role)};
+  return {userId:String(u.userId), username:String(u.username), fullName:String(u.fullName), role:String(u.role), mustChangePassword:gpsfmBool_(u.mustChangePassword)};
+}
+function gpsfmEnsurePasswordFlag_() {
+  const sh=gpsfmSheet_('Users'),lastCol=sh.getLastColumn(),headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0];
+  if(headers.indexOf('mustChangePassword')<0){
+    sh.getRange(1,lastCol+1).setValue('mustChangePassword');
+    const lastRow=sh.getLastRow();
+    if(lastRow>1){
+      const rows=sh.getRange(2,1,lastRow-1,lastCol).getValues();
+      const roleIndex=headers.indexOf('role');
+      const flags=rows.map(function(row){return [String(row[roleIndex])==='superadmin'?false:true];});
+      sh.getRange(2,lastCol+1,flags.length,1).setValues(flags);
+    }
+  }
 }
 function gpsfmAudit_(actorId, action, entityType, entityId, details) {
   gpsfmAppend_('AuditLogs', {logId:gpsfmId_(), actorId:actorId || '', action:action, entityType:entityType || '', entityId:entityId || '', details:JSON.stringify(details || {}), createdAt:gpsfmNow_()});
@@ -107,13 +120,14 @@ function gpsfmTokenKey_(token) {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(token), Utilities.Charset.UTF_8);
   return 'gpsfm_session_' + bytes.map(function(b) { return ('0' + ((b+256)%256).toString(16)).slice(-2); }).join('');
 }
-function gpsfmSession_(token) {
+function gpsfmSession_(token, allowForcedPasswordChange) {
   if (!token || String(token).length < 30) throw new Error('Sesi tidak valid. Silakan login kembali.');
   const raw = CacheService.getScriptCache().get(gpsfmTokenKey_(token));
   if (!raw) throw new Error('Sesi berakhir. Silakan login kembali.');
   const session = JSON.parse(raw);
   const user = gpsfmRows_('Users').find(function(u) { return String(u.userId) === session.userId && gpsfmBool_(u.active); });
   if (!user) throw new Error('Akun tidak aktif atau tidak ditemukan.');
+  if(gpsfmBool_(user.mustChangePassword)&&!allowForcedPasswordChange)throw new Error('Anda wajib mengganti password sebelum menggunakan aplikasi.');
   return {user:user, token:token};
 }
 function gpsfmRequireAdmin_(session) {
@@ -132,6 +146,7 @@ function gpsfmActivity_(id) {
 }
 
 function apiLogin(username, password) {
+  gpsfmEnsurePasswordFlag_();
   username = gpsfmText_(username, 80).toLowerCase();
   password = String(password || '');
   if (!username || !password || password.length > 200) throw new Error('Username dan password wajib diisi.');
@@ -165,7 +180,7 @@ function apiLogout(token) {
 }
 
 function apiGetBootstrap(token) {
-  const s = gpsfmSession_(token), u = s.user;
+  const s = gpsfmSession_(token, true), u = s.user;
   const activities = gpsfmRows_('Activities').filter(function(a) {
     return gpsfmBool_(a.active) && (u.role === 'superadmin' || gpsfmIsPJ_(u.userId, a.activityId));
   }).map(function(a) {
@@ -199,7 +214,7 @@ function apiSaveUser(token, data) {
     const password = String(data.password || '');
     if (password.length < 6) throw new Error('Password awal minimal 6 karakter.');
     const salt = gpsfmId_().replace(/-/g,'');
-    record = {userId:gpsfmId_(),username:username,fullName:fullName,role:role,passwordSalt:salt,passwordHash:gpsfmHashPassword_(password,salt),active:true,createdAt:now,updatedAt:now};
+    record = {userId:gpsfmId_(),username:username,fullName:fullName,role:role,passwordSalt:salt,passwordHash:gpsfmHashPassword_(password,salt),mustChangePassword:true,active:true,createdAt:now,updatedAt:now};
     gpsfmAppend_('Users', record);
   }
   gpsfmAudit_(s.user.userId, existing ? 'UPDATE_USER' : 'CREATE_USER', 'Users', existing ? existing.userId : record.userId, {username:username,role:role});
@@ -212,7 +227,7 @@ function apiSetUserPassword(token, userId, newPassword) {
   const u = gpsfmRows_('Users').find(function(x) { return String(x.userId) === String(userId); });
   if (!u) throw new Error('Akun tidak ditemukan.');
   const salt = gpsfmId_().replace(/-/g,'');
-  gpsfmUpdateRow_('Users', u._row, {passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),updatedAt:gpsfmNow_()});
+  gpsfmUpdateRow_('Users', u._row, {passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),mustChangePassword:true,updatedAt:gpsfmNow_()});
   gpsfmAudit_(s.user.userId, 'RESET_PASSWORD', 'Users', userId, {});
   return {ok:true};
 }
@@ -601,11 +616,11 @@ function apiSetPeriodLock(token, year, month, locked) {
 }
 
 function apiChangeOwnPassword(token, oldPassword, newPassword) {
-  const s = gpsfmSession_(token);
+  const s = gpsfmSession_(token, true);
   if (String(newPassword || '').length < 6) throw new Error('Password baru minimal 6 karakter.');
   if (gpsfmHashPassword_(String(oldPassword || ''),s.user.passwordSalt) !== String(s.user.passwordHash)) throw new Error('Password lama tidak sesuai.');
   const salt = gpsfmId_().replace(/-/g,'');
-  gpsfmUpdateRow_('Users',s.user._row,{passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),updatedAt:gpsfmNow_()});
+  gpsfmUpdateRow_('Users',s.user._row,{passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),mustChangePassword:false,updatedAt:gpsfmNow_()});
   gpsfmAudit_(s.user.userId,'CHANGE_PASSWORD','Users',s.user.userId,{});
   return {ok:true};
 }
