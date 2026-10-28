@@ -617,14 +617,9 @@ async function dashboard(root){
  $('reloadAttendanceTargets').onclick=loadTargets;
 }
 async function attendancePage(root){
- root.innerHTML=title('Input Absensi','Pilih kegiatan dan tanggal, lalu centang guru yang akan dicatat bersama.')+'<div class="panel"><form class="row"><div class="field"><label>Kegiatan</label><select disabled><option>Memuat daftar kegiatan…</option></select></div><div class="field"><label>Tanggal</label><input type="date" value="'+dateDefault()+'" disabled></div></form></div><div id="attendanceTeachers" class="panel"><div class="empty">Menyiapkan formulir absensi dan daftar guru…</div></div>';
- activities=await call('apiListActivities',token);
- if(currentPage!=='attendance')return;
- if(!activities.length){root.innerHTML=title('Input Absensi','Pencatatan kehadiran guru GPS.')+'<div class="panel empty">Belum ada kegiatan yang tersedia untuk akun ini. Hubungi superadmin untuk penugasan PJ.</div>';return;}
- root.innerHTML=title('Input Absensi','Pilih kegiatan dan tanggal, lalu centang guru yang akan dicatat bersama.')+
- '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required>'+activities.map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('')+'</select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div></form></div>'+
- '<div id="attendanceTeachers" class="panel"><div class="empty">Memuat daftar guru yang terlibat...</div></div>';
- if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;if(activities.some(a=>String(a.activityId)===String(pending.activityId))){$('aActivity').value=pending.activityId;$('aDate').value=pending.date;}window.gpsfmPendingAttendance=null;}
+ root.innerHTML=title('Input Absensi','Pilih kegiatan untuk memuat daftar guru, lalu tentukan tanggal absensi.')+
+ '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div></form></div>'+
+ '<div id="attendanceTeachers" class="panel"><div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div></div>';
  async function loadTeachers(){
    const box=$('attendanceTeachers');box.innerHTML='<div class="empty">Memuat daftar guru...</div>';
    try{
@@ -654,8 +649,24 @@ async function attendancePage(root){
      };
    }catch(err){box.innerHTML='<h3>Daftar guru</h3><p class="muted">'+esc(err.message)+'</p><button class="btn btn-light" id="retryAttendanceTeachers">Coba lagi</button>';$('retryAttendanceTeachers').onclick=loadTeachers;}
  }
- $('aActivity').onchange=loadTeachers;$('aDate').onchange=loadTeachers;
- await loadTeachers();
+ let activityOptionsLoaded=false,activityOptionsLoading=false;
+ async function loadActivityOptions(){
+  if(activityOptionsLoaded||activityOptionsLoading)return;
+  activityOptionsLoading=true;const select=$('aActivity');select.disabled=true;
+  try{
+   const loaded=await call('apiListActivities',token);
+   if(currentPage!=='attendance')return;
+   activities=loaded||[];
+   if(!activities.length){select.innerHTML='<option value="">Tidak ada kegiatan tersedia</option>';$('attendanceTeachers').innerHTML='<div class="empty">Belum ada kegiatan yang tersedia untuk akun ini. Hubungi superadmin untuk penugasan PJ.</div>';activityOptionsLoaded=true;return;}
+   select.innerHTML='<option value="">Pilih kegiatan...</option>'+activities.map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('');
+   if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;if(activities.some(a=>String(a.activityId)===String(pending.activityId))){select.value=String(pending.activityId);$('aDate').value=pending.date;}window.gpsfmPendingAttendance=null;}
+   activityOptionsLoaded=true;if(select.value)await loadTeachers();
+  }catch(err){$('attendanceTeachers').innerHTML='<div class="empty">'+esc(err.message||'Daftar kegiatan gagal dimuat.')+'</div>';}
+  finally{activityOptionsLoading=false;select.disabled=false;}
+ }
+ $('aActivity').onfocus=loadActivityOptions;$('aActivity').onclick=loadActivityOptions;
+ $('aActivity').onchange=()=>{if($('aActivity').value)loadTeachers();else $('attendanceTeachers').innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';};
+ $('aDate').onchange=()=>{if($('aActivity').value)loadTeachers();};
 }
 
 async function activityReportPage(root){
@@ -682,9 +693,9 @@ async function reportPage(root){
  const now=new Date();
  root.innerHTML=title('Evaluasi Diri',me.role==='superadmin'?'Lihat rekap seluruh guru, lalu filter berdasarkan periode dan kegiatan.':'Lihat catatan rekap kehadiran Anda sendiri, lalu filter berdasarkan periode dan kegiatan.')+
  '<div class="panel"><form id="reportForm" class="row">'+
- '<div class="field"><label>Tahun</label><select id="rYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div>'+
+ '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
  '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
- '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">Semua kegiatan yang tersedia</option></select></div>'+
+ '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">Pilih kegiatan...</option></select></div>'+
  '<button class="btn btn-primary" type="submit">Tampilkan Rekap</button><button class="btn btn-light" id="exportCsv" type="button">Unduh CSV</button></form></div><div id="reportResult"></div>';
 
  function filteredRows(){
@@ -714,17 +725,29 @@ async function reportPage(root){
    rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.activityName.localeCompare(b.activityName)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+
    '</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran untuk periode dan kegiatan yang dipilih.</div>')+'</div>';
  }
- async function load(){
-  const y=Number($('rYear').value),m=Number($('rMonth').value),previousActivity=$('rActivity').value;
-  report=await call('apiGetMonthlyReport',token,y,m);
-  if(currentPage!=='report')return;
-  const options=['<option value="">Semua kegiatan yang tersedia</option>'].concat((report.activities||[]).map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.activityName)+'</option>'));
-  $('rActivity').innerHTML=options.join('');
-  if(previousActivity&&(report.activities||[]).some(a=>String(a.activityId)===previousActivity))$('rActivity').value=previousActivity;
-  renderResults();
+ let reportActivitiesLoaded=false,reportActivitiesLoading=false;
+ async function loadActivityOptions(){
+  if(reportActivitiesLoaded||reportActivitiesLoading)return;
+  reportActivitiesLoading=true;$('rActivity').disabled=true;
+  try{
+   const list=await call('apiListActivities',token);
+   if(currentPage!=='report')return;
+   $('rActivity').innerHTML='<option value="">Pilih kegiatan...</option>'+((list||[]).map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>')).join('');
+   reportActivitiesLoaded=true;
+   if(!(list||[]).length)$('reportResult').innerHTML='<div class="panel empty">Belum ada kegiatan yang tersedia untuk akun ini.</div>';
+  }catch(err){toast(err.message||'Daftar kegiatan gagal dimuat.');}
+  finally{reportActivitiesLoading=false;$('rActivity').disabled=false;}
  }
+ async function load(){
+  const activityId=$('rActivity').value;
+  if(!activityId){report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';return;}
+  const y=Number($('rYear').value),m=Number($('rMonth').value);
+  try{report=await call('apiGetMonthlyReport',token,y,m);if(currentPage!=='report')return;renderResults();}
+  catch(err){report=null;$('reportResult').innerHTML='<div class="panel empty">'+esc(err.message||'Rekap tidak dapat dimuat.')+'</div>';throw err;}
+ }
+ $('rActivity').onfocus=loadActivityOptions;$('rActivity').onclick=loadActivityOptions;
+ $('rActivity').onchange=()=>{if($('rActivity').value)load();else{report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';}};
  $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
- $('rActivity').onchange=renderResults;
  $('exportCsv').onclick=()=>{
   const rowsToExport=filteredRows();
   if(!rowsToExport.length){toast('Tidak ada data untuk diunduh.');return;}
@@ -735,7 +758,7 @@ async function reportPage(root){
   a.download='GPS-FM-Rekap-'+$('rYear').value+'-'+String($('rMonth').value).padStart(2,'0')+($('rActivity').value?'-Kegiatan':'')+'.csv';
   a.click();URL.revokeObjectURL(a.href);
  };
- await load();
+ $('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';
 }
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
 function activityScheduleParts(value){
