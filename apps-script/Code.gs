@@ -477,8 +477,8 @@ function apiGetAttendanceTargets(token){
   const result=[];
   activities.forEach(function(a){
     const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
-    const startDate=gpsfmDateFromKey_(gpsfmDateKey_(a.createdAt)||today),earliest=new Date(end.getTime());
-    earliest.setUTCDate(earliest.getUTCDate()-730);const cursor=startDate<earliest?earliest:startDate;cursor.setUTCHours(12,0,0,0);const occurrences=[];
+    const startDate=gpsfmDateFromKey_(gpsfmDateKey_(a.createdAt)||today),monthStart=gpsfmDateFromKey_(today.slice(0,7)+'-01');
+    const cursor=startDate>monthStart?startDate:monthStart;cursor.setUTCHours(12,0,0,0);const occurrences=[];
     while(cursor<=end){
       const date=gpsfmDateKeyUTC_(cursor);
       if(days.indexOf(gpsfmWeekdayName_(date))>=0){
