@@ -482,13 +482,12 @@ function processNotice(title,message,state){
  if(state==='success'||state==='error')gpsProcessTimer=setTimeout(()=>{if(el.isConnected)el.remove();},9000);
 }
 function closeProcessNotice(){if(gpsProcessTimer)clearTimeout(gpsProcessTimer);gpsProcessTimer=null;const el=$('gpsProcessPop');if(el)el.remove();}
-function openChangePasswordModal(){
+function openChangePasswordModal(forceRequired){
  const oldModal=$('gpsPasswordModal');if(oldModal)oldModal.remove();
  const wrap=document.createElement('div');wrap.id='gpsPasswordModal';wrap.className='gps-modal-backdrop';
- wrap.innerHTML='<section class="gps-modal" role="dialog" aria-modal="true" aria-labelledby="gpsPasswordTitle"><h3 id="gpsPasswordTitle">Ganti Password</h3><p class="muted small">Masukkan password saat ini, lalu tentukan password baru minimal 6 karakter.</p><form id="gpsPasswordForm"><div class="field"><label for="gpsOldPassword">Password saat ini</label><input id="gpsOldPassword" type="password" autocomplete="current-password" required maxlength="200"></div><div class="field"><label for="gpsNewPassword">Password baru</label><input id="gpsNewPassword" type="password" autocomplete="new-password" minlength="6" required maxlength="200"></div><div class="field"><label for="gpsConfirmPassword">Ulangi password baru</label><input id="gpsConfirmPassword" type="password" autocomplete="new-password" minlength="6" required maxlength="200"></div><div id="gpsPasswordError" class="error hidden" role="alert"></div><div class="gps-modal-actions"><button class="btn btn-light" id="gpsCancelPassword" type="button">Batal</button><button class="btn btn-primary" id="gpsSavePassword" type="submit">Simpan Password</button></div></form></section>';
+ wrap.innerHTML='<section class="gps-modal" role="dialog" aria-modal="true" aria-labelledby="gpsPasswordTitle"><h3 id="gpsPasswordTitle">'+(forceRequired?'Wajib Ganti Password':'Ganti Password')+'</h3><p class="muted small">'+(forceRequired?'Demi keamanan, Anda harus mengganti password awal sebelum menggunakan fitur aplikasi.':'Masukkan password saat ini, lalu tentukan password baru minimal 6 karakter.')+'</p><form id="gpsPasswordForm"><div class="field"><label for="gpsOldPassword">Password saat ini</label><input id="gpsOldPassword" type="password" autocomplete="current-password" required maxlength="200"></div><div class="field"><label for="gpsNewPassword">Password baru</label><input id="gpsNewPassword" type="password" autocomplete="new-password" minlength="6" required maxlength="200"></div><div class="field"><label for="gpsConfirmPassword">Ulangi password baru</label><input id="gpsConfirmPassword" type="password" autocomplete="new-password" minlength="6" required maxlength="200"></div><div id="gpsPasswordError" class="error hidden" role="alert"></div><div class="gps-modal-actions">'+(forceRequired?'':'<button class="btn btn-light" id="gpsCancelPassword" type="button">Batal</button>')+'<button class="btn btn-primary" id="gpsSavePassword" type="submit">Simpan Password</button></div></form></section>';
  document.body.appendChild(wrap);
- $('gpsCancelPassword').onclick=()=>wrap.remove();
- wrap.addEventListener('click',e=>{if(e.target===wrap)wrap.remove();});
+ if(!forceRequired){$('gpsCancelPassword').onclick=()=>wrap.remove();wrap.addEventListener('click',e=>{if(e.target===wrap)wrap.remove();});}
  $('gpsPasswordForm').onsubmit=async e=>{
   e.preventDefault();const old=$('gpsOldPassword').value,next=$('gpsNewPassword').value,confirm=$('gpsConfirmPassword').value,err=$('gpsPasswordError'),btn=$('gpsSavePassword');
   err.classList.add('hidden');
@@ -496,7 +495,7 @@ function openChangePasswordModal(){
   if(next!==confirm){err.textContent='Konfirmasi password baru tidak sama.';err.classList.remove('hidden');return;}
   busy(btn,true,'Menyimpan password...');
   processNotice('Memperbarui password','Permintaan sedang diproses dengan aman…','working');
-  try{await call('apiChangeOwnPassword',token,old,next);wrap.remove();processNotice('Password berhasil diubah','Password baru sudah tersimpan.','success');}
+  try{await call('apiChangeOwnPassword',token,old,next);wrap.remove();me.mustChangePassword=false;processNotice('Password berhasil diubah','Password baru sudah tersimpan.','success');if(forceRequired)await renderPage('dashboard');}
   catch(e){err.textContent=e.message||'Password belum berhasil diubah.';err.classList.remove('hidden');processNotice('Ganti password gagal',err.textContent,'error');}
   finally{busy(btn,false);}
  };
@@ -508,7 +507,7 @@ function hideLogin(){ $('loginScreen').classList.add('hidden');$('appScreen').cl
 function showLogin(){ $('appScreen').classList.add('hidden');$('loginScreen').classList.remove('hidden'); }
 function dateDefault(){return bootstrap&&bootstrap.serverDate||new Date().toLocaleDateString('en-CA');}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('loginButton');$('loginError').classList.add('hidden');busy(btn,true,'Memeriksa akun...');try{const r=await call('apiLogin',$('username').value,$('password').value);token=r.token;me=r.user;sessionStorage.setItem('gpsfm_token',token);if($('rememberMe').checked){localStorage.setItem('gpsfm_token',token);localStorage.setItem('gpsfm_remember','1');}else{localStorage.removeItem('gpsfm_token');localStorage.removeItem('gpsfm_remember');}await startApp();$('password').value='';}catch(err){errorBox('loginError',err.message);}finally{busy(btn,false);}});
-async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;$('profileName').textContent=me.fullName;$('profileRole').textContent=me.role==='superadmin'?'Superadmin':'Guru GPS';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();hideLogin();renderNav();await renderPage('dashboard');}
+async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;$('profileName').textContent=me.fullName;$('profileRole').textContent=me.role==='superadmin'?'Superadmin':'Guru GPS';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();hideLogin();renderNav();if(me.mustChangePassword){openChangePasswordModal(true);return;}await renderPage('dashboard');}
 $('logoutBtn').addEventListener('click',openLogoutConfirmation);
 function openLogoutConfirmation(){
  if($('gpsLogoutModal'))return;
