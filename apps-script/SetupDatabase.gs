@@ -9,7 +9,7 @@
  * ID spreadsheet induk disimpan untuk akses Web App ketika konteks aktif tidak tersedia.
  */
 const GPSFM_SCHEMA = {
-  Users: ['userId','username','fullName','role','passwordSalt','passwordHash','active','createdAt','updatedAt'],
+  Users: ['userId','username','fullName','role','passwordSalt','passwordHash','active','createdAt','updatedAt','mustChangePassword'],
   Activities: ['activityId','name','description','schedule','active','createdAt','updatedAt'],
   ActivityPJ: ['assignmentId','activityId','userId','active','assignedAt','assignedBy'],
   ActivityTeachers: ['assignmentId','activityId','teacherId','active','assignedAt','assignedBy','updatedAt'],
@@ -42,7 +42,15 @@ function setupGpsFmDatabase() {
       sh.getRange(1, 1, 1, headers.length).setFontWeight('bold');
     } else {
       const missing = headers.filter(function(h) { return current.indexOf(h) < 0; });
-      if (missing.length) throw new Error('Struktur sheet ' + name + ' tidak sesuai. Sheet tidak diubah agar data lama aman. Kolom yang belum ada: ' + missing.join(', '));
+      if (name === 'Users' && missing.length === 1 && missing[0] === 'mustChangePassword') {
+        const newCol = current.length + 1;
+        sh.getRange(1,newCol).setValue('mustChangePassword');
+        if (sh.getLastRow() > 1) {
+          const roleCol = current.indexOf('role') + 1;
+          const roles = sh.getRange(2,roleCol,sh.getLastRow()-1,1).getValues();
+          sh.getRange(2,newCol,roles.length,1).setValues(roles.map(function(r){return [String(r[0]) === 'superadmin' ? false : true];}));
+        }
+      } else if (missing.length) throw new Error('Struktur sheet ' + name + ' tidak sesuai. Sheet tidak diubah agar data lama aman. Kolom yang belum ada: ' + missing.join(', '));
     }
   });
 
