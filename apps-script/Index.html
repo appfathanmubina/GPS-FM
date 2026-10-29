@@ -677,14 +677,16 @@ async function attendancePage(root){
    activities=loaded||[];
    if(!activities.length){select.innerHTML='<option value="">Tidak ada kegiatan tersedia</option>';$('attendanceTeachers').innerHTML='<div class="empty">Belum ada kegiatan yang tersedia untuk akun ini. Hubungi superadmin untuk penugasan PJ.</div>';activityOptionsLoaded=true;return;}
    select.innerHTML='<option value="">Pilih kegiatan...</option>'+activities.map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('');
-   if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;if(activities.some(a=>String(a.activityId)===String(pending.activityId))){select.value=String(pending.activityId);$('aDate').value=pending.date;}window.gpsfmPendingAttendance=null;}
-   activityOptionsLoaded=true;if(select.value)await loadTeachers();
+   if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;$('aDate').value=pending.date;window.gpsfmPendingAttendance=null;}
+   // Muat pilihan kegiatan lebih dahulu, tetapi jangan memilih kegiatan otomatis.
+   activityOptionsLoaded=true;
   }catch(err){$('attendanceTeachers').innerHTML='<div class="empty">'+esc(err.message||'Daftar kegiatan gagal dimuat.')+'</div>';}
   finally{activityOptionsLoading=false;select.disabled=false;}
  }
- $('aActivity').onfocus=loadActivityOptions;$('aActivity').onclick=loadActivityOptions;
  $('aActivity').onchange=()=>{if($('aActivity').value)loadTeachers();else $('attendanceTeachers').innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';};
  $('aDate').onchange=()=>{if($('aActivity').value)loadTeachers();};
+ // Daftar kegiatan tersedia sejak halaman dibuka; data guru/absensi tetap menunggu pilihan kegiatan.
+ loadActivityOptions();
 }
 
 async function activityReportPage(root){
@@ -774,10 +776,11 @@ async function reportPage(root){
   catch(err){report=null;$('reportResult').innerHTML='<div class="panel empty">'+esc(err.message||'Rekap tidak dapat dimuat.')+'</div>';throw err;}
   finally{reportDataLoading=false;hideReportLoadingNotice();}
  }
- $('rActivity').onfocus=loadActivityOptions;$('rActivity').onclick=loadActivityOptions;
  $('rActivity').onchange=()=>{if($('rActivity').value)load();else{report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';}};
  $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
  $('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';
+ // Muat pilihan kegiatan saat halaman dibuka. Rekap baru diminta setelah kegiatan dipilih.
+ loadActivityOptions();
 }
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
 function activityScheduleParts(value){
