@@ -367,6 +367,32 @@ function apiSaveAttendanceBatch(token, data) {
         gpsfmAudit_(u.userId,'CREATE_ATTENDANCE','Attendance',id,{status:status,date:date,bulk:true});
       }
     });
+
+    // Pilihan guru pada formulir adalah daftar final untuk kegiatan dan tanggal ini.
+    // Hapus catatan lama hanya untuk guru yang masih terdaftar aktif pada kegiatan
+    // tetapi tidak lagi dipilih; catatan kegiatan/tanggal lain dan guru yang sudah
+    // dilepas dari roster tidak disentuh.
+    const selected = {};
+    entries.forEach(function(e){ selected[String(e.teacherId)] = true; });
+    const activeRoster = {};
+    gpsfmRows_('ActivityTeachers').forEach(function(a) {
+      if (String(a.activityId)===activityId && gpsfmBool_(a.active)) activeRoster[String(a.teacherId)] = true;
+    });
+    const removed = records.filter(function(a) {
+      const teacherId = String(a.teacherId);
+      return String(a.activityId)===activityId &&
+        gpsfmDateKey_(a.attendanceDate)===date &&
+        !!activeRoster[teacherId] && !selected[teacherId];
+    }).sort(function(a,b){ return b._row-a._row; });
+    if (removed.length) {
+      const attendanceSheet = gpsfmSheet_('Attendance');
+      removed.forEach(function(a) {
+        gpsfmAudit_(u.userId,'DELETE_ATTENDANCE','Attendance',a.attendanceId,{
+          activityId:activityId,teacherId:String(a.teacherId),date:date,reason:'REMOVED_FROM_BULK_SELECTION'
+        });
+        attendanceSheet.deleteRow(a._row);
+      });
+    }
   } finally { lock.releaseLock(); }
   return {ok:true,saved:entries.length};
 }
