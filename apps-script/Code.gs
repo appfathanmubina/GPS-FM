@@ -182,7 +182,7 @@ function apiLogout(token) {
 function apiGetBootstrap(token) {
   const s = gpsfmSession_(token, true), u = s.user;
   const activities = gpsfmRows_('Activities').filter(function(a) {
-    return gpsfmBool_(a.active) && (u.role === 'superadmin' || gpsfmIsPJ_(u.userId, a.activityId));
+    return gpsfmBool_(a.active) && (u.role === 'superadmin' || u.role === 'supervisor' || gpsfmIsPJ_(u.userId, a.activityId));
   }).map(function(a) {
     return {activityId:String(a.activityId), name:String(a.name), description:String(a.description || ''), schedule:String(a.schedule || ''), isPJ:gpsfmIsPJ_(u.userId,a.activityId)};
   });
@@ -202,7 +202,7 @@ function apiSaveUser(token, data) {
   const role = String(data.role || 'gps');
   if (!/^[a-z0-9._-]{3,50}$/.test(username)) throw new Error('Username 3–50 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.');
   if (!fullName) throw new Error('Nama lengkap wajib diisi.');
-  if (['gps','superadmin'].indexOf(role) < 0) throw new Error('Role tidak valid.');
+  if (['gps','supervisor','superadmin'].indexOf(role) < 0) throw new Error('Role tidak valid.');
   const users = gpsfmRows_('Users');
   if (users.some(function(u) { return String(u.username).toLowerCase() === username && String(u.userId) !== String(data.userId || ''); })) throw new Error('Username sudah digunakan.');
   const now = gpsfmNow_(), existing = users.find(function(u) { return String(u.userId) === String(data.userId || ''); });
@@ -234,7 +234,7 @@ function apiSetUserPassword(token, userId, newPassword) {
 
 function apiListActivities(token) {
   const s = gpsfmSession_(token);
-  return gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active) && (s.user.role === 'superadmin' || gpsfmIsPJ_(s.user.userId,a.activityId)); }).map(function(a) {
+  return gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active) && (s.user.role === 'superadmin' || s.user.role === 'supervisor' || gpsfmIsPJ_(s.user.userId,a.activityId)); }).map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),active:gpsfmBool_(a.active)};
   });
 }
@@ -275,7 +275,7 @@ function apiGetPJAssignments(token, activityId) {
 
 function apiGetActivityTeachers(token, activityId) {
   const s = gpsfmSession_(token);
-  if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
+  if (s.user.role !== 'superadmin' && s.user.role !== 'supervisor' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   const assigned = gpsfmRows_('ActivityTeachers').filter(function(a) { return String(a.activityId) === String(activityId) && gpsfmBool_(a.active); });
   const assignedIds = {};
@@ -306,7 +306,7 @@ function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
 function apiGetAttendanceForDate(token, activityId, date) {
   const s = gpsfmSession_(token);
   date = gpsfmText_(date,10);
-  if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
+  if (s.user.role !== 'superadmin' && s.user.role !== 'supervisor' && !gpsfmIsPJ_(s.user.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
   const allowed = apiGetActivityTeachers(token, activityId).map(function(t){return t.userId;});
@@ -558,7 +558,7 @@ function apiSetOccurrenceException(token,activityId,date,status,reason){
 function apiListMyAttendanceActivities(token) {
   const s = gpsfmSession_(token);
   const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
-  if (s.user.role === 'superadmin') return activities.map(function(a) {
+  if (s.user.role === 'superadmin' || s.user.role === 'supervisor') return activities.map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),schedule:String(a.schedule||'')};
   }).sort(function(a,b) { return a.name.localeCompare(b.name); });
   const ids = {};
@@ -568,6 +568,30 @@ function apiListMyAttendanceActivities(token) {
   return activities.filter(function(a) { return !!ids[String(a.activityId)]; }).map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),schedule:String(a.schedule||'')};
   }).sort(function(a,b) { return a.name.localeCompare(b.name); });
+}
+
+function apiGetSupervisorDashboard(token) {
+  const s = gpsfmSession_(token);
+  if (String(s.user.role) !== 'supervisor') throw new Error('Akses ditolak. Fitur ini hanya untuk Supervisor GPS.');
+  const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  const prefix = today.slice(0, 7);
+  const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
+  const users = gpsfmRows_('Users').filter(function(u) { return gpsfmBool_(u.active) && String(u.role) === 'gps'; });
+  const userMap = {};
+  users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
+  const pjRows = gpsfmRows_('ActivityPJ').filter(function(p) { return gpsfmBool_(p.active); });
+  const teacherRows = gpsfmRows_('ActivityTeachers').filter(function(t) { return gpsfmBool_(t.active); });
+  const attendance = gpsfmRows_('Attendance').filter(function(a) { return gpsfmDateKey_(a.attendanceDate).slice(0,7) === prefix; });
+  const result = activities.map(function(a) {
+    const id = String(a.activityId);
+    const pjs = pjRows.filter(function(p) { return String(p.activityId) === id; }).map(function(p) { return userMap[String(p.userId)] || 'Akun tidak ditemukan'; });
+    const teacherIds = teacherRows.filter(function(t) { return String(t.activityId) === id; }).map(function(t) { return String(t.teacherId); });
+    const records = attendance.filter(function(row) { return String(row.activityId) === id; });
+    const presentTeacherCount = Array.from(new Set(records.map(function(row) { return String(row.teacherId); }))).length;
+    const rosterCount = teacherIds.length;
+    return {activityId:id,name:String(a.name),schedule:String(a.schedule||''),pjs:pjs,rosterCount:rosterCount,monthlyRecords:records.length,presentTeacherCount:presentTeacherCount,coveragePercent:rosterCount?Math.min(100,Math.round(presentTeacherCount/rosterCount*100)):0};
+  });
+  return {month:prefix,totalActivities:activities.length,totalPJ:Array.from(new Set(pjRows.map(function(p){return String(p.userId);}))).length,totalPJAssignments:pjRows.length,totalMonthlyRecords:attendance.length,activities:result};
 }
 
 function apiGetMonthlyReport(token, year, month) {
@@ -584,7 +608,7 @@ function apiGetMonthlyReport(token, year, month) {
   // Evaluasi Diri menampilkan kegiatan yang memiliki catatan Attendance milik guru ini.
   // Tidak mensyaratkan penugasan ActivityTeachers/PJ karena data absensi adalah sumber partisipasi.
   let allowedActivityIds;
-  if (s.user.role === 'superadmin') {
+  if (s.user.role === 'superadmin' || s.user.role === 'supervisor') {
     allowedActivityIds = allActivities.map(function(a) { return String(a.activityId); });
   } else {
     allowedActivityIds = Array.from(new Set(gpsfmRows_('Attendance').filter(function(a) {
@@ -599,7 +623,7 @@ function apiGetMonthlyReport(token, year, month) {
 
   const rows = gpsfmRows_('Attendance').filter(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
-    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0 && (s.user.role === 'superadmin' || String(a.teacherId) === String(s.user.userId));
+    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0 && (s.user.role === 'superadmin' || s.user.role === 'supervisor' || String(a.teacherId) === String(s.user.userId));
   });
   const result = rows.map(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
@@ -623,7 +647,7 @@ function apiGetMonthlyReport(token, year, month) {
 function apiGetActivityReport(token, activityId) {
   const s = gpsfmSession_(token);
   activityId = gpsfmText_(activityId,80);
-  if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
+  if (s.user.role !== 'superadmin' && s.user.role !== 'supervisor' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   const activity = gpsfmActivity_(activityId);
   if (!activity) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   const teachers = apiGetActivityTeachers(token, activityId);
