@@ -355,7 +355,6 @@ function apiSaveAttendanceBatch(token, data) {
     const existing = entries.map(function(e) {
       return {entry:e,old:records.find(function(a){return String(a.activityId)===activityId && String(a.teacherId)===String(e.teacherId) && gpsfmDateKey_(a.attendanceDate)===date;})};
     });
-    if (u.role !== 'superadmin' && existing.some(function(x){return x.old && String(x.old.recordedBy)!==String(u.userId);})) throw new Error('Sebagian absensi sudah dicatat PJ lain. Hubungi superadmin untuk koreksi; tidak ada data yang disimpan.');
     const now = gpsfmNow_();
     existing.forEach(function(x) {
       const e=x.entry, teacherId=String(e.teacherId), status=String(e.status), note=gpsfmText_(e.note,300);
@@ -394,7 +393,6 @@ function apiSaveAttendance(token, data) {
     const old = records.find(function(a) { return String(a.activityId) === activityId && String(a.teacherId) === teacherId && gpsfmDateKey_(a.attendanceDate) === date; });
     const now = gpsfmNow_();
     if (old) {
-      if (u.role !== 'superadmin' && String(old.recordedBy) !== String(u.userId)) throw new Error('Absensi ini sudah dicatat PJ lain; hubungi superadmin untuk koreksi.');
       gpsfmUpdateRow_('Attendance',old._row,{status:status,note:gpsfmText_(data.note,300),recordedBy:u.userId,updatedAt:now});
       gpsfmAudit_(u.userId,'UPDATE_ATTENDANCE','Attendance',old.attendanceId,{status:status,date:date});
     } else {
