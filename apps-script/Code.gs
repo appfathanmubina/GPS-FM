@@ -618,7 +618,7 @@ function apiGetMonthlyReport(token, year, month) {
 
 
 function gpsfmExportStatusKey_(value) {
-  const raw=String(value||'').trim().replace(/^[A-D][.]\\s*/i,'').toLowerCase().replace(/\\s+/g,' ');
+  const raw=String(value||'').trim().replace(/^[A-D][.]\s*/i,'').toLowerCase().replace(/\s+/g,' ');
   if(raw==='hadir')return 'Hadir';
   if(raw==='sakit')return 'A. Sakit';
   if(raw==='tugas'||raw==='tugas pondok')return 'B. Tugas Pondok';
