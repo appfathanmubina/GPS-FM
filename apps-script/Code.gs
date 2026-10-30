@@ -670,8 +670,8 @@ function gpsfmBuildActivityExportSheet_(sheet,activity,users,attendance,year,mon
   sheet.setName(safeName);
   const width=header.length;
   sheet.getRange(1,1,rows.length,width).setValues(rows.map(function(row){const copy=row.slice();while(copy.length<width)copy.push('');return copy;}));
-  sheet.getRange(1,1,1,width).merge();
-  sheet.getRange(2,1,1,width).merge();
+  // Hindari merged cells agar konversi Google Sheets ke XLSX stabil.
+  // Judul dan periode tetap ditampilkan pada sel A1 dan A2 dengan format baris penuh.
   sheet.getRange(1,1,1,width).setFontSize(15).setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#650065').setVerticalAlignment('middle');
   sheet.getRange(2,1,1,width).setFontSize(10).setFontColor('#5B4760').setBackground('#F5EAF5');
   sheet.getRange(4,1,1,width).setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#800080').setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
