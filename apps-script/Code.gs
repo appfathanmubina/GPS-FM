@@ -588,7 +588,7 @@ function apiSetOccurrenceException(token,activityId,date,status,reason){
 function apiListMyAttendanceActivities(token) {
   const s = gpsfmSession_(token);
   const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
-  if (s.user.role === 'superadmin' || s.user.role === 'supervisor') return activities.map(function(a) {
+  if (s.user.role === 'superadmin') return activities.map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),schedule:String(a.schedule||'')};
   }).sort(function(a,b) { return a.name.localeCompare(b.name); });
   const ids = {};
@@ -679,12 +679,14 @@ function apiGetMonthlyReport(token, year, month) {
   const allActivities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
+  // Supervisor pada Evaluasi Diri hanya melihat catatan milik akun yang sedang login.
+  if (s.user.role === 'supervisor') userMap[String(s.user.userId)] = String(s.user.fullName);
   allActivities.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
 
-  // Evaluasi Diri menampilkan kegiatan yang memiliki catatan Attendance milik guru ini.
-  // Tidak mensyaratkan penugasan ActivityTeachers/PJ karena data absensi adalah sumber partisipasi.
+  // Superadmin dapat melihat seluruh catatan; role lainnya hanya catatan milik sendiri.
+  // Kegiatan yang tersedia mengikuti aktivitas yang benar-benar memiliki catatan milik akun.
   let allowedActivityIds;
-  if (s.user.role === 'superadmin' || s.user.role === 'supervisor') {
+  if (s.user.role === 'superadmin') {
     allowedActivityIds = allActivities.map(function(a) { return String(a.activityId); });
   } else {
     allowedActivityIds = Array.from(new Set(gpsfmRows_('Attendance').filter(function(a) {
@@ -699,7 +701,7 @@ function apiGetMonthlyReport(token, year, month) {
 
   const rows = gpsfmRows_('Attendance').filter(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
-    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0 && (s.user.role === 'superadmin' || s.user.role === 'supervisor' || String(a.teacherId) === String(s.user.userId));
+    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0 && (s.user.role === 'superadmin' || String(a.teacherId) === String(s.user.userId));
   });
   const result = rows.map(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
