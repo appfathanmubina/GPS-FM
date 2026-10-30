@@ -692,6 +692,16 @@ function gpsfmBuildActivityExportSheet_(sheet,activity,users,attendance,year,mon
   if(teachers.length)sheet.getRange(4,1,teachers.length+1,width).createFilter();
   sheet.setTabColor('#800080');
 }
+/**
+ * Jalankan satu kali dari editor Apps Script oleh pemilik/deployer Web App.
+ * Fungsi ini memicu permintaan izin Google Drive sebelum fitur ekspor digunakan.
+ */
+function gpsfmAuthorizeDriveExport() {
+  const folderId = DriveApp.getRootFolder().getId();
+  if (!folderId) throw new Error('Izin Google Drive belum tersedia.');
+  return 'Otorisasi Google Drive berhasil. Silakan deploy ulang Web App dan coba Export Excel.';
+}
+
 function apiExportAttendanceExcel(token,year,month) {
   const s=gpsfmSession_(token);
   year=Number(year);month=Number(month);
