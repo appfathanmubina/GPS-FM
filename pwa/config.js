@@ -1,2 +1,2 @@
-// URL Web App Apps Script GPS FM (deployment /exec).
-window.GPSFM_CONFIG = { appsScriptUrl: "https://script.google.com/macros/s/AKfycbzIIT1avQicNGtzsuFCcdnzjKwpQIsHVhmZTDYqNor2kfnQNJyw2X_KJBtd5A9K6is6/exec" };
+// URL Web App Apps Script GPS FM - UJI COBA (deployment /exec).
+window.GPSFM_CONFIG = { appsScriptUrl: "https://script.google.com/macros/s/AKfycbxFmcYAcBun4QFYnglPUND_ts5K-RhVQnF4ZCJWQnFDb7ouMOk7K-SLxP0XQVrmV4X3/exec" };
