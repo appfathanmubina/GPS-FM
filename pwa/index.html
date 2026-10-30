@@ -15,6 +15,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui;
 main{width:100%;height:100%;height:100dvh}
 iframe{display:block;width:100%;height:100%;border:0}
 section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-radius:16px;line-height:1.6}
+#appStatus{margin:0;max-width:none;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#4b3150;background:#f5f7fc;padding:24px}
 #installGpsFm{position:fixed;z-index:100;right:16px;bottom:calc(100px + env(safe-area-inset-bottom));display:none;align-items:center;gap:9px;padding:13px 17px;border:0;border-radius:999px;background:#800080;color:#fff;font:700 14px system-ui;box-shadow:0 8px 28px #4a004a45;cursor:pointer}
 #installGpsFm svg{width:19px;height:19px;flex:none}
 #installHelp{position:fixed;z-index:101;inset:0;display:none;align-items:flex-end;justify-content:center;padding:16px;background:#170d1f70}
@@ -27,7 +28,7 @@ section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-ra
 </style>
 </head>
 <body>
-<main id="app"></main>
+<main id="app"><section id="appStatus" role="status" aria-live="polite"><strong>GPS FM</strong><p>Menyiapkan aplikasi…</p></section></main>
 <button id="installGpsFm" type="button" aria-label="Install aplikasi GPS FM"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 16v4h14v-4"/></svg><span>Install GPS FM</span></button>
 <div id="installHelp" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle"><div class="sheet"><h2 id="installHelpTitle">Pasang GPS FM di HP</h2><p id="installHelpText">Gunakan menu browser untuk menambahkan GPS FM ke layar utama.</p><button id="closeInstallHelp" type="button">Mengerti</button></div></div>
 <script src="./config.js"></script>
