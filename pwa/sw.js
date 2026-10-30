@@ -23,7 +23,7 @@ self.addEventListener('fetch',event=>{
     event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{
       if(response&&response.ok){
         const copy=response.clone();
-        caches.open(CACHE).then(cache=>cache.put(request,copy));
+        return caches.open(CACHE).then(cache=>cache.put(request,copy)).then(()=>response);
       }
       return response;
     }).catch(()=>caches.match(request).then(cached=>cached||caches.match('./index.html'))));
@@ -35,7 +35,7 @@ self.addEventListener('fetch',event=>{
     return fetch(request).then(response=>{
       if(response&&response.ok){
         const copy=response.clone();
-        caches.open(CACHE).then(cache=>cache.put(request,copy));
+        return caches.open(CACHE).then(cache=>cache.put(request,copy)).then(()=>response);
       }
       return response;
     });
