@@ -707,15 +707,16 @@ async function attendancePage(root){
 
 async function activityReportPage(root){
  const options=(bootstrap.activities||[]).map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('');
- const now=new Date();
+ const now=new Date(),isGlobal=['superadmin','supervisor','admin_administrasi'].includes(me.role);
+ const exportHelp=isGlobal?'Satu file Excel berisi seluruh kegiatan aktif. Setiap kegiatan berada pada sheet tersendiri.':'Anda hanya dapat mengekspor kegiatan yang menjadi tugas PJ Anda.';
  root.innerHTML=title('Rekap Absen','Rekap absensi per kegiatan dan bulan. Semua peserta yang ditetapkan ditampilkan sesuai urutan data Users.')+
- '<div class="panel"><div class="row"><div class="field"><label for="activityReportSelect">Pilih Kegiatan</label><select id="activityReportSelect"><option value="">Pilih kegiatan...</option>'+options+'</select></div><div class="field"><label for="activityReportMonth">Bulan</label><select id="activityReportMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div><div class="field"><label for="activityReportYear">Tahun</label><select id="activityReportYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div></div><div id="activityReportResult" style="margin-top:14px"><div class="empty">Pilih kegiatan untuk menampilkan laporan.</div></div></div>';
- const sel=$('activityReportSelect'), month=$('activityReportMonth'), year=$('activityReportYear'), out=$('activityReportResult');
+ '<div class="panel"><div class="row"><div class="field"><label for="activityReportSelect">Pilih Kegiatan</label><select id="activityReportSelect"><option value="">Pilih kegiatan...</option>'+options+'</select></div><div class="field"><label for="activityReportMonth">Bulan</label><select id="activityReportMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div><div class="field"><label for="activityReportYear">Tahun</label><select id="activityReportYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div></div><div class="row" style="margin-top:14px;align-items:center"><button class="btn btn-primary" id="exportAttendanceExcel" type="button">Export Rekap ke Excel</button><span class="muted small">'+exportHelp+'</span></div><div id="activityReportResult" style="margin-top:14px"><div class="empty">Pilih kegiatan untuk menampilkan laporan.</div></div></div>';
+ const sel=$('activityReportSelect'),month=$('activityReportMonth'),year=$('activityReportYear'),out=$('activityReportResult'),exportBtn=$('exportAttendanceExcel');
  async function load(){
   if(!sel.value){out.innerHTML='<div class="empty">Pilih kegiatan untuk menampilkan laporan.</div>';return;}
   out.innerHTML='<div class="empty">Memuat laporan kegiatan...</div>';
   try{
-   const data=await call('apiGetActivityReport',token,sel.value), prefix=String(year.value)+'-'+String(month.value).padStart(2,'0');
+   const data=await call('apiGetActivityReport',token,sel.value),prefix=String(year.value)+'-'+String(month.value).padStart(2,'0');
    const dates=data.dates.filter(d=>d.slice(0,7)===prefix);
    if(!data.teachers.length){out.innerHTML='<div class="empty">Belum ada guru yang ditetapkan untuk kegiatan ini.</div>';return;}
    if(!dates.length){out.innerHTML='<div class="empty">Belum ada absensi pada bulan yang dipilih.</div>';return;}
@@ -723,6 +724,21 @@ async function activityReportPage(root){
    out.innerHTML='<h3>'+esc(data.activityName)+' · '+esc(month.options[month.selectedIndex].text)+' '+esc(year.value)+'</h3><p class="muted small">Baris guru mengikuti urutan sheet Users. Kolom hanya menampilkan tanggal dengan absensi pada bulan yang dipilih.</p><div class="table-wrap"><table><thead><tr><th>Nama</th>'+dates.map(d=>'<th>'+esc(d)+'</th>').join('')+'</tr></thead><tbody>'+data.teachers.map(t=>'<tr><td><b>'+esc(t.fullName)+'</b></td>'+dates.map(d=>{const i=dateIndex[d];return '<td>'+esc(i===undefined?'—':(t.statuses[i]||'—'))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table></div>';
   }catch(e){out.innerHTML='<div class="empty">'+esc(e.message||'Laporan tidak dapat dimuat.')+'</div>';}
  }
+ exportBtn.onclick=async()=>{
+  const original=exportBtn.textContent;exportBtn.disabled=true;exportBtn.textContent='Menyiapkan Excel...';
+  processNotice('Menyiapkan file Excel','Mengumpulkan rekap absensi dan menyusun sheet setiap kegiatan…','working');
+  try{
+   const data=await call('apiExportAttendanceExcel',token,Number(year.value),Number(month.value));
+   const binary=atob(data.base64),bytes=new Uint8Array(binary.length);
+   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+   const blob=new Blob([bytes],{type:data.mimeType||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+   const url=URL.createObjectURL(blob),link=document.createElement('a');
+   link.href=url;link.download=data.filename||'GPS-FM_Rekap-Absen.xlsx';document.body.appendChild(link);link.click();link.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),30000);
+   processNotice('File Excel siap','Berhasil menyiapkan '+data.activityCount+' sheet kegiatan. Unduhan dimulai.','success');
+  }catch(e){processNotice('Export Excel gagal',e.message||'File Excel tidak dapat dibuat.','error');}
+  finally{exportBtn.disabled=false;exportBtn.textContent=original;}
+ };
  sel.onchange=load;month.onchange=load;year.onchange=load;
 }
 async function reportPage(root){
