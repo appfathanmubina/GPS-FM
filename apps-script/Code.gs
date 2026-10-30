@@ -616,6 +616,110 @@ function apiGetMonthlyReport(token, year, month) {
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
 
+
+function gpsfmExportStatusKey_(value) {
+  const raw=String(value||'').trim().replace(/^[A-D][.]\\s*/i,'').toLowerCase().replace(/\\s+/g,' ');
+  if(raw==='hadir')return 'Hadir';
+  if(raw==='sakit')return 'A. Sakit';
+  if(raw==='tugas'||raw==='tugas pondok')return 'B. Tugas Pondok';
+  if(raw==='izin'||raw==='izin pribadi')return 'C. Izin Pribadi';
+  if(raw==='alpa'||raw==='alfa')return 'D. Alfa';
+  return '';
+}
+function gpsfmExcelSheetName_(name,used) {
+  let base=String(name||'Kegiatan').replace(/[\\[\\]:*?\\/\\\\]/g,' ').replace(/^'+|'+$/g,'').trim();
+  if(!base)base='Kegiatan';
+  base=base.slice(0,31);
+  let result=base,n=2;
+  while(used[result.toLowerCase()]){const suffix=' ('+n+++')';result=base.slice(0,31-suffix.length)+suffix;}
+  used[result.toLowerCase()]=true;
+  return result;
+}
+function gpsfmBuildActivityExportSheet_(sheet,activity,users,attendance,year,month,usedNames) {
+  const activityId=String(activity.activityId), prefix=year+'-'+('0'+month).slice(-2);
+  const rosterIds={};
+  gpsfmRows_('ActivityTeachers').filter(function(a){return String(a.activityId)===activityId;}).forEach(function(a){rosterIds[String(a.teacherId)]=true;});
+  const relevant=attendance.filter(function(a){return String(a.activityId)===activityId&&gpsfmDateKey_(a.attendanceDate).slice(0,7)===prefix&&rosterIds[String(a.teacherId)];});
+  const dates=Array.from(new Set(relevant.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
+  const userById={};users.forEach(function(u){userById[String(u.userId)]=u;});
+  const teacherIds={};Object.keys(rosterIds).forEach(function(id){if(userById[id]&&gpsfmIsParticipantRole_(userById[id].role))teacherIds[id]=true;});
+  relevant.forEach(function(a){if(userById[String(a.teacherId)]&&gpsfmIsParticipantRole_(userById[String(a.teacherId)].role))teacherIds[String(a.teacherId)]=true;});
+  const teachers=users.filter(function(u){return teacherIds[String(u.userId)];});
+  const values={};
+  relevant.forEach(function(a){const key=String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate);values[key]=String(a.status||'');});
+  const labels=['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
+  const header=['No','Nama Peserta'].concat(dates.map(function(d){return d.split('-').reverse().join('-');})).concat(labels).concat(['Total Catatan']);
+  const rows=[['REKAP ABSENSI — '+String(activity.name||'Kegiatan')],['Periode: '+('0'+month).slice(-2)+'/'+year],[],header];
+  const totals={};labels.forEach(function(k){totals[k]=0;});
+  teachers.forEach(function(u,index){
+    const counts={};labels.forEach(function(k){counts[k]=0;});
+    const cells=dates.map(function(date){
+      const raw=values[String(u.userId)+'|'+date]||'—',key=gpsfmExportStatusKey_(raw);
+      if(key)counts[key]++;
+      return raw;
+    });
+    labels.forEach(function(k){totals[k]+=counts[k];});
+    const total=labels.reduce(function(sum,k){return sum+counts[k];},0);
+    rows.push([index+1,String(u.fullName||'')].concat(cells).concat(labels.map(function(k){return counts[k];})).concat([total]));
+  });
+  const totalRow=['','TOTAL'].concat(dates.map(function(date){
+    return relevant.filter(function(a){return gpsfmDateKey_(a.attendanceDate)===date&&gpsfmExportStatusKey_(a.status);}).length;
+  })).concat(labels.map(function(k){return totals[k];})).concat([labels.reduce(function(sum,k){return sum+totals[k];},0)]);
+  rows.push(totalRow);
+  const safeName=gpsfmExcelSheetName_(activity.name,usedNames);
+  sheet.setName(safeName);
+  const width=header.length;
+  sheet.getRange(1,1,rows.length,width).setValues(rows.map(function(row){const copy=row.slice();while(copy.length<width)copy.push('');return copy;}));
+  sheet.getRange(1,1,1,width).merge();
+  sheet.getRange(2,1,1,width).merge();
+  sheet.getRange(1,1,1,width).setFontSize(15).setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#650065').setVerticalAlignment('middle');
+  sheet.getRange(2,1,1,width).setFontSize(10).setFontColor('#5B4760').setBackground('#F5EAF5');
+  sheet.getRange(4,1,1,width).setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#800080').setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
+  if(teachers.length){sheet.getRange(5,1,teachers.length,width).setVerticalAlignment('middle');}
+  sheet.getRange(rows.length,1,1,width).setFontWeight('bold').setBackground('#EDE1F0').setBorder(true,true,true,true,true,true,'#BFA8C5',SpreadsheetApp.BorderStyle.SOLID);}
+  sheet.setFrozenRows(4);sheet.setFrozenColumns(2);
+  sheet.setRowHeight(1,30);sheet.setRowHeight(2,22);sheet.setRowHeight(4,38);
+  sheet.setColumnWidth(1,48);sheet.setColumnWidth(2,230);
+  if(dates.length)sheet.setColumnWidths(3,dates.length,92);
+  sheet.setColumnWidths(3+dates.length,labels.length+1,118);
+  sheet.getRange(1,1,rows.length,width).setFontFamily('Arial').setFontSize(10);
+  sheet.getRange(1,1,1,width).setFontSize(15);
+  sheet.getRange(4,1,1,width).setFontSize(9);
+  if(teachers.length){sheet.getRange(5,1,teachers.length,1).setHorizontalAlignment('center');if(dates.length)sheet.getRange(5,3,teachers.length,dates.length).setHorizontalAlignment('center');sheet.getRange(5,3+dates.length,teachers.length,labels.length+1).setHorizontalAlignment('center').setNumberFormat('0');}
+  sheet.getRange(rows.length,1,1,width).setHorizontalAlignment('center');
+  sheet.getRange(rows.length,2).setHorizontalAlignment('left');
+  sheet.getRange(1,1,rows.length,width).setBorder(false,false,true,false,false,false,'#E6DCE9',SpreadsheetApp.BorderStyle.SOLID);
+  if(teachers.length)sheet.getRange(4,1,teachers.length+1,width).createFilter();
+  sheet.setTabColor('#800080');
+}
+function apiExportAttendanceExcel(token,year,month) {
+  const s=gpsfmSession_(token);
+  year=Number(year);month=Number(month);
+  if(!Number.isInteger(year)||year<2020||year>2100||!Number.isInteger(month)||month<1||month>12)throw new Error('Periode ekspor tidak valid.');
+  const role=String(s.user.role),isGlobal=['superadmin','supervisor','admin_administrasi'].indexOf(role)>=0;
+  if(!isGlobal&&role!=='gps')throw new Error('Akses ekspor tidak diizinkan.');
+  const activities=gpsfmRows_('Activities').filter(function(a){
+    return gpsfmBool_(a.active)&&(isGlobal||gpsfmIsPJ_(s.user.userId,a.activityId));
+  });
+  if(!activities.length)throw new Error(isGlobal?'Belum ada kegiatan aktif untuk diekspor.':'Anda belum ditugaskan sebagai PJ pada kegiatan aktif.');
+  const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance');
+  const temp=SpreadsheetApp.create('GPS FM - Rekap Absen '+('0'+month).slice(-2)+'-'+year);
+  try{
+    const usedNames={};
+    activities.forEach(function(activity,index){
+      const sheet=index===0?temp.getSheets()[0]:temp.insertSheet();
+      gpsfmBuildActivityExportSheet_(sheet,activity,users,attendance,year,month,usedNames);
+    });
+    SpreadsheetApp.flush();
+    const filename='GPS-FM_Rekap-Absen_'+year+'-'+('0'+month).slice(-2)+'.xlsx';
+    const blob=DriveApp.getFileById(temp.getId()).getBlob().getAs('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').setName(filename);
+    gpsfmAudit_(s.user.userId,'EXPORT_ATTENDANCE_EXCEL','Attendance','', {year:year,month:month,activityCount:activities.length});
+    return {filename:filename,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',base64:Utilities.base64Encode(blob.getBytes()),activityCount:activities.length};
+  }finally{
+    try{DriveApp.getFileById(temp.getId()).setTrashed(true);}catch(cleanupError){}
+  }
+}
+
 function apiGetActivityReport(token, activityId) {
   const s = gpsfmSession_(token);
   activityId = gpsfmText_(activityId,80);
