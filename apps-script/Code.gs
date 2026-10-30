@@ -587,6 +587,7 @@ function apiGetSupervisorDashboard(token) {
   if (String(s.user.role) !== 'supervisor') throw new Error('Akses ditolak. Fitur ini hanya untuk Supervisor GPS.');
   const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
   const prefix = today.slice(0, 7);
+  const nowJakarta = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm');
   const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   const users = gpsfmRows_('Users').filter(function(u) { return gpsfmBool_(u.active) && String(u.role) === 'gps'; });
   const userMap = {};
@@ -594,16 +595,61 @@ function apiGetSupervisorDashboard(token) {
   const pjRows = gpsfmRows_('ActivityPJ').filter(function(p) { return gpsfmBool_(p.active); });
   const teacherRows = gpsfmRows_('ActivityTeachers').filter(function(t) { return gpsfmBool_(t.active); });
   const attendance = gpsfmRows_('Attendance').filter(function(a) { return gpsfmDateKey_(a.attendanceDate).slice(0,7) === prefix; });
+  const attendanceByOccurrence = {};
+  attendance.forEach(function(row) { attendanceByOccurrence[String(row.activityId)+'|'+gpsfmDateKey_(row.attendanceDate)] = true; });
+  const occurrenceByKey = {};
+  gpsfmRows_('ActivityOccurrences').forEach(function(row) {
+    const key = String(row.activityId)+'|'+gpsfmDateKey_(row.occurrenceDate);
+    if (!Object.prototype.hasOwnProperty.call(occurrenceByKey,key)) occurrenceByKey[key] = row;
+  });
+  const monthStart = gpsfmDateFromKey_(prefix+'-01');
+  const end = gpsfmDateFromKey_(today);
   const result = activities.map(function(a) {
     const id = String(a.activityId);
     const pjs = pjRows.filter(function(p) { return String(p.activityId) === id; }).map(function(p) { return userMap[String(p.userId)] || 'Akun tidak ditemukan'; });
     const teacherIds = teacherRows.filter(function(t) { return String(t.activityId) === id; }).map(function(t) { return String(t.teacherId); });
     const records = attendance.filter(function(row) { return String(row.activityId) === id; });
-    const presentTeacherCount = Array.from(new Set(records.map(function(row) { return String(row.teacherId); }))).length;
-    const rosterCount = teacherIds.length;
-    return {activityId:id,name:String(a.name),schedule:String(a.schedule||''),pjs:pjs,rosterCount:rosterCount,monthlyRecords:records.length,presentTeacherCount:presentTeacherCount,coveragePercent:rosterCount?Math.min(100,Math.round(presentTeacherCount/rosterCount*100)):0};
+    const days = gpsfmParseScheduleDays_(a.schedule);
+    let dueOccurrences = 0, completedOccurrences = 0;
+    const cursor = new Date(monthStart.getTime());
+    cursor.setUTCHours(12,0,0,0);
+    while (days.length && cursor <= end) {
+      const date = gpsfmDateKeyUTC_(cursor);
+      if (days.indexOf(gpsfmWeekdayName_(date)) >= 0) {
+        const due = gpsfmScheduledDueKey_(a.schedule,date);
+        const hasClock = gpsfmScheduleStartMinutes_(a.schedule) !== null;
+        const isDue = hasClock ? nowJakarta >= due : date < today;
+        if (isDue) {
+          const occurrenceKey = id+'|'+date;
+          const occurrence = occurrenceByKey[occurrenceKey];
+          if (!occurrence || String(occurrence.status || 'scheduled') !== 'holiday') {
+            dueOccurrences++;
+            if (attendanceByOccurrence[occurrenceKey]) completedOccurrences++;
+          }
+        }
+      }
+      cursor.setUTCDate(cursor.getUTCDate()+1);
+    }
+    const missingOccurrences = Math.max(0,dueOccurrences-completedOccurrences);
+    return {
+      activityId:id,name:String(a.name),schedule:String(a.schedule||''),pjs:pjs,
+      rosterCount:teacherIds.length,monthlyRecords:records.length,
+      dueOccurrences:dueOccurrences,completedOccurrences:completedOccurrences,
+      missingOccurrences:missingOccurrences,
+      completionPercent:dueOccurrences?Math.round(completedOccurrences/dueOccurrences*100):0
+    };
   });
-  return {month:prefix,totalActivities:activities.length,totalPJ:Array.from(new Set(pjRows.map(function(p){return String(p.userId);}))).length,totalPJAssignments:pjRows.length,totalMonthlyRecords:attendance.length,activities:result};
+  const totalDue = result.reduce(function(n,a){return n+a.dueOccurrences;},0);
+  const totalCompleted = result.reduce(function(n,a){return n+a.completedOccurrences;},0);
+  return {
+    month:prefix,totalActivities:activities.length,
+    totalPJ:Array.from(new Set(pjRows.map(function(p){return String(p.userId);}))).length,
+    totalPJAssignments:pjRows.length,totalMonthlyRecords:attendance.length,
+    totalDueOccurrences:totalDue,totalCompletedOccurrences:totalCompleted,
+    totalMissingOccurrences:Math.max(0,totalDue-totalCompleted),
+    completionPercent:totalDue?Math.round(totalCompleted/totalDue*100):0,
+    activities:result
+  };
 }
 
 function apiGetMonthlyReport(token, year, month) {
