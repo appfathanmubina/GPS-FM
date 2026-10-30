@@ -674,6 +674,8 @@ async function attendancePage(root){
        const selected=checks.filter(x=>x.checked);
        if(!selected.length){toast('Centang minimal satu guru yang akan disimpan.');return;}
        const entries=selected.map(x=>({teacherId:x.value,status:box.querySelector('.attendanceTeacherStatus[data-teacher="'+x.value+'"]').value,note:box.querySelector('.attendanceTeacherNote[data-teacher="'+x.value+'"]').value}));
+        const willDelete=checks.filter(x=>!x.checked && !!saved[x.value]).length;
+        if(willDelete>0 && !window.confirm('Ada '+willDelete+' catatan absensi lama yang akan dihapus karena guru tidak dicentang. Lanjutkan penyimpanan dan penghapusan tersebut?'))return;
        const btn=$('saveAttendanceBatch');busy(btn,true,'Menyimpan '+selected.length+' guru...');
        processNotice('Menyimpan absensi','Mengirim '+selected.length+' catatan guru. Mohon jangan tutup aplikasi…','working');
        try{const result=await call('apiSaveAttendanceBatch',token,{activityId:$('aActivity').value,attendanceDate:$('aDate').value,entries:entries});processNotice('Absensi berhasil disimpan',result.saved+' catatan guru berhasil diproses.','success');await loadTeachers();}
