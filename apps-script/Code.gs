@@ -318,7 +318,7 @@ function apiGetAttendanceForDate(token, activityId, date) {
 
 function gpsfmIsValidAttendanceDate_(date) {
   const value = String(date || '');
-  const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
   const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
   const check = new Date(Date.UTC(year, month - 1, day));
@@ -345,7 +345,6 @@ function apiSaveAttendanceBatch(token, data) {
   const entries = Array.isArray(data.entries) ? data.entries : [];
   if (u.role !== 'superadmin' && !gpsfmIsPJ_(u.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  gpsfmValidatePJAttendanceMonth_(u, date);
   gpsfmValidatePJAttendanceMonth_(u, date);
   if (!entries.length || entries.length > 200) throw new Error('Pilih minimal satu guru dan maksimal 200 guru untuk disimpan.');
   const period = date.slice(0,7).split('-');
@@ -671,7 +670,7 @@ function apiGetActivityReport(token, activityId) {
   const teachers = gpsfmRows_('Users').filter(function(u){return teacherIds[String(u.userId)] && String(u.role) === 'gps';}).map(function(u){return {userId:String(u.userId),fullName:String(u.fullName)};});
   const dates = Array.from(new Set(rows.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
   const values = {};
-  rows.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)] = String(a.status).replace(/^[A-D]\\. /,'');});
+  rows.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)] = String(a.status).replace(/^[A-D]\. /,'');});
   return {activityName:String(activity.name),dates:dates,teachers:teachers.map(function(t){return {userId:String(t.userId),fullName:String(t.fullName),statuses:dates.map(function(d){return values[String(t.userId)+'|'+d] || '—';})};})};
 }
 
