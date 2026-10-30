@@ -627,11 +627,11 @@ function gpsfmExportStatusKey_(value) {
   return '';
 }
 function gpsfmExcelSheetName_(name,used) {
-  let base=String(name||'Kegiatan').replace(/[\\[\\]:*?\\/\\\\]/g,' ').replace(/^'+|'+$/g,'').trim();
+  let base=String(name||'Kegiatan').replace(/[\[\]:*?\/\\]/g,' ').replace(/^'+|'+$/g,'').trim();
   if(!base)base='Kegiatan';
   base=base.slice(0,31);
   let result=base,n=2;
-  while(used[result.toLowerCase()]){const suffix=' ('+n+++')';result=base.slice(0,31-suffix.length)+suffix;}
+  while(used[result.toLowerCase()]){const suffix=' ('+n+')';n++;result=base.slice(0,31-suffix.length)+suffix;}
   used[result.toLowerCase()]=true;
   return result;
 }
@@ -676,7 +676,7 @@ function gpsfmBuildActivityExportSheet_(sheet,activity,users,attendance,year,mon
   sheet.getRange(2,1,1,width).setFontSize(10).setFontColor('#5B4760').setBackground('#F5EAF5');
   sheet.getRange(4,1,1,width).setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#800080').setWrap(true).setHorizontalAlignment('center').setVerticalAlignment('middle');
   if(teachers.length){sheet.getRange(5,1,teachers.length,width).setVerticalAlignment('middle');}
-  sheet.getRange(rows.length,1,1,width).setFontWeight('bold').setBackground('#EDE1F0').setBorder(true,true,true,true,true,true,'#BFA8C5',SpreadsheetApp.BorderStyle.SOLID);}
+  sheet.getRange(rows.length,1,1,width).setFontWeight('bold').setBackground('#EDE1F0').setBorder(true,true,true,true,true,true,'#BFA8C5',SpreadsheetApp.BorderStyle.SOLID);
   sheet.setFrozenRows(4);sheet.setFrozenColumns(2);
   sheet.setRowHeight(1,30);sheet.setRowHeight(2,22);sheet.setRowHeight(4,38);
   sheet.setColumnWidth(1,48);sheet.setColumnWidth(2,230);
