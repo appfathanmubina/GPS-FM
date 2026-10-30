@@ -1,4 +1,4 @@
-const CACHE='gps-fm-shell-v8';
+const CACHE='gps-fm-shell-v9';
 const FILES=['./','./index.html','./manifest.json','./config.js','./icon.png'];
 
 self.addEventListener('install',event=>{
