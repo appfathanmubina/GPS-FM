@@ -237,7 +237,7 @@ function apiSetUserPassword(token, userId, newPassword) {
 
 function apiListActivities(token) {
   const s = gpsfmSession_(token);
-  return gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active) && (s.user.role === 'superadmin' || s.user.role === 'supervisor' || s.user.role === 'admin_administrasi' || gpsfmIsPJ_(s.user.userId,a.activityId)); }).map(function(a) {
+  return gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active) && (s.user.role === 'superadmin' || gpsfmIsPJ_(s.user.userId,a.activityId)); }).map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),active:gpsfmBool_(a.active)};
   });
 }
@@ -577,7 +577,7 @@ function apiGetMonthlyReport(token, year, month) {
   year = Number(year); month = Number(month);
   if (!Number.isInteger(year) || year < 2020 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) throw new Error('Periode laporan tidak valid.');
   const prefix = year + '-' + ('0'+month).slice(-2);
-  const users = gpsfmRows_('Users').filter(function(u) { return gpsfmIsParticipantRole_(u.role); });
+  const users = gpsfmRows_('Users');
   const allActivities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
