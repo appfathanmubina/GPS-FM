@@ -44,20 +44,36 @@ function gpsfmSheet_(name) {
   return sh;
 }
 
+// Cache hanya berlaku selama satu eksekusi Apps Script; tidak menyimpan data lintas pengguna.
+var GPSFM_ROWS_REQUEST_CACHE_ = {};
+
+function gpsfmInvalidateRowsCache_(name) {
+  if (GPSFM_ROWS_REQUEST_CACHE_) delete GPSFM_ROWS_REQUEST_CACHE_[name];
+}
+
 function gpsfmRows_(name) {
+  if (GPSFM_ROWS_REQUEST_CACHE_ && GPSFM_ROWS_REQUEST_CACHE_[name]) {
+    return GPSFM_ROWS_REQUEST_CACHE_[name].map(function(row) { return Object.assign({}, row); });
+  }
   const sh = gpsfmSheet_(name), values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
+  if (values.length < 2) {
+    GPSFM_ROWS_REQUEST_CACHE_[name] = [];
+    return [];
+  }
   const headers = values[0].map(String);
-  return values.slice(1).map(function(row, i) {
+  const rows = values.slice(1).map(function(row, i) {
     const obj = { _row: i + 2 };
     headers.forEach(function(h, j) { obj[h] = row[j]; });
     return obj;
   }).filter(function(o) { return o[headers[0]] !== '' && o[headers[0]] != null; });
+  GPSFM_ROWS_REQUEST_CACHE_[name] = rows;
+  return rows.map(function(row) { return Object.assign({}, row); });
 }
 
 function gpsfmAppend_(name, obj) {
   const sh = gpsfmSheet_(name), headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   sh.appendRow(headers.map(function(h) { return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; }));
+  gpsfmInvalidateRowsCache_(name);
 }
 
 function gpsfmUpdateRow_(name, rowNumber, obj) {
@@ -65,6 +81,7 @@ function gpsfmUpdateRow_(name, rowNumber, obj) {
   const old = sh.getRange(rowNumber,1,1,headers.length).getValues()[0];
   headers.forEach(function(h,i) { if (Object.prototype.hasOwnProperty.call(obj,h)) old[i] = obj[h]; });
   sh.getRange(rowNumber,1,1,headers.length).setValues([old]);
+  gpsfmInvalidateRowsCache_(name);
 }
 
 function gpsfmId_() { return Utilities.getUuid(); }
@@ -403,6 +420,7 @@ function apiSaveAttendanceBatch(token, data) {
           activityId:activityId,teacherId:String(a.teacherId),date:date,reason:'REMOVED_FROM_BULK_SELECTION'
         });
         attendanceSheet.deleteRow(a._row);
+        gpsfmInvalidateRowsCache_('Attendance');
       });
     }
   } finally { lock.releaseLock(); }
