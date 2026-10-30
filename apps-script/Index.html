@@ -548,7 +548,7 @@ function openLogoutConfirmation(){
  cancel.focus();
 }
 $('changePassBtn').addEventListener('click',openChangePasswordModal);
-function navIcon(id){const paths={dashboard:'<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/>',attendance:'<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14l2.2 2.2L16 12"/>',report:'<path d="M5 4v16h15"/><path d="m8 15 3.5-4 3 2 4.5-6"/>',activityReport:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M8 4.5v15M13 12h4M13 15.5h4"/>',activities:'<path d="M8 4.5h6.8L18 7.7v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>'};return '<svg class="nav-flat-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]||paths.dashboard)+'</svg>';} function renderNav(){const nav=$('nav');const isSuperadmin=me.role==='superadmin';const isSupervisor=me.role==='supervisor';const isPJ=!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.length);const items=[['dashboard','Dashboard']];if(!isSupervisor&&(isSuperadmin||isPJ))items.push(['attendance','Input Absensi']);items.push(['report',isSupervisor?'Rekapan':'Evaluasi Diri']);if(isSupervisor||isSuperadmin||isPJ)items.push(['activityReport','Rekapan Kegiatan']);if(isSuperadmin)items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);nav.classList.toggle('nav-five',isSuperadmin);nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
+function navIcon(id){const paths={dashboard:'<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/>',attendance:'<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14l2.2 2.2L16 12"/>',report:'<path d="M5 4v16h15"/><path d="m8 15 3.5-4 3 2 4.5-6"/>',activityReport:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M8 4.5v15M13 12h4M13 15.5h4"/>',activities:'<path d="M8 4.5h6.8L18 7.7v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>'};return '<svg class="nav-flat-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]||paths.dashboard)+'</svg>';} function renderNav(){const nav=$('nav');const isSuperadmin=me.role==='superadmin';const isSupervisor=me.role==='supervisor';const isPJ=!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.length);const items=[['dashboard','Dashboard']];if(!isSupervisor&&(isSuperadmin||isPJ))items.push(['attendance','Input Absensi']);items.push(['report','Evaluasi Diri']);if(isSupervisor||isSuperadmin||isPJ)items.push(['activityReport','Rekapan Kegiatan']);if(isSuperadmin)items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);nav.classList.toggle('nav-five',isSuperadmin);nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
 async function renderPage(page){
  const root=$('page'),previous=currentPage;
  if(previous&&previous!==page&&root.childNodes.length&&!root.classList.contains('page-loading-state')&&!root.querySelector('.page-loading-state')){
@@ -726,11 +726,11 @@ async function activityReportPage(root){
 }
 async function reportPage(root){
  const now=new Date();
- root.innerHTML=title(me.role==='supervisor'?'Rekapan Absensi':'Evaluasi Diri',me.role==='supervisor'?'Lihat laporan absensi seluruh guru dan seluruh kegiatan. Tampilan hanya-baca.':me.role==='superadmin'?'Lihat rekap seluruh guru, lalu filter berdasarkan periode dan kegiatan.':'Lihat catatan rekap kehadiran Anda sendiri, lalu filter berdasarkan periode dan kegiatan.')+
+ root.innerHTML=title(me.role==='superadmin'?'Evaluasi Diri':'Evaluasi Diri',me.role==='supervisor'?'Lihat catatan kehadiran milik Anda sendiri. Tampilan hanya-baca.':me.role==='superadmin'?'Lihat rekap seluruh guru, lalu filter berdasarkan periode dan kegiatan.':'Lihat catatan rekap kehadiran Anda sendiri, lalu filter berdasarkan periode dan kegiatan.')+
  '<div class="panel"><form id="reportForm" class="row">'+
  '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
  '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
- '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">'+(me.role==='supervisor'?'Semua kegiatan':'Pilih kegiatan...')+'</option></select></div>'+
+ '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">'+(me.role==='superadmin'?'Semua kegiatan':'Pilih kegiatan...')+'</option></select></div>'+
  '<button class="btn btn-primary" type="submit" style="flex:1;min-width:180px">Tampilkan Rekap</button></form></div><div id="reportResult"></div>';
 
  function filteredRows(){
@@ -782,7 +782,7 @@ async function reportPage(root){
  }
  async function load(){
   const activityId=$('rActivity').value;
-  if(!activityId&&me.role!=='supervisor'){report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';return;}
+  if(!activityId&&me.role!=='superadmin'){report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';return;}
   if(reportDataLoading)return;
   reportDataLoading=true;
   const y=Number($('rYear').value),m=Number($('rMonth').value);
@@ -793,9 +793,9 @@ async function reportPage(root){
  }
  $('rActivity').onchange=()=>{if($('rActivity').value)load();else{report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';}};
  $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
- $('reportResult').innerHTML='<div class="panel empty">'+(me.role==='supervisor'?'Pilih periode untuk memuat seluruh rekap absensi.':'Pilih kegiatan untuk memuat rekap evaluasi diri.')+'</div>';
+ $('reportResult').innerHTML='<div class="panel empty">'+(me.role==='superadmin'?'Pilih periode untuk memuat seluruh rekap absensi.':'Pilih kegiatan untuk memuat catatan Evaluasi Diri Anda.')+'</div>';
  // Muat pilihan kegiatan saat halaman dibuka. Supervisor dapat meminta laporan seluruh kegiatan.
- loadActivityOptions().then(()=>{if(me.role==='supervisor'&&currentPage==='report')load();});
+ loadActivityOptions();
 }
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
 function activityScheduleParts(value){
