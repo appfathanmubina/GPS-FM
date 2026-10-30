@@ -1,7 +1,7 @@
 {
-  "name": "GPS FM — Absensi Guru Pembina Santri",
-  "short_name": "GPS FM",
-  "description": "Sistem Absensi Guru Pembina Santri Pesantren Fathan Mubina",
+  "name": "GPS FM - UJI COBA",
+  "short_name": "GPS FM Uji Coba",
+  "description": "Versi pengujian Sistem Absensi Guru Pembina Santri Pesantren Fathan Mubina",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
