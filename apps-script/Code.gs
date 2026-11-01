@@ -348,46 +348,110 @@ function apiSaveAttendanceBatch(token, data) {
   const entries = Array.isArray(data.entries) ? data.entries : [];
   if (u.role !== 'superadmin' && !gpsfmIsPJ_(u.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
   gpsfmValidatePJAttendanceMonth_(u, date);
   if (!entries.length || entries.length > 200) throw new Error('Pilih minimal satu guru dan maksimal 200 guru untuk disimpan.');
+
   const period = date.slice(0,7).split('-');
   const p = gpsfmRows_('Periods').find(function(x) { return Number(x.year) === Number(period[0]) && Number(x.month) === Number(period[1]); });
   if (p && String(p.status) === 'locked') throw new Error('Periode laporan sudah dikunci.');
-  const seen = {}, users = gpsfmRows_('Users');
+
+  // Baca master sekali, lalu validasi seluruh entri di memori.
+  const users = gpsfmRows_('Users');
+  const activeUsers = {};
+  users.forEach(function(x) {
+    if (gpsfmBool_(x.active) && gpsfmIsParticipantRole_(x.role)) activeUsers[String(x.userId)] = true;
+  });
+  const activityTeachers = {};
+  gpsfmRows_('ActivityTeachers').forEach(function(x) {
+    if (String(x.activityId) === activityId && gpsfmBool_(x.active)) activityTeachers[String(x.teacherId)] = true;
+  });
+
+  const seen = {}, normalized = [];
   entries.forEach(function(e) {
     const teacherId = gpsfmText_(e.teacherId,80), status = gpsfmText_(e.status,20);
-    if (seen[teacherId]) throw new Error('Daftar guru duplikat. Muat ulang halaman dan coba lagi.');
+    if (!teacherId || seen[teacherId]) throw new Error('Daftar guru duplikat atau tidak valid. Muat ulang halaman dan coba lagi.');
     seen[teacherId] = true;
     if (GPSFM_STATUSES.indexOf(status) < 0) throw new Error('Status kehadiran tidak valid.');
-    if (!users.some(function(x){return String(x.userId)===teacherId && gpsfmBool_(x.active) && gpsfmIsParticipantRole_(x.role);})) throw new Error('Salah satu akun guru tidak aktif atau tidak ditemukan.');
-    if (!gpsfmIsActivityTeacher_(teacherId,activityId)) throw new Error('Ada guru yang tidak ditugaskan pada kegiatan ini. Muat ulang daftar guru.');
-    gpsfmText_(e.note,300);
+    if (!activeUsers[teacherId]) throw new Error('Salah satu akun guru tidak aktif atau tidak ditemukan.');
+    if (!activityTeachers[teacherId]) throw new Error('Ada guru yang tidak ditugaskan pada kegiatan ini. Muat ulang daftar guru.');
+    normalized.push({teacherId:teacherId,status:status,note:gpsfmText_(e.note,300)});
   });
+
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const records = gpsfmRows_('Attendance');
-    const existing = entries.map(function(e) {
-      return {entry:e,old:records.find(function(a){return String(a.activityId)===activityId && String(a.teacherId)===String(e.teacherId) && gpsfmDateKey_(a.attendanceDate)===date;})};
+    const attendanceSheet = gpsfmSheet_('Attendance');
+    const attendanceValues = attendanceSheet.getDataRange().getValues();
+    const attendanceHeaders = attendanceValues.length ? attendanceValues[0].map(String) : [];
+    const attendanceCols = {};
+    attendanceHeaders.forEach(function(h,i) { attendanceCols[h] = i; });
+    ['attendanceId','activityId','teacherId','attendanceDate','status','note','recordedBy','createdAt','updatedAt'].forEach(function(h) {
+      if (!Object.prototype.hasOwnProperty.call(attendanceCols,h)) throw new Error('Kolom Attendance tidak lengkap: ' + h);
     });
-    const now = gpsfmNow_();
-    existing.forEach(function(x) {
-      const e=x.entry, teacherId=String(e.teacherId), status=String(e.status), note=gpsfmText_(e.note,300);
-      if (x.old) {
-        gpsfmUpdateRow_('Attendance',x.old._row,{status:status,note:note,recordedBy:u.userId,updatedAt:now});
-        gpsfmAudit_(u.userId,'UPDATE_ATTENDANCE','Attendance',x.old.attendanceId,{status:status,date:date,bulk:true});
+
+    const existingByTeacher = {};
+    for (let i=1; i<attendanceValues.length; i++) {
+      const row = attendanceValues[i];
+      if (String(row[attendanceCols.activityId]) === activityId &&
+          gpsfmDateKey_(row[attendanceCols.attendanceDate]) === date) {
+        existingByTeacher[String(row[attendanceCols.teacherId])] = {rowNumber:i+1,values:row};
+      }
+    }
+
+    const now = gpsfmNow_(), updateRows = [], insertRows = [], auditRows = [];
+    const auditSheet = gpsfmSheet_('AuditLogs');
+    const auditHeaders = auditSheet.getRange(1,1,1,auditSheet.getLastColumn()).getDisplayValues()[0];
+    const auditCols = {};
+    auditHeaders.forEach(function(h,i) { auditCols[h] = i; });
+
+    function makeAudit(action, entityId, status) {
+      const obj = {logId:gpsfmId_(),actorId:u.userId,action:action,entityType:'Attendance',entityId:entityId,details:JSON.stringify({status:status,date:date,bulk:true}),createdAt:now};
+      auditRows.push(auditHeaders.map(function(h) { return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; }));
+    }
+
+    normalized.forEach(function(e) {
+      const old = existingByTeacher[e.teacherId];
+      if (old) {
+        const row = old.values.slice();
+        row[attendanceCols.status] = e.status;
+        row[attendanceCols.note] = e.note;
+        row[attendanceCols.recordedBy] = u.userId;
+        row[attendanceCols.updatedAt] = now;
+        updateRows.push({rowNumber:old.rowNumber,values:row});
+        makeAudit('UPDATE_ATTENDANCE',String(row[attendanceCols.attendanceId]),e.status);
       } else {
-        const id=gpsfmId_();
-        gpsfmAppend_('Attendance',{attendanceId:id,activityId:activityId,teacherId:teacherId,attendanceDate:date,status:status,note:note,recordedBy:u.userId,createdAt:now,updatedAt:now});
-        gpsfmAudit_(u.userId,'CREATE_ATTENDANCE','Attendance',id,{status:status,date:date,bulk:true});
+        const id = gpsfmId_();
+        const obj = {attendanceId:id,activityId:activityId,teacherId:e.teacherId,attendanceDate:date,status:e.status,note:e.note,recordedBy:u.userId,createdAt:now,updatedAt:now};
+        insertRows.push(attendanceHeaders.map(function(h) { return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; }));
+        makeAudit('CREATE_ATTENDANCE',id,e.status);
       }
     });
 
-    // Entri yang tidak dipilih tidak disentuh. Penghapusan absensi harus dilakukan
-    // melalui tindakan terpisah agar perubahan pilihan tidak menghapus data lama.
-  } finally { lock.releaseLock(); }
-  return {ok:true,saved:entries.length};
+    // Tulis baris update yang berurutan sebagai satu operasi per rentang.
+    updateRows.sort(function(a,b) { return a.rowNumber-b.rowNumber; });
+    let runStart = 0;
+    while (runStart < updateRows.length) {
+      let runEnd = runStart + 1;
+      while (runEnd < updateRows.length && updateRows[runEnd].rowNumber === updateRows[runEnd-1].rowNumber + 1) runEnd++;
+      const chunk = updateRows.slice(runStart,runEnd);
+      attendanceSheet.getRange(chunk[0].rowNumber,1,chunk.length,attendanceHeaders.length)
+        .setValues(chunk.map(function(x) { return x.values; }));
+      runStart = runEnd;
+    }
+
+    // Semua data baru ditambahkan sekaligus.
+    if (insertRows.length) {
+      attendanceSheet.getRange(attendanceSheet.getLastRow()+1,1,insertRows.length,attendanceHeaders.length).setValues(insertRows);
+    }
+    // Semua log audit ditambahkan sekaligus tanpa menghilangkan jejak per guru.
+    if (auditRows.length) {
+      auditSheet.getRange(auditSheet.getLastRow()+1,1,auditRows.length,auditHeaders.length).setValues(auditRows);
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  return {ok:true,saved:normalized.length};
 }
 
 function apiSaveAttendance(token, data) {
