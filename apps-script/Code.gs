@@ -319,13 +319,26 @@ function apiGetAttendanceForDate(token, activityId, date) {
 }
 
 function gpsfmValidatePJAttendanceMonth_(user, date) {
-  // PJ dapat mengisi absensi selama bulan kalender berjalan, termasuk tanggal terakhir.
   // Superadmin tetap mengikuti mekanisme penguncian periode yang sudah ada.
   if (String(user.role) === 'superadmin') return;
-  const currentMonth = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM');
-  if (String(date).slice(0, 7) !== currentMonth) {
-    throw new Error('PJ dapat menginput absensi untuk bulan berjalan sampai tanggal terakhir bulan ini. Untuk periode bulan lain, hubungi superadmin.');
-  }
+
+  // PJ boleh mengisi bulan berjalan, serta bulan sebelumnya sampai tanggal 2
+  // pada bulan berjalan (berdasarkan kalender Asia/Jakarta, bukan 48 jam).
+  const todayKey = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  const currentMonth = todayKey.slice(0, 7);
+  const currentDay = Number(todayKey.slice(8, 10));
+  const parts = currentMonth.split('-');
+  const previousMonth = Utilities.formatDate(
+    new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 2, 1)),
+    'UTC',
+    'yyyy-MM'
+  );
+  const attendanceMonth = String(date).slice(0, 7);
+
+  if (attendanceMonth === currentMonth) return;
+  if (attendanceMonth === previousMonth && currentDay <= 2) return;
+
+  throw new Error('PJ dapat menginput absensi untuk bulan berjalan dan bulan sebelumnya hanya sampai tanggal 2. Setelah itu, hubungi superadmin untuk periode lain.');
 }
 
 function apiSaveAttendanceBatch(token, data) {
