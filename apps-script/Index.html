@@ -652,7 +652,7 @@ async function dashboard(root){
 }
 async function attendancePage(root){
  root.innerHTML=title('Input Absensi','Pilih kegiatan untuk memuat daftar guru, lalu tentukan tanggal absensi.')+
- '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div></form></div>'+
+ '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div><p class="muted small" style="margin:10px 0 0">PJ dapat mengisi absensi bulan berjalan. Absensi bulan sebelumnya masih dapat diinput sampai tanggal 2 bulan ini. Mulai tanggal 3, hubungi superadmin. Periode yang sudah dikunci tetap tidak dapat diubah.</p></form></div>'+
  '<div id="attendanceTeachers" class="panel"><div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div></div>';
  async function loadTeachers(){
    const box=$('attendanceTeachers');box.innerHTML='<div class="empty">Memuat daftar guru...</div>';
@@ -707,11 +707,13 @@ async function attendancePage(root){
 
 async function activityReportPage(root){
  const options=(bootstrap.activities||[]).map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('');
- const now=new Date(),isGlobal=['superadmin','supervisor','admin_administrasi'].includes(me.role);
+ const serverParts=String(bootstrap.serverDate||'').split('-').map(Number);
+ const now=serverParts.length===3&&serverParts.every(Number.isFinite)?new Date(serverParts[0],serverParts[1]-1,serverParts[2]):new Date();
+ const isGlobal=['superadmin','supervisor','admin_administrasi'].includes(me.role);
  const exportHelp=isGlobal?'Satu file Excel berisi seluruh kegiatan aktif. Setiap kegiatan berada pada sheet tersendiri.':'Anda hanya dapat mengekspor kegiatan yang menjadi tugas PJ Anda.';
- root.innerHTML=title('Rekap Absen','Rekap absensi per kegiatan dan bulan. Semua peserta yang ditetapkan ditampilkan sesuai urutan data Users.')+
- '<div class="panel"><div class="row"><div class="field"><label for="activityReportSelect">Pilih Kegiatan</label><select id="activityReportSelect"><option value="">Pilih kegiatan...</option>'+options+'</select></div><div class="field"><label for="activityReportMonth">Bulan</label><select id="activityReportMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div><div class="field"><label for="activityReportYear">Tahun</label><select id="activityReportYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div></div><div class="row" style="margin-top:14px;align-items:center"><button class="btn btn-primary" id="exportAttendanceExcel" type="button">Export Rekap ke Excel</button><span class="muted small">'+exportHelp+'</span></div><div id="activityReportResult" style="margin-top:14px"><div class="empty">Pilih kegiatan untuk menampilkan laporan.</div></div></div>';
- const sel=$('activityReportSelect'),month=$('activityReportMonth'),year=$('activityReportYear'),out=$('activityReportResult'),exportBtn=$('exportAttendanceExcel');
+ root.innerHTML=title('Rekap Absen','Rekap absensi per kegiatan dan bulan. Gunakan tombol Bulan Sebelumnya untuk melihat rekap bulan lalu, termasuk saat memasuki bulan baru.')+
+ '<div class="panel"><div class="row"><div class="field"><label for="activityReportSelect">Pilih Kegiatan</label><select id="activityReportSelect"><option value="">Pilih kegiatan...</option>'+options+'</select></div><div class="field"><label for="activityReportMonth">Bulan</label><select id="activityReportMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div><div class="field"><label for="activityReportYear">Tahun</label><select id="activityReportYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div></div><div class="row" style="margin-top:14px;align-items:center"><button class="btn btn-light" id="activityReportPreviousMonth" type="button">↶ Rekap Bulan Sebelumnya</button><button class="btn btn-primary" id="exportAttendanceExcel" type="button">Export Rekap ke Excel</button><span class="muted small">'+exportHelp+'</span></div><div id="activityReportResult" style="margin-top:14px"><div class="empty">Pilih kegiatan untuk menampilkan laporan.</div></div></div>';
+ const sel=$('activityReportSelect'),month=$('activityReportMonth'),year=$('activityReportYear'),out=$('activityReportResult'),exportBtn=$('exportAttendanceExcel'),previousMonthBtn=$('activityReportPreviousMonth');
  async function load(){
   if(!sel.value){out.innerHTML='<div class="empty">Pilih kegiatan untuk menampilkan laporan.</div>';return;}
   out.innerHTML='<div class="empty">Memuat laporan kegiatan...</div>';
@@ -738,6 +740,12 @@ async function activityReportPage(root){
    processNotice('File Excel siap','Berhasil menyiapkan '+data.activityCount+' sheet kegiatan. Unduhan dimulai.','success');
   }catch(e){processNotice('Export Excel gagal',e.message||'File Excel tidak dapat dibuat.','error');}
   finally{exportBtn.disabled=false;exportBtn.textContent=original;}
+ };
+ previousMonthBtn.onclick=()=>{
+  const previous=new Date(now.getFullYear(),now.getMonth()-1,1);
+  month.value=String(previous.getMonth()+1);
+  year.value=String(previous.getFullYear());
+  load();
  };
  sel.onchange=load;month.onchange=load;year.onchange=load;
 }
