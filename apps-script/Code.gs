@@ -395,7 +395,8 @@ function apiSaveAttendanceBatch(token, data) {
       const row = attendanceValues[i];
       if (String(row[attendanceCols.activityId]) === activityId &&
           gpsfmDateKey_(row[attendanceCols.attendanceDate]) === date) {
-        existingByTeacher[String(row[attendanceCols.teacherId])] = {rowNumber:i+1,values:row};
+        const teacherKey = String(row[attendanceCols.teacherId]);
+        if (!Object.prototype.hasOwnProperty.call(existingByTeacher,teacherKey)) existingByTeacher[teacherKey] = {rowNumber:i+1,values:row};
       }
     }
 
