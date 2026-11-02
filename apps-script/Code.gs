@@ -696,7 +696,7 @@ function apiGetMonthlyReport(token, year, month) {
 
 
 function gpsfmExportStatusKey_(value) {
-  const raw=String(value||'').trim().replace(/^[A-D][.]\\s*/i,'').toLowerCase().replace(/\\s+/g,' ');
+  const raw=String(value||'').trim().replace(/^[A-D][.]\s*/i,'').toLowerCase().replace(/\s+/g,' ');
   if(raw==='hadir')return 'Hadir';
   if(raw==='sakit')return 'A. Sakit';
   if(raw==='tugas'||raw==='tugas pondok')return 'B. Tugas Pondok';
@@ -753,7 +753,7 @@ function apiGetAttendanceExcelData(token,year,month) {
     rows.push(['','TOTAL'].concat(dates.map(function(date){
       return relevant.filter(function(a){return gpsfmDateKey_(a.attendanceDate)===date&&gpsfmExportStatusKey_(a.status);}).length;
     })).concat(labels.map(function(k){return totals[k];})).concat([labels.reduce(function(sum,k){return sum+totals[k];},0)]));
-    let base=String(activity.name||'Kegiatan').replace(/[\\[\\]:*?\/\\\\]/g,' ').replace(/^'+|'+$/g,'').trim();
+    let base=String(activity.name||'Kegiatan').replace(/[\[\]:*?\/\\]/g,' ').replace(/^'+|'+$/g,'').trim();
     if(!base)base='Kegiatan';base=base.slice(0,31);
     let sheetName=base,n=2;
     while(usedNames[sheetName.toLowerCase()]){const suffix=' ('+n+')';n++;sheetName=base.slice(0,31-suffix.length)+suffix;}
