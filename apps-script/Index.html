@@ -752,16 +752,16 @@ async function activityReportPage(root){
        ws[ref].s=style;
       }
     }
-    styleRow(0,{font:{name:'Arial',sz:15,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:darkPurple}},alignment:{vertical:'center'},border:border});
-    styleRow(1,{font:{name:'Arial',sz:10,color:{rgb:'5B4760'}},fill:{fgColor:{rgb:'F5EAF5'}},alignment:{vertical:'center'},border:border});
-    styleRow(3,{font:{name:'Arial',sz:9,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:purple}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:border});
+    styleRow(0,{font:{name:'Arial',sz:15,bold:true,color:{rgb:white}},fill:{patternType:'solid',fgColor:{rgb:darkPurple}},alignment:{vertical:'center'},border:border});
+    styleRow(1,{font:{name:'Arial',sz:10,color:{rgb:'5B4760'}},fill:{patternType:'solid',fgColor:{rgb:'F5EAF5'}},alignment:{vertical:'center'},border:border});
+    styleRow(3,{font:{name:'Arial',sz:9,bold:true,color:{rgb:white}},fill:{patternType:'solid',fgColor:{rgb:purple}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:border});
     for(let r=4;r<lastRow-1;r++){
       for(let col=0;col<width;col++){
        const ref=XLSX.utils.encode_cell({r:r,c:col});
        if(ws[ref])ws[ref].s={font:{name:'Arial',sz:10,color:{rgb:'242033'}},alignment:{vertical:'center',horizontal:(col===0||col>=2?'center':'left')},border:border};
       }
     }
-    styleRow(lastRow-1,{font:{name:'Arial',sz:10,bold:true,color:{rgb:'242033'}},fill:{fgColor:{rgb:'EDE1F0'}},alignment:{vertical:'center',horizontal:'center'},border:{top:{style:'thin',color:{rgb:'BFA8C5'}},bottom:{style:'thin',color:{rgb:'BFA8C5'}},left:{style:'thin',color:{rgb:'BFA8C5'}},right:{style:'thin',color:{rgb:'BFA8C5'}}}});
+    styleRow(lastRow-1,{font:{name:'Arial',sz:10,bold:true,color:{rgb:'242033'}},fill:{patternType:'solid',fgColor:{rgb:'EDE1F0'}},alignment:{vertical:'center',horizontal:'center'},border:{top:{style:'thin',color:{rgb:'BFA8C5'}},bottom:{style:'thin',color:{rgb:'BFA8C5'}},left:{style:'thin',color:{rgb:'BFA8C5'}},right:{style:'thin',color:{rgb:'BFA8C5'}}}});
     const totalNameRef=XLSX.utils.encode_cell({r:lastRow-1,c:1});
     if(ws[totalNameRef])ws[totalNameRef].s={...ws[totalNameRef].s,alignment:{horizontal:'left',vertical:'center'}};
     XLSX.utils.book_append_sheet(workbook,ws,item.name);
