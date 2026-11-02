@@ -699,6 +699,70 @@ function apiGetSupervisorDashboard(token) {
   return {month:prefix,totalActivities:activities.length,totalPJ:Array.from(new Set(pjRows.map(function(p){return String(p.userId);}))).length,totalPJAssignments:pjRows.length,totalMonthlyRecords:attendance.length,activities:result};
 }
 
+function apiGetTodayScheduledActivities(token) {
+  const s = gpsfmSession_(token);
+  const role = String(s.user.role);
+  if (role !== 'superadmin' && role !== 'supervisor') throw new Error('Akses ditolak. Fitur ini hanya untuk Superadmin atau Supervisor.');
+
+  const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  const weekday = gpsfmWeekdayName_(today);
+  const activities = gpsfmRows_('Activities').filter(function(a) {
+    return gpsfmBool_(a.active) && gpsfmParseScheduleDays_(a.schedule).indexOf(weekday) >= 0;
+  });
+  const activityIds = {};
+  activities.forEach(function(a) { activityIds[String(a.activityId)] = true; });
+
+  const attendanceByActivity = {};
+  gpsfmRows_('Attendance').forEach(function(row) {
+    const id = String(row.activityId);
+    if (activityIds[id] && gpsfmDateKey_(row.attendanceDate) === today) attendanceByActivity[id] = true;
+  });
+
+  gpsfmEnsureOccurrenceSheet_();
+  const occurrenceByActivity = {};
+  gpsfmRows_('ActivityOccurrences').forEach(function(row) {
+    const id = String(row.activityId);
+    if (activityIds[id] && gpsfmDateKey_(row.occurrenceDate) === today && !occurrenceByActivity[id]) {
+      occurrenceByActivity[id] = row;
+    }
+  });
+
+  const users = {};
+  gpsfmRows_('Users').forEach(function(u) {
+    if (gpsfmBool_(u.active)) users[String(u.userId)] = String(u.fullName || '');
+  });
+  const pjByActivity = {};
+  gpsfmRows_('ActivityPJ').forEach(function(row) {
+    const id = String(row.activityId);
+    if (activityIds[id] && gpsfmBool_(row.active)) {
+      if (!pjByActivity[id]) pjByActivity[id] = [];
+      const name = users[String(row.userId)] || 'Akun tidak ditemukan';
+      if (pjByActivity[id].indexOf(name) < 0) pjByActivity[id].push(name);
+    }
+  });
+
+  return {
+    date: today,
+    weekday: weekday,
+    activities: activities.map(function(a) {
+      const id = String(a.activityId);
+      const occurrence = occurrenceByActivity[id];
+      const saved = !!attendanceByActivity[id];
+      const exception = occurrence && String(occurrence.status || '') === 'holiday' ? 'Libur' :
+        occurrence && String(occurrence.status || '') === 'cancelled' ? 'Dibatalkan' : '';
+      return {
+        activityId: id,
+        name: String(a.name || ''),
+        schedule: String(a.schedule || ''),
+        pjs: pjByActivity[id] || [],
+        attendanceSaved: saved,
+        status: saved ? 'Sudah' : (exception || 'Belum'),
+        reason: exception ? String(occurrence.reason || '') : ''
+      };
+    }).sort(function(a,b) { return a.name.localeCompare(b.name); })
+  };
+}
+
 function apiGetMonthlyReport(token, year, month) {
   const s = gpsfmSession_(token);
   year = Number(year); month = Number(month);
