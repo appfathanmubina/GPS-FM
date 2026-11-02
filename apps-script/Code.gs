@@ -727,20 +727,6 @@ function apiGetTodayScheduledActivities(token) {
     }
   });
 
-  const users = {};
-  gpsfmRows_('Users').forEach(function(u) {
-    if (gpsfmBool_(u.active)) users[String(u.userId)] = String(u.fullName || '');
-  });
-  const pjByActivity = {};
-  gpsfmRows_('ActivityPJ').forEach(function(row) {
-    const id = String(row.activityId);
-    if (activityIds[id] && gpsfmBool_(row.active)) {
-      if (!pjByActivity[id]) pjByActivity[id] = [];
-      const name = users[String(row.userId)] || 'Akun tidak ditemukan';
-      if (pjByActivity[id].indexOf(name) < 0) pjByActivity[id].push(name);
-    }
-  });
-
   return {
     date: today,
     weekday: weekday,
@@ -754,7 +740,6 @@ function apiGetTodayScheduledActivities(token) {
         activityId: id,
         name: String(a.name || ''),
         schedule: String(a.schedule || ''),
-        pjs: pjByActivity[id] || [],
         attendanceSaved: saved,
         status: saved ? 'Sudah' : (exception || 'Belum'),
         reason: exception ? String(occurrence.reason || '') : ''
