@@ -652,7 +652,7 @@ async function dashboard(root){
  const reloadTargetsButton=$('reloadAttendanceTargets');if(reloadTargetsButton)reloadTargetsButton.onclick=loadTargets;
 }
 async function attendancePage(root){
- root.innerHTML=title('Input Absensi','Pilih kegiatan untuk memuat daftar guru, lalu tentukan tanggal absensi.')+
+ root.innerHTML=title('Input Absensi','Pilih kegiatan untuk memuat daftar guru, lalu tentukan tanggal absensi.','<button id="reloadAttendanceActivities" class="btn btn-light" type="button" style="white-space:nowrap;flex-shrink:0">↻ Muat Kegiatan</button>')+
  '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div><p class="muted small" style="margin:10px 0 0">PJ dapat mengisi absensi bulan berjalan. Absensi bulan sebelumnya masih dapat diinput sampai tanggal 2 bulan ini. Mulai tanggal 3, hubungi superadmin. Periode yang sudah dikunci tetap tidak dapat diubah.</p></form></div>'+
  '<div id="attendanceTeachers" class="panel"><div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div></div>';
  async function loadTeachers(){
@@ -685,24 +685,43 @@ async function attendancePage(root){
    }catch(err){box.innerHTML='<h3>Daftar guru</h3><p class="muted">'+esc(err.message)+'</p><button class="btn btn-light" id="retryAttendanceTeachers">Coba lagi</button>';$('retryAttendanceTeachers').onclick=loadTeachers;}
  }
  let activityOptionsLoaded=false,activityOptionsLoading=false;
- async function loadActivityOptions(){
-  if(activityOptionsLoaded||activityOptionsLoading)return;
-  activityOptionsLoading=true;const select=$('aActivity');select.disabled=true;
+ async function loadActivityOptions(forceReload){
+  if(activityOptionsLoading||(!forceReload&&activityOptionsLoaded))return;
+  activityOptionsLoading=true;
+  const select=$('aActivity'),box=$('attendanceTeachers'),reloadButton=$('reloadAttendanceActivities');
+  const previousActivity=select.value;
+  select.disabled=true;
+  if(reloadButton){reloadButton.disabled=true;reloadButton.textContent='Memuat...';}
   try{
    const loaded=await call('apiListActivities',token);
-   if(currentPage!=='attendance')return;
-   activities=loaded||[];
-   if(!activities.length){select.innerHTML='<option value="">Tidak ada kegiatan tersedia</option>';$('attendanceTeachers').innerHTML='<div class="empty">Belum ada kegiatan yang tersedia untuk akun ini. Hubungi superadmin untuk penugasan PJ.</div>';activityOptionsLoaded=true;return;}
+   // Tetap perbarui elemen halaman ini meskipun sedang tersimpan di cache
+   // karena pengguna berpindah menu ketika permintaan berlangsung.
+   activities=Array.isArray(loaded)?loaded:[];
+   if(!activities.length){
+    select.innerHTML='<option value="">Tidak ada kegiatan tersedia</option>';
+    box.innerHTML='<div class="empty">Belum ada kegiatan yang tersedia untuk akun ini. Periksa penugasan PJ atau tekan Muat Kegiatan untuk mencoba kembali.</div>';
+    activityOptionsLoaded=true;
+    return;
+   }
    select.innerHTML='<option value="">Pilih kegiatan...</option>'+activities.map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('');
+   if(activities.some(a=>String(a.activityId)===String(previousActivity)))select.value=previousActivity;
    if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;$('aDate').value=pending.date;window.gpsfmPendingAttendance=null;}
-   // Muat pilihan kegiatan lebih dahulu, tetapi jangan memilih kegiatan otomatis.
    activityOptionsLoaded=true;
-  }catch(err){$('attendanceTeachers').innerHTML='<div class="empty">'+esc(err.message||'Daftar kegiatan gagal dimuat.')+'</div>';}
-  finally{activityOptionsLoading=false;select.disabled=false;}
+   if(!select.value)box.innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';
+  }catch(err){
+   activityOptionsLoaded=false;
+   select.innerHTML='<option value="">Gagal memuat kegiatan — tekan Muat Kegiatan</option>';
+   box.innerHTML='<div class="empty">Daftar kegiatan gagal dimuat: '+esc(err.message||'Terjadi kesalahan.')+'. Tekan Muat Kegiatan untuk mencoba kembali.</div>';
+  }finally{
+   activityOptionsLoading=false;
+   select.disabled=false;
+   if(reloadButton){reloadButton.disabled=false;reloadButton.textContent='↻ Muat Kegiatan';}
+  }
  }
+ $('reloadAttendanceActivities').onclick=()=>loadActivityOptions(true);
  $('aActivity').onchange=()=>{if($('aActivity').value)loadTeachers();else $('attendanceTeachers').innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';};
  $('aDate').onchange=()=>{if($('aActivity').value)loadTeachers();};
- // Daftar kegiatan tersedia sejak halaman dibuka; data guru/absensi tetap menunggu pilihan kegiatan.
+ // Daftar kegiatan tersedia sejak halaman dibuka; tombol dapat memuat ulang kapan saja.
  loadActivityOptions();
 }
 
