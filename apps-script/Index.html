@@ -740,7 +740,8 @@ async function activityReportPage(root){
     ws['!cols']=[{wch:6},{wch:32},...Array.from({length:item.dateCount||0},()=>({wch:13})),...Array.from({length:6},()=>({wch:18}))];
     ws['!rows']=[{hpt:30},{hpt:22},{hpt:8},{hpt:38}];
     ws['!freeze']={xSplit:2,ySplit:4,topLeftCell:'C5',activePane:'bottomRight',state:'frozen'};
-    const range='A4:'+lastCol+Math.max(4,lastRow-(item.teacherCount?0:0));
+    const filterEndRow=Math.max(4,4+(item.teacherCount||0));
+    const range='A4:'+lastCol+filterEndRow;
     ws['!autofilter']={ref:range};
     const purple='800080',darkPurple='650065',white='FFFFFF',borderColor='E6DCE9';
     const border={top:{style:'thin',color:{rgb:borderColor}},bottom:{style:'thin',color:{rgb:borderColor}},left:{style:'thin',color:{rgb:borderColor}},right:{style:'thin',color:{rgb:borderColor}}};
