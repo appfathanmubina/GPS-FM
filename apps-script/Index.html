@@ -460,6 +460,7 @@ body{touch-action:auto}
  <main class="wrap"><nav class="nav" id="nav"></nav><section id="page"></section><div class="footnote">GPS FM · Sistem Absensi Guru Pembina Santri · Pesantren Fathan Mubina</div></main>
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script>
 (function(){
 'use strict';
@@ -728,16 +729,48 @@ async function activityReportPage(root){
  }
  exportBtn.onclick=async()=>{
   const original=exportBtn.textContent;exportBtn.disabled=true;exportBtn.textContent='Menyiapkan Excel...';
-  processNotice('Menyiapkan file Excel','Mengumpulkan rekap absensi dan menyusun sheet setiap kegiatan…','working');
+  processNotice('Menyiapkan file Excel','Mengumpulkan data rekap dan menyusun sheet kegiatan di perangkat…','working');
   try{
-   const data=await call('apiExportAttendanceExcel',token,Number(year.value),Number(month.value));
-   const binary=atob(data.base64),bytes=new Uint8Array(binary.length);
-   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-   const blob=new Blob([bytes],{type:data.mimeType||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+   if(!window.XLSX||!XLSX.utils||!XLSX.write)throw new Error('Pustaka Excel belum berhasil dimuat. Periksa koneksi internet lalu muat ulang aplikasi.');
+   const data=await call('apiGetAttendanceExcelData',token,Number(year.value),Number(month.value));
+   const workbook=XLSX.utils.book_new();
+   data.sheets.forEach(item=>{
+    const ws=XLSX.utils.aoa_to_sheet(item.rows);
+    const rows=item.rows||[],header=rows[3]||[],width=header.length,lastRow=rows.length,lastCol=XLSX.utils.encode_col(Math.max(0,width-1));
+    ws['!cols']=[{wch:6},{wch:32},...Array.from({length:item.dateCount||0},()=>({wch:13})),...Array.from({length:6},()=>({wch:18}))];
+    ws['!rows']=[{hpt:30},{hpt:22},{hpt:8},{hpt:38}];
+    ws['!freeze']={xSplit:2,ySplit:4,topLeftCell:'C5',activePane:'bottomRight',state:'frozen'};
+    const range='A4:'+lastCol+Math.max(4,lastRow-(item.teacherCount?0:0));
+    ws['!autofilter']={ref:range};
+    const purple='800080',darkPurple='650065',white='FFFFFF',borderColor='E6DCE9';
+    const border={top:{style:'thin',color:{rgb:borderColor}},bottom:{style:'thin',color:{rgb:borderColor}},left:{style:'thin',color:{rgb:borderColor}},right:{style:'thin',color:{rgb:borderColor}}};
+    function styleRow(rowIndex,style){
+      for(let col=0;col<width;col++){
+       const ref=XLSX.utils.encode_cell({r:rowIndex,c:col});
+       if(!ws[ref])ws[ref]={t:'s',v:''};
+       ws[ref].s=style;
+      }
+    }
+    styleRow(0,{font:{name:'Arial',sz:15,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:darkPurple}},alignment:{vertical:'center'},border:border});
+    styleRow(1,{font:{name:'Arial',sz:10,color:{rgb:'5B4760'}},fill:{fgColor:{rgb:'F5EAF5'}},alignment:{vertical:'center'},border:border});
+    styleRow(3,{font:{name:'Arial',sz:9,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:purple}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:border});
+    for(let r=4;r<lastRow-1;r++){
+      for(let col=0;col<width;col++){
+       const ref=XLSX.utils.encode_cell({r:r,c:col});
+       if(ws[ref])ws[ref].s={font:{name:'Arial',sz:10,color:{rgb:'242033'}},alignment:{vertical:'center',horizontal:(col===0||col>=2?'center':'left')},border:border};
+      }
+    }
+    styleRow(lastRow-1,{font:{name:'Arial',sz:10,bold:true,color:{rgb:'242033'}},fill:{fgColor:{rgb:'EDE1F0'}},alignment:{vertical:'center',horizontal:'center'},border:{top:{style:'thin',color:{rgb:'BFA8C5'}},bottom:{style:'thin',color:{rgb:'BFA8C5'}},left:{style:'thin',color:{rgb:'BFA8C5'}},right:{style:'thin',color:{rgb:'BFA8C5'}}}});
+    const totalNameRef=XLSX.utils.encode_cell({r:lastRow-1,c:1});
+    if(ws[totalNameRef])ws[totalNameRef].s={...ws[totalNameRef].s,alignment:{horizontal:'left',vertical:'center'}};
+    XLSX.utils.book_append_sheet(workbook,ws,item.name);
+   });
+   const output=XLSX.write(workbook,{bookType:'xlsx',type:'array',cellStyles:true});
+   const blob=new Blob([output],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
    const url=URL.createObjectURL(blob),link=document.createElement('a');
    link.href=url;link.download=data.filename||'GPS-FM_Rekap-Absen.xlsx';document.body.appendChild(link);link.click();link.remove();
    setTimeout(()=>URL.revokeObjectURL(url),30000);
-   processNotice('File Excel siap','Berhasil menyiapkan '+data.activityCount+' sheet kegiatan. Unduhan dimulai.','success');
+   processNotice('File Excel siap','Berhasil menyusun '+data.activityCount+' sheet kegiatan. Unduhan dimulai.','success');
   }catch(e){processNotice('Export Excel gagal',e.message||'File Excel tidak dapat dibuat.','error');}
   finally{exportBtn.disabled=false;exportBtn.textContent=original;}
  };
