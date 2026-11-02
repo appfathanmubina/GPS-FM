@@ -45,14 +45,34 @@ function gpsfmSheet_(name) {
 }
 
 function gpsfmRows_(name) {
-  const sh = gpsfmSheet_(name), values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
+  const sh = gpsfmSheet_(name), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
   const headers = values[0].map(String);
   return values.slice(1).map(function(row, i) {
     const obj = { _row: i + 2 };
     headers.forEach(function(h, j) { obj[h] = row[j]; });
     return obj;
   }).filter(function(o) { return o[headers[0]] !== '' && o[headers[0]] != null; });
+}
+
+/**
+ * Cari baris berdasarkan satu kolom kunci tanpa membaca seluruh tabel.
+ * Mengembalikan objek lengkap agar pemanggil tetap menerima bentuk data lama.
+ */
+function gpsfmFindRowByValue_(sheetName, keyName, keyValue) {
+  const sh = gpsfmSheet_(sheetName), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return null;
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
+  const keyIndex = headers.indexOf(keyName);
+  if (keyIndex < 0) throw new Error('Kolom database tidak ditemukan: ' + keyName + ' (' + sheetName + ').');
+  const matches = sh.getRange(2, keyIndex + 1, lastRow - 1, 1).createTextFinder(String(keyValue))
+    .matchEntireCell(true).matchCase(true).findAll();
+  if (!matches.length) return null;
+  const rowNumber = matches[0].getRow(), row = sh.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
+  const obj = { _row: rowNumber };
+  headers.forEach(function(h, i) { obj[h] = row[i]; });
+  return obj;
 }
 
 function gpsfmAppend_(name, obj) {
@@ -125,7 +145,8 @@ function gpsfmSession_(token, allowForcedPasswordChange) {
   const raw = CacheService.getScriptCache().get(gpsfmTokenKey_(token));
   if (!raw) throw new Error('Sesi berakhir. Silakan login kembali.');
   const session = JSON.parse(raw);
-  const user = gpsfmRows_('Users').find(function(u) { return String(u.userId) === session.userId && gpsfmBool_(u.active); });
+  const user = gpsfmFindRowByValue_('Users', 'userId', session.userId);
+  if (user && !gpsfmBool_(user.active)) throw new Error('Akun tidak aktif atau tidak ditemukan.');
   if (!user) throw new Error('Akun tidak aktif atau tidak ditemukan.');
   if(gpsfmBool_(user.mustChangePassword)&&!allowForcedPasswordChange)throw new Error('Anda wajib mengganti password sebelum menggunakan aplikasi.');
   return {user:user, token:token};
@@ -134,7 +155,20 @@ function gpsfmRequireAdmin_(session) {
   if (String(session.user.role) !== 'superadmin') throw new Error('Akses ditolak. Fitur ini hanya untuk superadmin.');
 }
 function gpsfmIsPJ_(userId, activityId) {
-  return gpsfmRows_('ActivityPJ').some(function(a) { return String(a.userId) === String(userId) && String(a.activityId) === String(activityId) && gpsfmBool_(a.active); });
+  const sh = gpsfmSheet_('ActivityPJ'), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return false;
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
+  const userCol = headers.indexOf('userId') + 1, activityCol = headers.indexOf('activityId') + 1, activeCol = headers.indexOf('active') + 1;
+  if (!userCol || !activityCol || !activeCol) throw new Error('Kolom penugasan PJ tidak lengkap.');
+  const matches = sh.getRange(2, userCol, lastRow - 1, 1).createTextFinder(String(userId))
+    .matchEntireCell(true).matchCase(true).findAll();
+  for (let i = 0; i < matches.length; i++) {
+    const row = matches[i].getRow();
+    const values = sh.getRange(row, activityCol, 1, 1).getValues()[0][0];
+    const active = sh.getRange(row, activeCol, 1, 1).getValues()[0][0];
+    if (String(values) === String(activityId) && gpsfmBool_(active)) return true;
+  }
+  return false;
 }
 function gpsfmIsActivityTeacher_(teacherId, activityId) {
   return gpsfmRows_('ActivityTeachers').some(function(a) {
@@ -145,7 +179,8 @@ function gpsfmIsParticipantRole_(role) {
   return ['gps','supervisor','admin_administrasi'].indexOf(String(role)) >= 0;
 }
 function gpsfmActivity_(id) {
-  return gpsfmRows_('Activities').find(function(a) { return String(a.activityId) === String(id) && gpsfmBool_(a.active); });
+  const activity = gpsfmFindRowByValue_('Activities', 'activityId', id);
+  return activity && gpsfmBool_(activity.active) ? activity : null;
 }
 
 function apiLogin(username, password) {
@@ -313,9 +348,21 @@ function apiGetAttendanceForDate(token, activityId, date) {
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
   const allowed = apiGetActivityTeachers(token, activityId).map(function(t){return t.userId;});
-  return gpsfmRows_('Attendance').filter(function(a) {
-    return String(a.activityId) === String(activityId) && gpsfmDateKey_(a.attendanceDate) === date && allowed.indexOf(String(a.teacherId)) >= 0;
-  }).map(function(a){return {teacherId:String(a.teacherId),status:String(a.status),note:String(a.note||''),recordedBy:String(a.recordedBy||'')};});
+  const sh = gpsfmSheet_('Attendance'), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1 || !allowed.length) return [];
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
+  const activityCol = headers.indexOf('activityId') + 1, dateCol = headers.indexOf('attendanceDate') + 1;
+  if (!activityCol || !dateCol) throw new Error('Kolom Attendance tidak lengkap.');
+  const activityValues = sh.getRange(2, activityCol, lastRow - 1, 1).getValues();
+  const dateValues = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
+  const result = [];
+  for (let i = 0; i < activityValues.length; i++) {
+    if (String(activityValues[i][0]) !== String(activityId) || gpsfmDateKey_(dateValues[i][0]) !== date) continue;
+    const row = sh.getRange(i + 2, 1, 1, lastCol).getValues()[0], obj = {};
+    headers.forEach(function(h,j){obj[h]=row[j];});
+    if (allowed.indexOf(String(obj.teacherId)) >= 0) result.push({teacherId:String(obj.teacherId),status:String(obj.status),note:String(obj.note||''),recordedBy:String(obj.recordedBy||'')});
+  }
+  return result;
 }
 
 function gpsfmValidatePJAttendanceMonth_(user, date) {
