@@ -739,7 +739,6 @@ function apiGetTodayScheduledActivities(token) {
       return {
         activityId: id,
         name: String(a.name || ''),
-        schedule: String(a.schedule || ''),
         attendanceSaved: saved,
         status: saved ? 'Sudah' : (exception || 'Belum'),
         reason: exception ? String(occurrence.reason || '') : ''
