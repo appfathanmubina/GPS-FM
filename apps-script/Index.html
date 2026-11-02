@@ -688,7 +688,7 @@ async function attendancePage(root){
  async function loadActivityOptions(forceReload){
   if(activityOptionsLoading||(!forceReload&&activityOptionsLoaded))return;
   activityOptionsLoading=true;
-  const select=$('aActivity'),box=$('attendanceTeachers'),reloadButton=$('reloadAttendanceActivities');
+  const select=$('aActivity'),dateInput=$('aDate'),box=$('attendanceTeachers'),reloadButton=$('reloadAttendanceActivities');
   const previousActivity=select.value;
   select.disabled=true;
   if(reloadButton){reloadButton.disabled=true;reloadButton.textContent='Memuat...';}
@@ -705,7 +705,7 @@ async function attendancePage(root){
    }
    select.innerHTML='<option value="">Pilih kegiatan...</option>'+activities.map(a=>'<option value="'+esc(a.activityId)+'">'+esc(a.name)+'</option>').join('');
    if(activities.some(a=>String(a.activityId)===String(previousActivity)))select.value=previousActivity;
-   if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;$('aDate').value=pending.date;window.gpsfmPendingAttendance=null;}
+   if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;dateInput.value=pending.date;window.gpsfmPendingAttendance=null;}
    activityOptionsLoaded=true;
    if(!select.value)box.innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';
   }catch(err){
