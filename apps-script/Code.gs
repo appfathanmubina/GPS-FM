@@ -397,7 +397,7 @@ function apiSaveAttendanceBatch(token, data) {
   const entries = Array.isArray(data.entries) ? data.entries : [];
   if (u.role !== 'superadmin' && !gpsfmIsPJ_(u.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
   gpsfmValidatePJAttendanceMonth_(u, date);
   if (!entries.length || entries.length > 200) throw new Error('Pilih minimal satu guru dan maksimal 200 guru untuk disimpan.');
 

@@ -73,3 +73,30 @@ test('PJ access is limited to assigned activities; superadmin can manage all', (
   assert.equal(canManage('gps',['activity-1'],'activity-2'), false);
   assert.equal(canManage('superadmin',[],'activity-2'), true);
 });
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+test('batch attendance uses the same ISO date pattern as single attendance', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  function getDatePattern(functionName) {
+    const start = source.indexOf('function ' + functionName);
+    assert.notEqual(start, -1, functionName + ' must exist');
+    const end = source.indexOf('\n}', start);
+    const body = source.slice(start, end);
+    const marker = 'if (!/';
+    const position = body.indexOf(marker);
+    assert.notEqual(position, -1, functionName + ' date validation must exist');
+    const patternStart = position + marker.length;
+    const patternEnd = body.indexOf('/.test(date)', patternStart);
+    assert.notEqual(patternEnd, -1, functionName + ' date pattern must be complete');
+    return body.slice(patternStart, patternEnd);
+  }
+  const singlePattern = getDatePattern('apiSaveAttendance(');
+  const batchPattern = getDatePattern('apiSaveAttendanceBatch(');
+  assert.equal(batchPattern, singlePattern, 'batch and single attendance must use identical date patterns');
+  const datePattern = new RegExp('^' + batchPattern + '$');
+  assert.equal(datePattern.test('2026-11-02'), true);
+  assert.equal(datePattern.test('2026/11/02'), false);
+  assert.equal(datePattern.test('02-11-2026'), false);
+});
