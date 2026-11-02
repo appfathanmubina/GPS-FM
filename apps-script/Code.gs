@@ -162,11 +162,13 @@ function gpsfmIsPJ_(userId, activityId) {
   if (!userCol || !activityCol || !activeCol) throw new Error('Kolom penugasan PJ tidak lengkap.');
   const matches = sh.getRange(2, userCol, lastRow - 1, 1).createTextFinder(String(userId))
     .matchEntireCell(true).matchCase(true).findAll();
+  if (!matches.length) return false;
+  // Baca kolom aktivitas dan status aktif masing-masing satu kali, bukan per baris hasil pencarian.
+  const activityValues = sh.getRange(2, activityCol, lastRow - 1, 1).getValues();
+  const activeValues = sh.getRange(2, activeCol, lastRow - 1, 1).getValues();
   for (let i = 0; i < matches.length; i++) {
-    const row = matches[i].getRow();
-    const values = sh.getRange(row, activityCol, 1, 1).getValues()[0][0];
-    const active = sh.getRange(row, activeCol, 1, 1).getValues()[0][0];
-    if (String(values) === String(activityId) && gpsfmBool_(active)) return true;
+    const index = matches[i].getRow() - 2;
+    if (String(activityValues[index][0]) === String(activityId) && gpsfmBool_(activeValues[index][0])) return true;
   }
   return false;
 }
