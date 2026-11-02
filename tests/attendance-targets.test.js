@@ -79,12 +79,23 @@ const path = require('node:path');
 
 test('batch attendance uses the same ISO date pattern as single attendance', () => {
   const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
-  const single = source.match(/function apiSaveAttendance\\([\\s\\S]*?if \\(!\\/(.*?)\\/\\.test\\(date\\)\\)/);
-  const batch = source.match(/function apiSaveAttendanceBatch\\([\\s\\S]*?if \\(!\\/(.*?)\\/\\.test\\(date\\)\\)/);
-  assert.ok(single, 'single attendance date validation must exist');
-  assert.ok(batch, 'batch attendance date validation must exist');
-  assert.equal(batch[1], single[1], 'batch and single attendance must use identical date patterns');
-  const datePattern = new RegExp('^' + batch[1] + '$');
+  function getDatePattern(functionName) {
+    const start = source.indexOf('function ' + functionName);
+    assert.notEqual(start, -1, functionName + ' must exist');
+    const end = source.indexOf('\n}', start);
+    const body = source.slice(start, end);
+    const marker = 'if (!/';
+    const position = body.indexOf(marker);
+    assert.notEqual(position, -1, functionName + ' date validation must exist');
+    const patternStart = position + marker.length;
+    const patternEnd = body.indexOf('/.test(date)', patternStart);
+    assert.notEqual(patternEnd, -1, functionName + ' date pattern must be complete');
+    return body.slice(patternStart, patternEnd);
+  }
+  const singlePattern = getDatePattern('apiSaveAttendance(');
+  const batchPattern = getDatePattern('apiSaveAttendanceBatch(');
+  assert.equal(batchPattern, singlePattern, 'batch and single attendance must use identical date patterns');
+  const datePattern = new RegExp('^' + batchPattern + '$');
   assert.equal(datePattern.test('2026-11-02'), true);
   assert.equal(datePattern.test('2026/11/02'), false);
   assert.equal(datePattern.test('02-11-2026'), false);
