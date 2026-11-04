@@ -817,20 +817,22 @@ function apiGetAttendanceExcelData(token,year,month) {
     return gpsfmBool_(a.active)&&(isGlobal||gpsfmIsPJ_(s.user.userId,a.activityId));
   });
   if(!activities.length)throw new Error(isGlobal?'Belum ada kegiatan aktif untuk diekspor.':'Anda belum ditugaskan sebagai PJ pada kegiatan aktif.');
-  const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance'),assignments=gpsfmRows_('ActivityTeachers');
+  const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance');
   const prefix=year+'-'+('0'+month).slice(-2);
   const labels=['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
   const usedNames={};
   const sheets=activities.map(function(activity){
-    const activityId=String(activity.activityId),rosterIds={};
-    assignments.filter(function(a){return String(a.activityId)===activityId;}).forEach(function(a){rosterIds[String(a.teacherId)]=true;});
-    const relevant=attendance.filter(function(a){return String(a.activityId)===activityId&&gpsfmDateKey_(a.attendanceDate).slice(0,7)===prefix&&rosterIds[String(a.teacherId)];});
+    const activityId=String(activity.activityId);
+    // Ekspor selalu memuat seluruh akun GPS dan Supervisor aktif, mengikuti urutan sheet Users.
+    const teachers=users.filter(function(u){
+      return gpsfmBool_(u.active)&&['gps','supervisor'].indexOf(String(u.role))>=0;
+    });
+    const teacherIds={};teachers.forEach(function(u){teacherIds[String(u.userId)]=true;});
+    // Batasi catatan pada kegiatan, periode, dan guru yang memang ditampilkan di sheet.
+    const relevant=attendance.filter(function(a){
+      return String(a.activityId)===activityId&&gpsfmDateKey_(a.attendanceDate).slice(0,7)===prefix&&teacherIds[String(a.teacherId)];
+    });
     const dates=Array.from(new Set(relevant.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
-    const userById={};users.forEach(function(u){userById[String(u.userId)]=u;});
-    const teacherIds={};
-    Object.keys(rosterIds).forEach(function(id){if(userById[id]&&gpsfmIsParticipantRole_(userById[id].role))teacherIds[id]=true;});
-    relevant.forEach(function(a){if(userById[String(a.teacherId)]&&gpsfmIsParticipantRole_(userById[String(a.teacherId)].role))teacherIds[String(a.teacherId)]=true;});
-    const teachers=users.filter(function(u){return teacherIds[String(u.userId)];});
     const values={};
     relevant.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)]=String(a.status||'');});
     const header=['No','Nama Peserta'].concat(dates.map(function(d){return d.split('-').reverse().join('-');})).concat(labels).concat(['Total Catatan']);
