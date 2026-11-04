@@ -850,7 +850,7 @@ function apiGetAttendanceExcelData(token,year,month) {
       rows.push([index+1,String(u.fullName||'')].concat(cells).concat(labels.map(function(k){return counts[k];})).concat([total]));
     });
     rows.push(['','TOTAL'].concat(dates.map(function(date){
-      return relevant.filter(function(a){return gpsfmDateKey_(a.attendanceDate)===date&&gpsfmExportStatusKey_(a.status);}).length;
+      return teachers.filter(function(u){return !!gpsfmExportStatusKey_(values[String(u.userId)+'|'+date]||'');}).length;
     })).concat(labels.map(function(k){return totals[k];})).concat([labels.reduce(function(sum,k){return sum+totals[k];},0)]));
     let base=String(activity.name||'Kegiatan').replace(/[\[\]:*?\/\\]/g,' ').replace(/^'+|'+$/g,'').trim();
     if(!base)base='Kegiatan';base=base.slice(0,31);
