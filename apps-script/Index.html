@@ -455,21 +455,17 @@ body{touch-action:auto}
 .external-apps-intro-icon svg{width:24px;height:24px}
 .external-apps-intro b{display:block;color:#39213f;font-size:14px}
 .external-apps-intro p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
-.external-apps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:15px;margin-top:18px}
-.external-app-card{display:flex;flex-direction:column;min-height:255px;padding:19px;border:1px solid #eaddec;border-radius:18px;background:#fff;box-shadow:0 7px 24px #32143c08;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.external-apps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),340px));gap:16px;margin-top:18px;align-items:stretch}
+.external-app-card{display:flex;flex-direction:column;min-height:0;padding:20px;border:1px solid #eaddec;border-radius:20px;background:linear-gradient(145deg,#fff 0%,#fdfaff 100%);box-shadow:0 7px 24px #32143c08;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
 .external-app-card:hover{transform:translateY(-2px);border-color:#d8b7df;box-shadow:0 12px 28px #32143c10}
-.external-app-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.external-app-icon{width:58px;height:58px;display:grid;place-items:center;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #ece7f0;box-shadow:0 5px 14px #32143c0c}
-.external-app-icon img{display:block;width:100%;height:100%;object-fit:contain;padding:3px}
-.external-app-status{padding:6px 9px;border-radius:999px;background:#e9f8f0;color:#13764d;font-size:10px;font-weight:800}
-.external-app-category{margin-top:17px;color:#8a6a91;font-size:11px;font-weight:750;letter-spacing:.35px}
-.external-app-card h3{margin:5px 0 7px;color:#39213f;font-size:18px;letter-spacing:-.25px}
-.external-app-card p{margin:0 0 18px;color:var(--muted);font-size:12px;line-height:1.65}
-.external-app-open{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:auto;text-decoration:none;text-align:center}
+.external-app-card-head{display:flex;align-items:center;gap:15px;min-width:0}
+.external-app-icon{width:72px;height:72px;flex:0 0 72px;display:grid;place-items:center;overflow:hidden;border-radius:19px;background:#fff;border:1px solid #ece7f0;box-shadow:0 5px 14px #32143c0c}
+.external-app-icon img{display:block;width:100%;height:100%;object-fit:contain;padding:4px}
+.external-app-identity{display:flex;flex:1;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;min-width:0}.external-app-card h3{margin:0;color:#39213f;font-size:17px;font-weight:800;line-height:1.3;letter-spacing:-.3px;overflow-wrap:anywhere}.external-app-status{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:#e9f8f0;color:#13764d;font-size:10px;font-weight:750;white-space:nowrap}.external-app-status:before{content:"";width:6px;height:6px;border-radius:50%;background:#1caa70}
+.external-app-open{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;text-decoration:none;text-align:center;min-height:43px;border-radius:12px}
 .external-app-open span{font-size:16px;line-height:1}
-.external-apps-note{margin:17px 2px 0;color:#8a7d91;font-size:11px;line-height:1.6}
-@media(max-width:780px){.external-apps-intro{align-items:flex-start;padding:15px;border-radius:15px}.external-apps-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:13px}.external-app-card{min-height:245px;padding:13px;border-radius:15px}.external-app-icon{width:45px;height:45px;border-radius:13px}.external-app-status{font-size:9px;padding:5px 7px}.external-app-category{font-size:10px;margin-top:14px}.external-app-card h3{font-size:15px;overflow-wrap:anywhere}.external-app-card p{font-size:11px;line-height:1.55}.external-app-open{padding:9px 8px;font-size:11px}.nav.nav-many{display:flex;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:5px}.nav.nav-many::-webkit-scrollbar{display:none}.nav.nav-many button{flex:0 0 76px;min-width:76px}}
-@media(max-width:380px){.external-apps-grid{grid-template-columns:1fr}.external-app-card{min-height:0}.external-app-open{min-height:42px}}
+@media(max-width:780px){.external-apps-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),320px));gap:12px;margin-top:14px}.external-app-card{padding:16px;border-radius:17px}.external-app-icon{width:64px;height:64px;flex-basis:64px;border-radius:17px}.external-app-card h3{font-size:16px}.external-app-open{margin-top:16px;min-height:42px;font-size:12px}.nav.nav-many{display:flex;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:5px}.nav.nav-many::-webkit-scrollbar{display:none}.nav.nav-many button{flex:0 0 76px;min-width:76px}}
+@media(max-width:380px){.external-apps-grid{grid-template-columns:minmax(0,1fr)}.external-app-card{padding:14px}.external-app-icon{width:58px;height:58px;flex-basis:58px}.external-app-card-head{gap:12px}.external-app-card h3{font-size:15px}.external-app-open{min-height:42px}}
 </style>
 </head>
 <body>
@@ -616,7 +612,7 @@ const GPSFM_EXTERNAL_APPS=[
  {id:'taicimaster',name:'TAICIMASTER',category:'Manajemen sekolah',description:'Aplikasi pengelolaan dan pemantauan aktivitas sekolah dalam ekosistem Fathan Mubina.',url:'https://appfathanmubina.github.io/fm-taicimaster/',status:'Tersedia',logo:'https://raw.githubusercontent.com/appfathanmubina/fm-taicimaster/main/assets/icon-192.png'}
 ];
 function appsPage(root){
- const cards=GPSFM_EXTERNAL_APPS.map(app=>'<article class="external-app-card"><div class="external-app-card-head"><div class="external-app-icon"><img src="'+esc(app.logo)+'" alt="Logo resmi '+esc(app.name)+'" loading="lazy"></div><span class="external-app-status">'+esc(app.status)+'</span></div><h3>'+esc(app.name)+'</h3><a class="btn btn-primary external-app-open" href="'+esc(app.url)+'" target="_blank" rel="noopener noreferrer" aria-label="Buka '+esc(app.name)+' di tab baru">Buka Aplikasi <span aria-hidden="true">↗</span></a></article>').join('');
+ const cards=GPSFM_EXTERNAL_APPS.map(app=>'<article class="external-app-card"><div class="external-app-card-head"><div class="external-app-icon"><img src="'+esc(app.logo)+'" alt="Logo resmi '+esc(app.name)+'" loading="lazy"></div><div class="external-app-identity"><h3>'+esc(app.name)+'</h3><span class="external-app-status">'+esc(app.status)+'</span></div></div><a class="btn btn-primary external-app-open" href="'+esc(app.url)+'" target="_blank" rel="noopener noreferrer" aria-label="Buka '+esc(app.name)+' di tab baru">Buka Aplikasi <span aria-hidden="true">↗</span></a></article>').join('');
  root.innerHTML=title('Aplikasi Lainnya','Akses aplikasi pendukung Fathan Mubina tanpa meninggalkan GPS-FM sebagai aplikasi utama.')+'<div class="external-apps-grid">'+cards+'</div>';
 }
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
