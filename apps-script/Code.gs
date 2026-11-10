@@ -774,7 +774,7 @@ function apiGetSupervisorDashboard(token) {
   const userMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   const pjRows = gpsfmRows_('ActivityPJ').filter(function(p) { return gpsfmBool_(p.active); });
-  const teacherRows = gpsfmRows_('ActivityTeachers').filter(function(t) { return gpsfmBool_(t.active); });
+  const teacherRows = gpsfmRows_('ActivityTeachers');
   const attendance = gpsfmRows_('Attendance').filter(function(a) { return gpsfmDateKey_(a.attendanceDate).slice(0,7) === prefix; });
   const pjsByActivity = {}, teachersByActivity = {}, recordsByActivity = {}, pjUsers = {};
   pjRows.forEach(function(p) {
@@ -908,6 +908,7 @@ function apiGetAttendanceExcelData(token,year,month) {
   year=Number(year);month=Number(month);
   if(!Number.isInteger(year)||year<2020||year>2100||!Number.isInteger(month)||month<1||month>12)throw new Error('Periode ekspor tidak valid.');
   const role=String(s.user.role),isGlobal=['superadmin','supervisor','admin_administrasi'].indexOf(role)>=0;
+  if(!isGlobal&&role!=='gps')throw new Error('Akses ekspor tidak diizinkan.');
   const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(isGlobal||gpsfmIsPJ_(s.user.userId,a.activityId));});
   if(!activities.length)throw new Error(isGlobal?'Belum ada kegiatan aktif untuk diekspor.':'Anda belum ditugaskan sebagai PJ pada kegiatan aktif.');
   const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance'),prefix=year+'-'+('0'+month).slice(-2);
@@ -931,11 +932,16 @@ function apiGetAttendanceExcelData(token,year,month) {
     const rows=[['REKAP ABSENSI — '+String(activity.name||'Kegiatan')],['Periode: '+('0'+month).slice(-2)+'/'+year],[],header];
     const totals={};labels.forEach(function(k){totals[k]=0;});
     const dailyTotals={};dates.forEach(function(d){dailyTotals[d]=0;});
+    dates.forEach(function(date){
+      dailyTotals[date]=teachers.filter(function(u){
+        return !!gpsfmExportStatusKey_(values[String(u.userId)+'|'+date]||'');
+      }).length;
+    });
     teachers.forEach(function(u,index){
       const counts={};labels.forEach(function(k){counts[k]=0;});
       const cells=dates.map(function(date){
         const raw=values[String(u.userId)+'|'+date]||'—',key=gpsfmExportStatusKey_(raw);
-        if(key){counts[key]++;dailyTotals[date]++;}
+        if(key)counts[key]++;
         return raw;
       });
       labels.forEach(function(k){totals[k]+=counts[k];});
