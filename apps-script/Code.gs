@@ -311,7 +311,15 @@ function apiSetUserPassword(token, userId, newPassword) {
 
 function apiListActivities(token) {
   const s = gpsfmSession_(token);
-  return gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active) && (s.user.role === 'superadmin' || gpsfmIsPJ_(s.user.userId,a.activityId)); }).map(function(a) {
+  const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
+  if (s.user.role === 'superadmin') return activities.map(function(a) {
+    return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),active:gpsfmBool_(a.active)};
+  });
+  const assigned = {};
+  gpsfmRows_('ActivityPJ').forEach(function(p) {
+    if (String(p.userId) === String(s.user.userId) && gpsfmBool_(p.active)) assigned[String(p.activityId)] = true;
+  });
+  return activities.filter(function(a) { return !!assigned[String(a.activityId)]; }).map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),active:gpsfmBool_(a.active)};
   });
 }
@@ -386,20 +394,29 @@ function apiGetAttendanceForDate(token, activityId, date) {
   if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
-  const allowed = apiGetActivityTeachers(token, activityId).map(function(t){return t.userId;});
+  const allowed = {};
+  apiGetActivityTeachers(token, activityId).forEach(function(t) { allowed[String(t.userId)] = true; });
+  if (!Object.keys(allowed).length) return [];
   const sh = gpsfmSheet_('Attendance'), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
-  if (lastRow < 2 || lastCol < 1 || !allowed.length) return [];
-  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
-  const activityCol = headers.indexOf('activityId') + 1, dateCol = headers.indexOf('attendanceDate') + 1;
-  if (!activityCol || !dateCol) throw new Error('Kolom Attendance tidak lengkap.');
-  const activityValues = sh.getRange(2, activityCol, lastRow - 1, 1).getValues();
-  const dateValues = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
+  if (lastRow < 2 || lastCol < 1) return [];
+  const values = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const headers = values[0].map(String), cols = {};
+  headers.forEach(function(h, i) { cols[h] = i; });
+  if (!Object.prototype.hasOwnProperty.call(cols, 'activityId') || !Object.prototype.hasOwnProperty.call(cols, 'attendanceDate') ||
+      !Object.prototype.hasOwnProperty.call(cols, 'teacherId') || !Object.prototype.hasOwnProperty.call(cols, 'status')) {
+    throw new Error('Kolom Attendance tidak lengkap.');
+  }
   const result = [];
-  for (let i = 0; i < activityValues.length; i++) {
-    if (String(activityValues[i][0]) !== String(activityId) || gpsfmDateKey_(dateValues[i][0]) !== date) continue;
-    const row = sh.getRange(i + 2, 1, 1, lastCol).getValues()[0], obj = {};
-    headers.forEach(function(h,j){obj[h]=row[j];});
-    if (allowed.indexOf(String(obj.teacherId)) >= 0) result.push({teacherId:String(obj.teacherId),status:String(obj.status),note:String(obj.note||''),recordedBy:String(obj.recordedBy||'')});
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    if (String(row[cols.activityId]) !== String(activityId) || gpsfmDateKey_(row[cols.attendanceDate]) !== date) continue;
+    const teacherId = String(row[cols.teacherId]);
+    if (allowed[teacherId]) result.push({
+      teacherId:teacherId,
+      status:String(row[cols.status]),
+      note:String(Object.prototype.hasOwnProperty.call(cols,'note') ? row[cols.note] || '' : ''),
+      recordedBy:String(Object.prototype.hasOwnProperty.call(cols,'recordedBy') ? row[cols.recordedBy] || '' : '')
+    });
   }
   return result;
 }
@@ -612,12 +629,47 @@ function gpsfmActiveTeacherIds_(activityId){
  return gpsfmRows_('Users').filter(function(u){return active[String(u.userId)]&&gpsfmBool_(u.active)&&gpsfmIsParticipantRole_(u.role);}).map(function(u){return String(u.userId);});
 }
 function gpsfmSnapshotPastOccurrences_(activityId,teacherIds){
- const a=gpsfmRows_('Activities').find(function(x){return String(x.activityId)===String(activityId);});if(!a)return;
- const days=gpsfmParseScheduleDays_(a.schedule);if(!days.length)return;
- const today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),startRaw=gpsfmDateKey_(a.createdAt)||today,end=gpsfmDateFromKey_(today),start=gpsfmDateFromKey_(startRaw),earliest=new Date(end.getTime());
- earliest.setUTCDate(earliest.getUTCDate()-730);const cursor=start<earliest?earliest:start;cursor.setUTCHours(12,0,0,0);
- while(cursor<end){const date=gpsfmDateKeyUTC_(cursor);if(days.indexOf(gpsfmWeekdayName_(date))>=0&&!gpsfmGetOccurrence_(activityId,date))gpsfmSaveOccurrence_(activityId,date,'scheduled','', '',teacherIds);cursor.setUTCDate(cursor.getUTCDate()+1);}
+  const a=gpsfmRows_('Activities').find(function(x){return String(x.activityId)===String(activityId);});
+  if(!a)return;
+  const days=gpsfmParseScheduleDays_(a.schedule);
+  if(!days.length)return;
+  const today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd');
+  const startRaw=gpsfmDateKey_(a.createdAt)||today;
+  const end=gpsfmDateFromKey_(today),start=gpsfmDateFromKey_(startRaw),earliest=new Date(end.getTime());
+  earliest.setUTCDate(earliest.getUTCDate()-730);
+  const cursor=start<earliest?earliest:start;
+  cursor.setUTCHours(12,0,0,0);
+  gpsfmEnsureOccurrenceSheet_();
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh=gpsfmSheet_('ActivityOccurrences');
+    const lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();
+    const headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String),cols={};
+    headers.forEach(function(h,i){cols[h]=i;});
+    const existing={};
+    if(lastRow>1){
+      sh.getRange(2,1,lastRow-1,lastCol).getValues().forEach(function(row){
+        existing[String(row[cols.activityId])+'|'+gpsfmDateKey_(row[cols.occurrenceDate])]=true;
+      });
+    }
+    const now=gpsfmNow_(),pending=[];
+    while(cursor<end){
+      const date=gpsfmDateKeyUTC_(cursor);
+      if(days.indexOf(gpsfmWeekdayName_(date))>=0){
+        const key=String(activityId)+'|'+date;
+        if(!existing[key]){
+          const obj={occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:date,status:'scheduled',reason:'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:'',updatedAt:now,createdAt:now};
+          pending.push(headers.map(function(h){return Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:'';}));
+          existing[key]=true;
+        }
+      }
+      cursor.setUTCDate(cursor.getUTCDate()+1);
+    }
+    if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,headers.length).setValues(pending);
+  } finally { lock.releaseLock(); }
 }
+
 function gpsfmOccurrenceTeacherIds_(o,id){
  if(o&&o.teacherIdsJson){try{const ids=JSON.parse(String(o.teacherIdsJson));if(Array.isArray(ids))return ids.map(String);}catch(e){}}
  return gpsfmActiveTeacherIds_(id);
@@ -722,18 +774,32 @@ function apiGetSupervisorDashboard(token) {
   const userMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   const pjRows = gpsfmRows_('ActivityPJ').filter(function(p) { return gpsfmBool_(p.active); });
-  const teacherRows = gpsfmRows_('ActivityTeachers').filter(function(t) { return gpsfmBool_(t.active); });
+  const teacherRows = gpsfmRows_('ActivityTeachers');
   const attendance = gpsfmRows_('Attendance').filter(function(a) { return gpsfmDateKey_(a.attendanceDate).slice(0,7) === prefix; });
+  const pjsByActivity = {}, teachersByActivity = {}, recordsByActivity = {}, pjUsers = {};
+  pjRows.forEach(function(p) {
+    const id=String(p.activityId);
+    if(!pjsByActivity[id])pjsByActivity[id]=[];
+    pjsByActivity[id].push(userMap[String(p.userId)] || 'Akun tidak ditemukan');
+    pjUsers[String(p.userId)]=true;
+  });
+  teacherRows.forEach(function(t) {
+    const id=String(t.activityId);
+    if(!teachersByActivity[id])teachersByActivity[id]=[];
+    teachersByActivity[id].push(String(t.teacherId));
+  });
+  attendance.forEach(function(row) {
+    const id=String(row.activityId);
+    if(!recordsByActivity[id])recordsByActivity[id]=[];
+    recordsByActivity[id].push(row);
+  });
   const result = activities.map(function(a) {
-    const id = String(a.activityId);
-    const pjs = pjRows.filter(function(p) { return String(p.activityId) === id; }).map(function(p) { return userMap[String(p.userId)] || 'Akun tidak ditemukan'; });
-    const teacherIds = teacherRows.filter(function(t) { return String(t.activityId) === id; }).map(function(t) { return String(t.teacherId); });
-    const records = attendance.filter(function(row) { return String(row.activityId) === id; });
-    const presentTeacherCount = Array.from(new Set(records.map(function(row) { return String(row.teacherId); }))).length;
-    const rosterCount = teacherIds.length;
+    const id=String(a.activityId),pjs=pjsByActivity[id]||[],teacherIds=teachersByActivity[id]||[],records=recordsByActivity[id]||[],present={};
+    records.forEach(function(row){present[String(row.teacherId)]=true;});
+    const presentTeacherCount=Object.keys(present).length,rosterCount=teacherIds.length;
     return {activityId:id,name:String(a.name),schedule:String(a.schedule||''),pjs:pjs,rosterCount:rosterCount,monthlyRecords:records.length,presentTeacherCount:presentTeacherCount,coveragePercent:rosterCount?Math.min(100,Math.round(presentTeacherCount/rosterCount*100)):0};
   });
-  return {month:prefix,totalActivities:activities.length,totalPJ:Array.from(new Set(pjRows.map(function(p){return String(p.userId);}))).length,totalPJAssignments:pjRows.length,totalMonthlyRecords:attendance.length,activities:result};
+  return {month:prefix,totalActivities:activities.length,totalPJ:Object.keys(pjUsers).length,totalPJAssignments:pjRows.length,totalMonthlyRecords:attendance.length,activities:result};
 }
 
 function apiGetTodayScheduledActivities(token) {
@@ -789,32 +855,26 @@ function apiGetMonthlyReport(token, year, month) {
   year = Number(year); month = Number(month);
   if (!Number.isInteger(year) || year < 2020 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) throw new Error('Periode laporan tidak valid.');
   const prefix = year + '-' + ('0'+month).slice(-2);
-  const users = gpsfmRows_('Users');
-  const allActivities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
+  const users = gpsfmRows_('Users'), allActivities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   allActivities.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
-
-  // Evaluasi Diri hanya menampilkan kegiatan yang memiliki catatan milik akun yang sedang login.
-  const allowedActivityIds = Array.from(new Set(gpsfmRows_('Attendance').filter(function(a) {
-    return String(a.teacherId) === String(s.user.userId) && Object.prototype.hasOwnProperty.call(actMap,String(a.activityId));
-  }).map(function(a) { return String(a.activityId); })));
-  const activities = allActivities.filter(function(a) {
-    return allowedActivityIds.indexOf(String(a.activityId)) >= 0;
-  }).map(function(a) {
+  const attendance = gpsfmRows_('Attendance'), allowedActivityIds = {}, rows = [];
+  attendance.forEach(function(a) {
+    const activityId=String(a.activityId);
+    if(String(a.teacherId)!==String(s.user.userId) || !Object.prototype.hasOwnProperty.call(actMap,activityId))return;
+    allowedActivityIds[activityId]=true;
+    const date=gpsfmDateKey_(a.attendanceDate);
+    if(date.slice(0,7)===prefix)rows.push(a);
+  });
+  const activities = allActivities.filter(function(a) { return !!allowedActivityIds[String(a.activityId)]; }).map(function(a) {
     return {activityId:String(a.activityId), activityName:String(a.name)};
   }).sort(function(a,b) { return a.activityName.localeCompare(b.activityName); });
-
-  const rows = gpsfmRows_('Attendance').filter(function(a) {
-    const date = gpsfmDateKey_(a.attendanceDate);
-    return date.slice(0,7) === prefix && allowedActivityIds.indexOf(String(a.activityId)) >= 0 && String(a.teacherId) === String(s.user.userId);
-  });
   const result = rows.map(function(a) {
     const date = gpsfmDateKey_(a.attendanceDate);
     return {date:date,teacherId:String(a.teacherId),teacherName:userMap[String(a.teacherId)] || 'Guru tidak ditemukan',activityId:String(a.activityId),activityName:actMap[String(a.activityId)] || 'Kegiatan tidak ditemukan',status:String(a.status),note:String(a.note || '')};
   }).sort(function(a,b) { return a.date.localeCompare(b.date) || a.activityName.localeCompare(b.activityName) || a.teacherName.localeCompare(b.teacherName); });
   const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas Pondok':0,'C. Izin Pribadi':0,'D. Alfa':0};
-  // Normalisasi label agar variasi spasi, kapital, dan label lama tetap terhitung.
   result.forEach(function(r) {
     const raw = String(r.status || '').trim().replace(/^[A-D][.]\s*/i, '').toLowerCase().replace(/\s+/g, ' ');
     let key = '';
@@ -827,7 +887,6 @@ function apiGetMonthlyReport(token, year, month) {
   });
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
-
 
 function gpsfmExportStatusKey_(value) {
   const raw=String(value||'').trim().replace(/^[A-D][.]\s*/i,'').toLowerCase().replace(/\s+/g,' ');
@@ -850,31 +909,34 @@ function apiGetAttendanceExcelData(token,year,month) {
   if(!Number.isInteger(year)||year<2020||year>2100||!Number.isInteger(month)||month<1||month>12)throw new Error('Periode ekspor tidak valid.');
   const role=String(s.user.role),isGlobal=['superadmin','supervisor','admin_administrasi'].indexOf(role)>=0;
   if(!isGlobal&&role!=='gps')throw new Error('Akses ekspor tidak diizinkan.');
-  const activities=gpsfmRows_('Activities').filter(function(a){
-    return gpsfmBool_(a.active)&&(isGlobal||gpsfmIsPJ_(s.user.userId,a.activityId));
-  });
+  const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(isGlobal||gpsfmIsPJ_(s.user.userId,a.activityId));});
   if(!activities.length)throw new Error(isGlobal?'Belum ada kegiatan aktif untuk diekspor.':'Anda belum ditugaskan sebagai PJ pada kegiatan aktif.');
-  const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance');
-  const prefix=year+'-'+('0'+month).slice(-2);
+  const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance'),prefix=year+'-'+('0'+month).slice(-2);
   const labels=['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
+  const teachers=users.filter(function(u){return gpsfmBool_(u.active)&&['gps','supervisor'].indexOf(String(u.role))>=0;});
+  const teacherIds={};teachers.forEach(function(u){teacherIds[String(u.userId)]=true;});
+  const attendanceByActivity={};
+  attendance.forEach(function(a){
+    const activityId=String(a.activityId);
+    if(!teacherIds[String(a.teacherId)]||gpsfmDateKey_(a.attendanceDate).slice(0,7)!==prefix)return;
+    if(!attendanceByActivity[activityId])attendanceByActivity[activityId]=[];
+    attendanceByActivity[activityId].push(a);
+  });
   const usedNames={};
   const sheets=activities.map(function(activity){
-    const activityId=String(activity.activityId);
-    // Ekspor selalu memuat seluruh akun GPS dan Supervisor aktif, mengikuti urutan sheet Users.
-    const teachers=users.filter(function(u){
-      return gpsfmBool_(u.active)&&['gps','supervisor'].indexOf(String(u.role))>=0;
-    });
-    const teacherIds={};teachers.forEach(function(u){teacherIds[String(u.userId)]=true;});
-    // Batasi catatan pada kegiatan, periode, dan guru yang memang ditampilkan di sheet.
-    const relevant=attendance.filter(function(a){
-      return String(a.activityId)===activityId&&gpsfmDateKey_(a.attendanceDate).slice(0,7)===prefix&&teacherIds[String(a.teacherId)];
-    });
+    const activityId=String(activity.activityId),relevant=attendanceByActivity[activityId]||[];
     const dates=Array.from(new Set(relevant.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
     const values={};
     relevant.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)]=String(a.status||'');});
     const header=['No','Nama Peserta'].concat(dates.map(function(d){return d.split('-').reverse().join('-');})).concat(labels).concat(['Total Catatan']);
     const rows=[['REKAP ABSENSI — '+String(activity.name||'Kegiatan')],['Periode: '+('0'+month).slice(-2)+'/'+year],[],header];
     const totals={};labels.forEach(function(k){totals[k]=0;});
+    const dailyTotals={};dates.forEach(function(d){dailyTotals[d]=0;});
+    dates.forEach(function(date){
+      dailyTotals[date]=teachers.filter(function(u){
+        return !!gpsfmExportStatusKey_(values[String(u.userId)+'|'+date]||'');
+      }).length;
+    });
     teachers.forEach(function(u,index){
       const counts={};labels.forEach(function(k){counts[k]=0;});
       const cells=dates.map(function(date){
@@ -886,9 +948,7 @@ function apiGetAttendanceExcelData(token,year,month) {
       const total=labels.reduce(function(sum,k){return sum+counts[k];},0);
       rows.push([index+1,String(u.fullName||'')].concat(cells).concat(labels.map(function(k){return counts[k];})).concat([total]));
     });
-    rows.push(['','TOTAL'].concat(dates.map(function(date){
-      return teachers.filter(function(u){return !!gpsfmExportStatusKey_(values[String(u.userId)+'|'+date]||'');}).length;
-    })).concat(labels.map(function(k){return totals[k];})).concat([labels.reduce(function(sum,k){return sum+totals[k];},0)]));
+    rows.push(['','TOTAL'].concat(dates.map(function(date){return dailyTotals[date];})).concat(labels.map(function(k){return totals[k];})).concat([labels.reduce(function(sum,k){return sum+totals[k];},0)]));
     let base=String(activity.name||'Kegiatan').replace(/[\[\]:*?\/\\]/g,' ').replace(/^'+|'+$/g,'').trim();
     if(!base)base='Kegiatan';base=base.slice(0,31);
     let sheetName=base,n=2;
