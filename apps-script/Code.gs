@@ -148,6 +148,7 @@ function gpsfmSession_(token, allowForcedPasswordChange) {
   const user = gpsfmFindRowByValue_('Users', 'userId', session.userId);
   if (user && !gpsfmBool_(user.active)) throw new Error('Akun tidak aktif atau tidak ditemukan.');
   if (!user) throw new Error('Akun tidak aktif atau tidak ditemukan.');
+  if (String(session.passwordHash || '') !== String(user.passwordHash || '')) throw new Error('Password akun berubah. Silakan login kembali.');
   if(gpsfmBool_(user.mustChangePassword)&&!allowForcedPasswordChange)throw new Error('Anda wajib mengganti password sebelum menggunakan aplikasi.');
   return {user:user, token:token};
 }
@@ -221,7 +222,7 @@ function apiLogin(username, password) {
   }
   cache.remove(rateKey);
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g,'');
-  cache.put(gpsfmTokenKey_(token), JSON.stringify({userId:String(user.userId), issuedAt:Date.now()}), GPSFM_SESSION_TTL);
+  cache.put(gpsfmTokenKey_(token), JSON.stringify({userId:String(user.userId), issuedAt:Date.now(), passwordHash:String(user.passwordHash)}), GPSFM_SESSION_TTL);
   gpsfmAudit_(user.userId, 'LOGIN', 'Users', user.userId, {});
   return {token:token, user:gpsfmPublicUser_(user), expiresIn:GPSFM_SESSION_TTL};
 }
@@ -393,7 +394,7 @@ function apiGetAttendanceForDate(token, activityId, date) {
   date = gpsfmText_(date,10);
   if (s.user.role !== 'superadmin' && !gpsfmIsPJ_(s.user.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  if (!gpsfmIsValidAttendanceDate_(date)) throw new Error('Tanggal tidak valid.');
   const allowed = {};
   apiGetActivityTeachers(token, activityId).forEach(function(t) { allowed[String(t.userId)] = true; });
   if (!Object.keys(allowed).length) return [];
@@ -421,7 +422,17 @@ function apiGetAttendanceForDate(token, activityId, date) {
   return result;
 }
 
+function gpsfmIsValidAttendanceDate_(date) {
+  const value = String(date || '');
+  const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  const check = new Date(Date.UTC(year, month - 1, day));
+  return check.getUTCFullYear() === year && check.getUTCMonth() === month - 1 && check.getUTCDate() === day;
+}
+
 function gpsfmValidatePJAttendanceMonth_(user, date) {
+  if (!gpsfmIsValidAttendanceDate_(date)) throw new Error('Tanggal tidak valid.');
   // Superadmin tetap mengikuti mekanisme penguncian periode yang sudah ada.
   if (String(user.role) === 'superadmin') return;
 
@@ -451,7 +462,7 @@ function apiSaveAttendanceBatch(token, data) {
   const entries = Array.isArray(data.entries) ? data.entries : [];
   if (u.role !== 'superadmin' && !gpsfmIsPJ_(u.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  if (!gpsfmIsValidAttendanceDate_(date)) throw new Error('Tanggal tidak valid.');
   gpsfmValidatePJAttendanceMonth_(u, date);
   if (!entries.length || entries.length > 200) throw new Error('Pilih minimal satu guru dan maksimal 200 guru untuk disimpan.');
 
@@ -568,7 +579,7 @@ function apiSaveAttendance(token, data) {
   const teacher = gpsfmRows_('Users').find(function(x) { return String(x.userId) === teacherId && gpsfmBool_(x.active) && gpsfmIsParticipantRole_(x.role); });
   if (!teacher) throw new Error('Peserta kegiatan tidak ditemukan atau tidak aktif.');
   if (!gpsfmIsActivityTeacher_(teacherId,activityId)) throw new Error('Guru tersebut belum ditetapkan sebagai guru yang terlibat dalam kegiatan ini.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Tanggal tidak valid.');
+  if (!gpsfmIsValidAttendanceDate_(date)) throw new Error('Tanggal tidak valid.');
   gpsfmValidatePJAttendanceMonth_(u, date);
   if (GPSFM_STATUSES.indexOf(status) < 0) throw new Error('Status kehadiran tidak valid.');
   const period = date.slice(0,7).split('-'), p = gpsfmRows_('Periods').find(function(x) { return Number(x.year) === Number(period[0]) && Number(x.month) === Number(period[1]); });
@@ -971,7 +982,7 @@ function apiGetActivityReport(token, activityId) {
   const rows = gpsfmRows_('Attendance').filter(function(a){return String(a.activityId) === activityId && teacherIds.indexOf(String(a.teacherId)) >= 0;});
   const dates = Array.from(new Set(rows.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
   const values = {};
-  rows.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)] = String(a.status).replace(/^[A-D]\\. /,'');});
+  rows.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)] = String(a.status).replace(/^[A-D]\. /,'');});
   return {activityName:String(activity.name),dates:dates,teachers:teachers.map(function(t){return {userId:String(t.userId),fullName:String(t.fullName),statuses:dates.map(function(d){return values[String(t.userId)+'|'+d] || '—';})};})};
 }
 
