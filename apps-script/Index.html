@@ -609,7 +609,8 @@ async function renderPage(page){
  }
 }
 const GPSFM_EXTERNAL_APPS=[
- {id:'taicimaster',name:'TAICIMASTER',category:'Manajemen sekolah',description:'Aplikasi pengelolaan dan pemantauan aktivitas sekolah dalam ekosistem Fathan Mubina.',url:'https://appfathanmubina.github.io/fm-taicimaster/',status:'Tersedia',logo:'https://raw.githubusercontent.com/appfathanmubina/fm-taicimaster/main/assets/icon-192.png'}
+ {id:'taicimaster',name:'TAICIMASTER',category:'Manajemen sekolah',description:'Aplikasi pengelolaan dan pemantauan aktivitas sekolah dalam ekosistem Fathan Mubina.',url:'https://appfathanmubina.github.io/fm-taicimaster/',status:'Tersedia',logo:'https://raw.githubusercontent.com/appfathanmubina/fm-taicimaster/main/assets/icon-192.png'},
+ {id:'fm-tabungan',name:'Tabungan FM',category:'Keuangan & tabungan',description:'Aplikasi tabungan dan keuangan kelas Fathan Mubina.',url:'https://appfathanmubina.github.io/fm-tabungan/',status:'Tersedia',logo:'https://raw.githubusercontent.com/appfathanmubina/fm-tabungan/main/assets/icon-192.png'}
 ];
 function appsPage(root){
  const cards=GPSFM_EXTERNAL_APPS.map(app=>'<article class="external-app-card"><div class="external-app-card-head"><div class="external-app-icon"><img src="'+esc(app.logo)+'" alt="Logo resmi '+esc(app.name)+'" loading="lazy"></div><div class="external-app-identity"><h3>'+esc(app.name)+'</h3><span class="external-app-status">'+esc(app.status)+'</span></div></div><a class="btn btn-primary external-app-open" href="'+esc(app.url)+'" target="_blank" rel="noopener noreferrer" aria-label="Buka '+esc(app.name)+' di tab baru">Buka Aplikasi <span aria-hidden="true">↗</span></a></article>').join('');
