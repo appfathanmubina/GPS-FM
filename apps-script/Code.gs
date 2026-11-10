@@ -784,20 +784,26 @@ function apiGetSupervisorDashboard(token) {
   const users = gpsfmRows_('Users').filter(function(u) { return gpsfmBool_(u.active) && gpsfmIsParticipantRole_(u.role); });
   const userMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
-  const pjRows = gpsfmRows_('ActivityPJ').filter(function(p) { return gpsfmBool_(p.active); });
-  const teacherRows = gpsfmRows_('ActivityTeachers');
+  // Hanya hitung penugasan aktif yang terhubung ke akun peserta aktif.
+  // Riwayat penugasan tetap disimpan, tetapi tidak boleh membesarkan roster dashboard.
+  const pjRows = gpsfmRows_('ActivityPJ').filter(function(p) {
+    return gpsfmBool_(p.active) && Object.prototype.hasOwnProperty.call(userMap, String(p.userId));
+  });
+  const teacherRows = gpsfmRows_('ActivityTeachers').filter(function(t) {
+    return gpsfmBool_(t.active) && Object.prototype.hasOwnProperty.call(userMap, String(t.teacherId));
+  });
   const attendance = gpsfmRows_('Attendance').filter(function(a) { return gpsfmDateKey_(a.attendanceDate).slice(0,7) === prefix; });
   const pjsByActivity = {}, teachersByActivity = {}, recordsByActivity = {}, pjUsers = {};
   pjRows.forEach(function(p) {
-    const id=String(p.activityId);
+    const id=String(p.activityId), userId=String(p.userId);
     if(!pjsByActivity[id])pjsByActivity[id]=[];
-    pjsByActivity[id].push(userMap[String(p.userId)] || 'Akun tidak ditemukan');
-    pjUsers[String(p.userId)]=true;
+    if(pjsByActivity[id].indexOf(userMap[userId])<0)pjsByActivity[id].push(userMap[userId]);
+    pjUsers[userId]=true;
   });
   teacherRows.forEach(function(t) {
-    const id=String(t.activityId);
+    const id=String(t.activityId), teacherId=String(t.teacherId);
     if(!teachersByActivity[id])teachersByActivity[id]=[];
-    teachersByActivity[id].push(String(t.teacherId));
+    if(teachersByActivity[id].indexOf(teacherId)<0)teachersByActivity[id].push(teacherId);
   });
   attendance.forEach(function(row) {
     const id=String(row.activityId);
@@ -924,7 +930,8 @@ function apiGetAttendanceExcelData(token,year,month) {
   if(!activities.length)throw new Error(isGlobal?'Belum ada kegiatan aktif untuk diekspor.':'Anda belum ditugaskan sebagai PJ pada kegiatan aktif.');
   const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance'),prefix=year+'-'+('0'+month).slice(-2);
   const labels=['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
-  const teachers=users.filter(function(u){return gpsfmBool_(u.active)&&['gps','supervisor'].indexOf(String(u.role))>=0;});
+  // Selaraskan roster ekspor dengan role peserta yang dapat ditugaskan ke kegiatan.
+  const teachers=users.filter(function(u){return gpsfmBool_(u.active)&&gpsfmIsParticipantRole_(u.role);});
   const teacherIds={};teachers.forEach(function(u){teacherIds[String(u.userId)]=true;});
   const attendanceByActivity={};
   attendance.forEach(function(a){
