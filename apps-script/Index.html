@@ -459,8 +459,8 @@ body{touch-action:auto}
 .external-app-card{display:flex;flex-direction:column;min-height:255px;padding:19px;border:1px solid #eaddec;border-radius:18px;background:#fff;box-shadow:0 7px 24px #32143c08;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
 .external-app-card:hover{transform:translateY(-2px);border-color:#d8b7df;box-shadow:0 12px 28px #32143c10}
 .external-app-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.external-app-icon{width:54px;height:54px;display:grid;place-items:center;border-radius:16px;background:linear-gradient(145deg,#650065,#a64ca6);color:#fff;box-shadow:0 7px 16px #80008025}
-.external-app-icon svg{width:29px;height:29px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.external-app-icon{width:58px;height:58px;display:grid;place-items:center;overflow:hidden;border-radius:16px;background:#fff;border:1px solid #ece7f0;box-shadow:0 5px 14px #32143c0c}
+.external-app-icon img{display:block;width:100%;height:100%;object-fit:contain;padding:3px}
 .external-app-status{padding:6px 9px;border-radius:999px;background:#e9f8f0;color:#13764d;font-size:10px;font-weight:800}
 .external-app-category{margin-top:17px;color:#8a6a91;font-size:11px;font-weight:750;letter-spacing:.35px}
 .external-app-card h3{margin:5px 0 7px;color:#39213f;font-size:18px;letter-spacing:-.25px}
@@ -613,10 +613,10 @@ async function renderPage(page){
  }
 }
 const GPSFM_EXTERNAL_APPS=[
- {id:'taicimaster',name:'TAICIMASTER',category:'Manajemen sekolah',description:'Aplikasi pengelolaan dan pemantauan aktivitas sekolah dalam ekosistem Fathan Mubina.',url:'https://appfathanmubina.github.io/fm-taicimaster/',status:'Tersedia',icon:'layers'}
+ {id:'taicimaster',name:'TAICIMASTER',category:'Manajemen sekolah',description:'Aplikasi pengelolaan dan pemantauan aktivitas sekolah dalam ekosistem Fathan Mubina.',url:'https://appfathanmubina.github.io/fm-taicimaster/',status:'Tersedia',logo:'https://raw.githubusercontent.com/appfathanmubina/fm-taicimaster/main/assets/icon-192.png'}
 ];
 function appsPage(root){
- const cards=GPSFM_EXTERNAL_APPS.map(app=>'<article class="external-app-card"><div class="external-app-card-head"><div class="external-app-icon" aria-hidden="true">'+(app.icon==='layers'?'<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg>':'<span>FM</span>')+'</div><span class="external-app-status">'+esc(app.status)+'</span></div><div class="external-app-category">'+esc(app.category)+'</div><h3>'+esc(app.name)+'</h3><p>'+esc(app.description)+'</p><a class="btn btn-primary external-app-open" href="'+esc(app.url)+'" target="_blank" rel="noopener noreferrer" aria-label="Buka '+esc(app.name)+' di tab baru">Buka Aplikasi <span aria-hidden="true">↗</span></a></article>').join('');
+ const cards=GPSFM_EXTERNAL_APPS.map(app=>'<article class="external-app-card"><div class="external-app-card-head"><div class="external-app-icon"><img src="'+esc(app.logo)+'" alt="Logo resmi '+esc(app.name)+'" loading="lazy"></div><span class="external-app-status">'+esc(app.status)+'</span></div><div class="external-app-category">'+esc(app.category)+'</div><h3>'+esc(app.name)+'</h3><p>'+esc(app.description)+'</p><a class="btn btn-primary external-app-open" href="'+esc(app.url)+'" target="_blank" rel="noopener noreferrer" aria-label="Buka '+esc(app.name)+' di tab baru">Buka Aplikasi <span aria-hidden="true">↗</span></a></article>').join('');
  root.innerHTML=title('Aplikasi Lainnya','Akses aplikasi pendukung Fathan Mubina tanpa meninggalkan GPS-FM sebagai aplikasi utama.')+'<section class="external-apps-intro"><div class="external-apps-intro-icon">'+navIcon('apps')+'</div><div><b>Ekosistem Aplikasi Fathan Mubina</b><p>GPS-FM tetap menjadi aplikasi utama. Aplikasi pendukung dapat dibuka dari sini dan akan tampil di tab baru.</p></div></section><div class="external-apps-grid">'+cards+'</div><p class="external-apps-note">Daftar aplikasi ini dirancang agar aplikasi baru dapat ditambahkan melalui konfigurasi tanpa mengubah alur utama GPS-FM.</p>';
 }
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
