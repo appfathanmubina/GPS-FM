@@ -227,10 +227,23 @@ function apiLogin(username, password) {
 }
 
 function apiLogout(token) {
+  // Revoke token directly so logout also works during mandatory password change
+  // or when the account has just been disabled. Never affect other tab tokens.
+  if (!token || String(token).length < 30) return {ok:true};
+  const cache = CacheService.getScriptCache();
+  const key = gpsfmTokenKey_(token);
+  let session = null;
   try {
-    const s = gpsfmSession_(token);
-    CacheService.getScriptCache().remove(gpsfmTokenKey_(token));
-    gpsfmAudit_(s.user.userId, 'LOGOUT', 'Users', s.user.userId, {});
+    const raw = cache.get(key);
+    if (raw) session = JSON.parse(raw);
+  } catch (e) {}
+  // Revoke first; audit logging must never prevent the session from ending.
+  cache.remove(key);
+  try {
+    if (session && session.userId) {
+      const user = gpsfmFindRowByValue_('Users', 'userId', session.userId);
+      if (user) gpsfmAudit_(user.userId, 'LOGOUT', 'Users', user.userId, {});
+    }
   } catch (e) {}
   return {ok:true};
 }

@@ -569,10 +569,13 @@ function openLogoutConfirmation(){
  document.addEventListener('keydown',onKey);
  confirm.addEventListener('click',async()=>{
   confirm.disabled=true;cancel.disabled=true;confirm.textContent='Sedang keluar…';
-  try{await call('apiLogout',token);}catch(e){}
-  token='';me=null;gpsfmStorageRemove(sessionStorage,'gpsfm_token');gpsfmStorageRemove(localStorage,gpsfmRememberTokenKey);gpsfmStorageRemove(localStorage,gpsfmRememberFlagKey);
+  let logoutConfirmed=false;
+  try{const result=await call('apiLogout',token);logoutConfirmed=!!(result&&result.ok);}catch(e){}
+  // Always end this tab locally; the server token is revoked independently above.
+  token='';me=null;bootstrap=null;currentPage='';gpsfmStorageRemove(sessionStorage,'gpsfm_token');gpsfmStorageRemove(localStorage,gpsfmRememberTokenKey);gpsfmStorageRemove(localStorage,gpsfmRememberFlagKey);
   $('rememberMe').checked=false;wrap.remove();document.removeEventListener('keydown',onKey);showLogin();
-  toast('Anda berhasil keluar dari GPS FM.');
+  if(logoutConfirmed)toast('Anda berhasil keluar dari GPS FM.');
+  else toast('Anda keluar dari tab ini, tetapi server belum mengonfirmasi pencabutan sesi. Periksa koneksi internet.');
  });
  cancel.focus();
 }
