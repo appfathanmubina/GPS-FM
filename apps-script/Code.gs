@@ -185,6 +185,22 @@ function gpsfmActivity_(id) {
   return activity && gpsfmBool_(activity.active) ? activity : null;
 }
 
+function gpsfmFindUserByUsername_(username) {
+  const sh = gpsfmSheet_('Users'), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return null;
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
+  const keyIndex = headers.indexOf('username');
+  if (keyIndex < 0) throw new Error('Kolom username tidak ditemukan pada database Users.');
+  const matches = sh.getRange(2, keyIndex + 1, lastRow - 1, 1)
+    .createTextFinder(String(username)).matchEntireCell(true).matchCase(false).findAll();
+  if (!matches.length) return null;
+  const rowNumber = matches[0].getRow();
+  const values = sh.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
+  const user = {_row:rowNumber};
+  headers.forEach(function(header, index) { user[header] = values[index]; });
+  return user;
+}
+
 function apiLogin(username, password) {
   gpsfmEnsurePasswordFlag_();
   username = gpsfmText_(username, 80).toLowerCase();
@@ -195,8 +211,8 @@ function apiLogin(username, password) {
   const rateKey = 'gpsfm_login_fail_' + digest.map(function(b) { return ('0' + ((b+256)%256).toString(16)).slice(-2); }).join('');
   const failures = Number(cache.get(rateKey) || 0);
   if (failures >= 5) throw new Error('Terlalu banyak percobaan login. Coba lagi sekitar 15 menit.');
-  const users = gpsfmRows_('Users');
-  const user = users.find(function(u) { return String(u.username).toLowerCase() === username; });
+  // Cari satu akun secara langsung; tidak perlu membaca seluruh tabel Users.
+  const user = gpsfmFindUserByUsername_(username);
   if (!user || !gpsfmBool_(user.active) || gpsfmHashPassword_(password, user.passwordSalt) !== String(user.passwordHash)) {
     const nextFailures = failures + 1;
     cache.put(rateKey, String(nextFailures), nextFailures >= 5 ? 900 : 600);
@@ -221,10 +237,18 @@ function apiLogout(token) {
 
 function apiGetBootstrap(token) {
   const s = gpsfmSession_(token, true), u = s.user;
+  const canSeeAllActivities = ['superadmin','supervisor','admin_administrasi'].indexOf(String(u.role)) >= 0;
+  const pjActivityIds = {};
+  if (!canSeeAllActivities) {
+    const assignments = gpsfmRows_('ActivityPJ');
+    assignments.forEach(function(item) {
+      if (String(item.userId) === String(u.userId) && gpsfmBool_(item.active)) pjActivityIds[String(item.activityId)] = true;
+    });
+  }
   const activities = gpsfmRows_('Activities').filter(function(a) {
-    return gpsfmBool_(a.active) && (u.role === 'superadmin' || u.role === 'supervisor' || u.role === 'admin_administrasi' || gpsfmIsPJ_(u.userId, a.activityId));
+    return gpsfmBool_(a.active) && (canSeeAllActivities || !!pjActivityIds[String(a.activityId)]);
   }).map(function(a) {
-    return {activityId:String(a.activityId), name:String(a.name), description:String(a.description || ''), schedule:String(a.schedule || ''), isPJ:gpsfmIsPJ_(u.userId,a.activityId)};
+    return {activityId:String(a.activityId), name:String(a.name), description:String(a.description || ''), schedule:String(a.schedule || ''), isPJ:!!pjActivityIds[String(a.activityId)]};
   });
   return {user:gpsfmPublicUser_(u), activities:activities, statuses:GPSFM_STATUSES, serverDate:Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd')};
 }
