@@ -424,7 +424,7 @@ function apiGetAttendanceForDate(token, activityId, date) {
 
 function gpsfmIsValidAttendanceDate_(date) {
   const value = String(date || '');
-  const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
   const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
   const check = new Date(Date.UTC(year, month - 1, day));
