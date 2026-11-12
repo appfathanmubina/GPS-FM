@@ -17,7 +17,9 @@ const GPSFM_SCHEMA = {
   ActivityOccurrences: ['occurrenceId','activityId','occurrenceDate','status','reason','teacherIdsJson','updatedBy','updatedAt','createdAt'],
   Periods: ['periodId','year','month','status','lockedAt','lockedBy'],
   AuditLogs: ['logId','actorId','action','entityType','entityId','details','createdAt'],
-  AppSettings: ['key','value','updatedAt']
+  AppSettings: ['key','value','updatedAt'],
+  PushSubscriptions: ['subscriptionId','userId','active','deviceLabel','createdAt','updatedAt','lastSeenAt'],
+  PushDeliveryLog: ['dedupeKey','activityId','occurrenceDate','recipientUserId','notificationType','subscriptionIdsJson','status','response','createdAt']
 };
 
 function setupGpsFmDatabase() {
