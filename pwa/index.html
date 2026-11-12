@@ -65,8 +65,14 @@
       try {
         if (gpsfmOneSignalInstance) {
           await gpsfmOneSignalInstance.login(gpsfmPendingExternalUserId);
-          if (Notification.permission === 'granted') await gpsfmOneSignalInstance.User.PushSubscription.optIn();
-          gpsfmRequestPushRegistration();
+          const optedOutByUser = localStorage.getItem('gpsfm_push_optout_' + gpsfmPendingExternalUserId) === '1';
+          if (optedOutByUser) {
+            gpsfmStopPushRegistrationRetry();
+            gpsfmNotifyAppPushState('idle','Notifikasi dinonaktifkan untuk akun ini pada perangkat ini.');
+          } else {
+            if (Notification.permission === 'granted') await gpsfmOneSignalInstance.User.PushSubscription.optIn();
+            gpsfmRequestPushRegistration();
+          }
         }
       } catch (error) { console.warn('Pengaitan akun OneSignal belum berhasil:', error); }
     } else if (data.type === 'gpsfm-push-registration-result') {
@@ -94,12 +100,24 @@
           return;
         }
         await gpsfmOneSignalInstance.login(gpsfmPendingExternalUserId);
+        try { localStorage.removeItem('gpsfm_push_optout_' + gpsfmPendingExternalUserId); } catch (storageError) {}
         await gpsfmOneSignalInstance.User.PushSubscription.optIn();
         gpsfmNotifyAppPushState('working','Izin aktif. Menghubungkan perangkat dengan akun GPS FM...');
         gpsfmRequestPushRegistration();
       } catch (error) {
         console.warn('GPS FM: aktivasi notifikasi manual gagal:',error);
         gpsfmNotifyAppPushState('error',error && error.message || 'Aktivasi notifikasi belum berhasil.');
+      }
+    } else if (data.type === 'gpsfm-disable-push') {
+      try {
+        if (!gpsfmOneSignalInstance || !gpsfmPendingExternalUserId) throw new Error('Akun atau layanan notifikasi belum siap.');
+        try { localStorage.setItem('gpsfm_push_optout_' + gpsfmPendingExternalUserId,'1'); } catch (storageError) {}
+        gpsfmStopPushRegistrationRetry();
+        gpsfmPushRegistrationAckId = '';
+        await gpsfmOneSignalInstance.User.PushSubscription.optOut();
+        gpsfmNotifyAppPushState('idle','Notifikasi dinonaktifkan pada perangkat ini. Anda dapat mengaktifkannya kembali kapan saja.');
+      } catch (error) {
+        gpsfmNotifyAppPushState('error',error && error.message || 'Notifikasi belum berhasil dinonaktifkan.');
       }
     } else if (data.type === 'gpsfm-logout') {
       gpsfmPendingExternalUserId = '';
