@@ -586,7 +586,7 @@ function gpsfmSetPushUi(state,message){
  const button=$('profilePushEnable'),label=$('profilePushButtonText'),status=$('profilePushStatus');
  if(!button||!label||!status)return;
  status.dataset.state=state||'idle';status.textContent=message||'';
- button.disabled=state==='working';
+ button.disabled=state==='working'||state==='active';
  label.textContent=state==='active'?'Notifikasi Aktif':state==='working'?'Memproses...':state==='denied'?'Izin Diblokir':'Aktifkan Notifikasi';
  button.style.background=state==='active'?'#168253':'';
 }
