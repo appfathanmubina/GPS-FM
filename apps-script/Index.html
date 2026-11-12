@@ -566,6 +566,7 @@ function gpsfmInvalidatePageCache(){Object.keys(gpsfmPageDomCache).forEach(k=>de
 let gpsfmPushSubscriptionId = '';
 let gpsfmPushRegisteredSubscriptionId = '';
 let gpsfmPushRegistrationInFlight = '';
+let gpsfmPushUiTimeout = null;
 function gpsfmNotifyPushParent() {
  try {
   if (window.parent !== window) {
@@ -585,6 +586,7 @@ function gpsfmReplyPushRegistration(subscriptionId,ok,message) {
 function gpsfmSetPushUi(state,message){
  const button=$('profilePushEnable'),label=$('profilePushButtonText'),status=$('profilePushStatus');
  if(!button||!label||!status)return;
+ if(state!=='working'&&gpsfmPushUiTimeout){clearTimeout(gpsfmPushUiTimeout);gpsfmPushUiTimeout=null;}
  status.dataset.state=state||'idle';status.textContent=message||'';
  button.disabled=state==='working';
  label.textContent=state==='active'?'Nonaktifkan Notifikasi':state==='working'?'Memproses...':state==='denied'?'Izin Diblokir':'Aktifkan Notifikasi';
@@ -606,6 +608,12 @@ $('profilePushEnable').addEventListener('click',async function(){
   return;
  }
  gpsfmSetPushUi('working','Menghubungi layanan notifikasi...');
+ if(gpsfmPushUiTimeout)clearTimeout(gpsfmPushUiTimeout);
+ gpsfmPushUiTimeout=setTimeout(function(){
+  if($('profilePushStatus').dataset.state==='working'){
+   gpsfmSetPushUi('error','Belum ada respons dari layanan notifikasi. Muat ulang PWA, lalu coba lagi. Jika tetap gagal, periksa apakah versi PWA terbaru sudah terpasang.');
+  }
+ },30000);
  try{window.parent.postMessage({type:'gpsfm-enable-push'},'https://appfathanmubina.github.io');}
  catch(e){gpsfmSetPushUi('error','Tidak dapat menghubungi layanan notifikasi.');}
 });
