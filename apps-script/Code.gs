@@ -3,6 +3,8 @@
  * Backend untuk Web App Apps Script. Otorisasi selalu dilakukan di server.
  */
 const GPSFM_SESSION_TTL = 21600; // 6 jam
+// Cache objek Spreadsheet hanya selama satu eksekusi Apps Script.
+var GPSFM_DB_INSTANCE_ = null;
 const GPSFM_STATUSES = ['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
 
 function doGet() {
@@ -18,6 +20,7 @@ function gpsfmHashPassword_(password, salt) {
 }
 
 function gpsfmDb_() {
+  if (GPSFM_DB_INSTANCE_) return GPSFM_DB_INSTANCE_;
   // Saat berjalan dari spreadsheet induk, gunakan spreadsheet yang terikat langsung.
   // Saat Web App berjalan tanpa konteks spreadsheet aktif, gunakan ID yang disimpan
   // oleh setupGpsFmDatabase() dari spreadsheet induk yang sama.
@@ -28,14 +31,16 @@ function gpsfmDb_() {
     if (props.getProperty('GPSFM_SPREADSHEET_ID') !== id) {
       props.setProperty('GPSFM_SPREADSHEET_ID', id);
     }
-    return active;
+    GPSFM_DB_INSTANCE_ = active;
+    return GPSFM_DB_INSTANCE_;
   }
 
   const id = PropertiesService.getScriptProperties().getProperty('GPSFM_SPREADSHEET_ID');
   if (!id) {
     throw new Error('Spreadsheet induk belum terhubung. Buka Apps Script melalui Ekstensi → Apps Script dari spreadsheet GPS FM, lalu jalankan setupGpsFmDatabase().');
   }
-  return SpreadsheetApp.openById(id);
+  GPSFM_DB_INSTANCE_ = SpreadsheetApp.openById(id);
+  return GPSFM_DB_INSTANCE_;
 }
 
 function gpsfmSheet_(name) {
@@ -164,6 +169,8 @@ function gpsfmPublicUser_(u) {
   return {userId:String(u.userId), username:String(u.username), fullName:String(u.fullName), role:String(u.role), mustChangePassword:gpsfmBool_(u.mustChangePassword)};
 }
 function gpsfmEnsurePasswordFlag_() {
+  const cache = CacheService.getScriptCache();
+  if (cache.get('gpsfm_schema_password_flag_v1') === '1') return;
   const sh=gpsfmSheet_('Users'),lastCol=sh.getLastColumn(),headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0];
   if(headers.indexOf('mustChangePassword')<0){
     sh.getRange(1,lastCol+1).setValue('mustChangePassword');
@@ -175,6 +182,7 @@ function gpsfmEnsurePasswordFlag_() {
       sh.getRange(2,lastCol+1,flags.length,1).setValues(flags);
     }
   }
+  cache.put('gpsfm_schema_password_flag_v1', '1', 21600);
 }
 function gpsfmAudit_(actorId, action, entityType, entityId, details) {
   gpsfmAppend_('AuditLogs', {logId:gpsfmId_(), actorId:actorId || '', action:action, entityType:entityType || '', entityId:entityId || '', details:JSON.stringify(details || {}), createdAt:gpsfmNow_()});
@@ -260,9 +268,9 @@ function gpsfmFindUserByUsername_(username) {
   const keyIndex = headers.indexOf('username');
   if (keyIndex < 0) throw new Error('Kolom username tidak ditemukan pada database Users.');
   const matches = sh.getRange(2, keyIndex + 1, lastRow - 1, 1)
-    .createTextFinder(String(username)).matchEntireCell(true).matchCase(false).findAll();
-  if (!matches.length) return null;
-  const rowNumber = matches[0].getRow();
+    .createTextFinder(String(username)).matchEntireCell(true).matchCase(false).findNext();
+  if (!matches) return null;
+  const rowNumber = matches.getRow();
   const values = sh.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
   const user = {_row:rowNumber};
   headers.forEach(function(header, index) { user[header] = values[index]; });
