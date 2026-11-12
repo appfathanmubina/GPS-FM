@@ -495,7 +495,13 @@ let gpsfmPushRegisteredSubscriptionId = '';
 let gpsfmPushRegistrationInFlight = '';
 function gpsfmNotifyPushParent() {
  try {
-  if (window.parent !== window) window.parent.postMessage({type:'gpsfm-auth',userId:String(me&&me.userId||'')},'https://appfathanmubina.github.io');
+  if (window.parent !== window) {
+   // Paksa registrasi ulang setiap sesi login agar subscription perangkat yang sama
+   // dapat dipindahkan dengan benar ketika pengguna berganti akun.
+   gpsfmPushRegisteredSubscriptionId = '';
+   gpsfmPushRegistrationInFlight = '';
+   window.parent.postMessage({type:'gpsfm-auth',userId:String(me&&me.userId||'')},'https://appfathanmubina.github.io');
+  }
  } catch (e) {}
 }
 function gpsfmReplyPushRegistration(subscriptionId,ok,message) {
