@@ -419,8 +419,12 @@ function gpsfmRunScheduledPushNotifications() {
     gpsfmRows_('Users').forEach(function(u) { if (gpsfmBool_(u.active)) activeUsers[String(u.userId)] = u; });
     const teacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(a) { return gpsfmBool_(a.active); });
     const pjAssignments = gpsfmRows_('ActivityPJ').filter(function(a) { return gpsfmBool_(a.active); });
-    const attendanceDone = {};
-    gpsfmRows_('Attendance').forEach(function(a) { attendanceDone[String(a.activityId)+'|'+gpsfmDateKey_(a.attendanceDate)] = true; });
+    const attendanceByActivityDate = {};
+    gpsfmRows_('Attendance').forEach(function(a) {
+      const key = String(a.activityId)+'|'+gpsfmDateKey_(a.attendanceDate);
+      if (!attendanceByActivityDate[key]) attendanceByActivityDate[key] = {};
+      attendanceByActivityDate[key][String(a.teacherId)] = true;
+    });
     const exceptions = {};
     gpsfmEnsureOccurrenceSheet_();
     gpsfmRows_('ActivityOccurrences').forEach(function(o) {
@@ -478,7 +482,9 @@ function gpsfmRunScheduledPushNotifications() {
       if (teacherIds.length) deliver(activity,'activity',teacherIds,'Pengingat Kegiatan GPS FM',
         'Kegiatan ' + String(activity.name || 'GPS FM') + ' terjadwal hari ini. Silakan buka GPS FM untuk melihat informasi kegiatan.');
 
-      if (!attendanceDone[activityId+'|'+today]) {
+      const recordedTeachers = attendanceByActivityDate[activityId+'|'+today] || {};
+      const hasMissingAttendance = teacherIds.some(function(teacherId) { return !recordedTeachers[teacherId]; });
+      if (teacherIds.length && hasMissingAttendance) {
         const pjs = {};
         pjAssignments.forEach(function(a) {
           const id = String(a.userId);
@@ -486,7 +492,7 @@ function gpsfmRunScheduledPushNotifications() {
         });
         const pjIds = Object.keys(pjs);
         if (pjIds.length) deliver(activity,'attendance',pjIds,'Pengingat Input Absensi GPS FM',
-          'Anda bertugas sebagai PJ kegiatan ' + String(activity.name || 'GPS FM') + '. Mohon input absensi pada GPS FM.');
+          'Anda bertugas sebagai PJ kegiatan ' + String(activity.name || 'GPS FM') + '. Masih ada absensi guru yang belum lengkap. Mohon lengkapi input absensi pada GPS FM.');
       }
     });
 
