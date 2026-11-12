@@ -19,6 +19,54 @@
       serviceWorkerPath: "/GPS/sw.js",
       serviceWorkerParam: { scope: "/GPS/" }
     });
+
+    // Tampilkan ajakan izin hanya jika pengguna belum menentukan izin.
+    const notificationPrompt = document.getElementById('gpsNotificationPrompt');
+    const enableNotificationButton = document.getElementById('gpsEnableNotifications');
+    const dismissNotificationButton = document.getElementById('gpsDismissNotifications');
+    const dismissed = localStorage.getItem('gpsfm_notification_prompt_dismissed') === '1';
+    const supported = 'Notification' in window && 'serviceWorker' in navigator;
+
+    if (notificationPrompt && supported && Notification.permission === 'default' && !dismissed) {
+      notificationPrompt.style.display = 'flex';
+    }
+
+    if (enableNotificationButton) {
+      enableNotificationButton.addEventListener('click', async () => {
+        enableNotificationButton.disabled = true;
+        enableNotificationButton.textContent = 'Memproses...';
+        try {
+          await OneSignal.Notifications.requestPermission();
+          if (Notification.permission === 'granted') {
+            try {
+              await OneSignal.User.PushSubscription.optIn();
+            } catch (subscriptionError) {
+              console.warn('OneSignal opt-in belum berhasil:', subscriptionError);
+            }
+            notificationPrompt.style.display = 'none';
+          } else if (Notification.permission === 'denied') {
+            notificationPrompt.querySelector('.gps-notification-description').textContent =
+              'Izin notifikasi diblokir oleh browser. Aktifkan GPS FM melalui pengaturan izin situs di browser.';
+            enableNotificationButton.style.display = 'none';
+            dismissNotificationButton.textContent = 'Mengerti';
+          } else {
+            enableNotificationButton.disabled = false;
+            enableNotificationButton.textContent = 'Aktifkan Notifikasi';
+          }
+        } catch (error) {
+          console.error('Permintaan izin notifikasi gagal:', error);
+          enableNotificationButton.disabled = false;
+          enableNotificationButton.textContent = 'Coba Lagi';
+        }
+      });
+    }
+
+    if (dismissNotificationButton) {
+      dismissNotificationButton.addEventListener('click', () => {
+        localStorage.setItem('gpsfm_notification_prompt_dismissed', '1');
+        notificationPrompt.style.display = 'none';
+      });
+    }
   });
 </script>
 <title>GPS FM</title>
@@ -34,12 +82,32 @@ section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-ra
 #installHelp h2{font-size:19px;margin:0 0 10px}
 #installHelp p{font-size:14px;margin:8px 0}
 #installHelp button{margin-top:14px;width:100%;padding:12px;border:0;border-radius:12px;background:#800080;color:#fff;font:700 14px system-ui}
+#gpsNotificationPrompt{position:fixed;z-index:110;left:50%;top:14px;transform:translateX(-50%);width:min(calc(100% - 28px),460px);display:none;align-items:center;gap:12px;padding:14px 15px;border:1px solid #ead8ee;border-radius:16px;background:#fff;color:#242033;box-shadow:0 10px 35px #25002526}
+#gpsNotificationPrompt .gps-notification-copy{flex:1;min-width:0}
+#gpsNotificationPrompt strong{display:block;font-size:14px;margin-bottom:3px}
+#gpsNotificationPrompt .gps-notification-description{margin:0;color:#716879;font-size:12px;line-height:1.45}
+#gpsNotificationPrompt .gps-notification-actions{display:flex;flex-direction:column;gap:6px;flex:none}
+#gpsNotificationPrompt button{border:0;border-radius:9px;padding:8px 10px;font:700 12px system-ui;cursor:pointer}
+#gpsEnableNotifications{background:#800080;color:#fff}
+#gpsDismissNotifications{background:#f5f0f6;color:#62576a}
+#gpsNotificationPrompt button:disabled{opacity:.65;cursor:wait}
+@media(max-width:420px){#gpsNotificationPrompt{align-items:flex-start;gap:8px;padding:12px}#gpsNotificationPrompt .gps-notification-actions{min-width:112px}#gpsNotificationPrompt button{padding:8px 7px;font-size:11px}}
 @media(min-width:781px){#installGpsFm{bottom:24px}}
 @media(max-width:380px){#installGpsFm{right:10px;padding:11px 13px;font-size:12px}}
 </style>
 </head>
 <body>
 <main id="app"></main>
+<aside id="gpsNotificationPrompt" role="region" aria-label="Aktifkan notifikasi GPS FM">
+  <div class="gps-notification-copy">
+    <strong>Aktifkan Notifikasi GPS FM</strong>
+    <p class="gps-notification-description">Izinkan notifikasi agar Anda tidak ketinggalan informasi dan pemberitahuan penting dari aplikasi.</p>
+  </div>
+  <div class="gps-notification-actions">
+    <button id="gpsEnableNotifications" type="button">Aktifkan Notifikasi</button>
+    <button id="gpsDismissNotifications" type="button">Nanti</button>
+  </div>
+</aside>
 <button id="installGpsFm" type="button" aria-label="Install aplikasi GPS FM"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 16v4h14v-4"/></svg><span>Install GPS FM</span></button>
 <div id="installHelp" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle"><div class="sheet"><h2 id="installHelpTitle">Pasang GPS FM di HP</h2><p id="installHelpText">Gunakan menu browser untuk menambahkan GPS FM ke layar utama.</p><button id="closeInstallHelp" type="button">Mengerti</button></div></div>
 <script src="./config.js"></script>
