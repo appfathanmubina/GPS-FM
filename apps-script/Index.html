@@ -586,12 +586,25 @@ function gpsfmSetPushUi(state,message){
  const button=$('profilePushEnable'),label=$('profilePushButtonText'),status=$('profilePushStatus');
  if(!button||!label||!status)return;
  status.dataset.state=state||'idle';status.textContent=message||'';
- button.disabled=state==='working'||state==='active';
- label.textContent=state==='active'?'Notifikasi Aktif':state==='working'?'Memproses...':state==='denied'?'Izin Diblokir':'Aktifkan Notifikasi';
+ button.disabled=state==='working';
+ label.textContent=state==='active'?'Nonaktifkan Notifikasi':state==='working'?'Memproses...':state==='denied'?'Izin Diblokir':'Aktifkan Notifikasi';
  button.style.background=state==='active'?'#168253':'';
+ button.setAttribute('aria-label',label.textContent);
 }
-$('profilePushEnable').addEventListener('click',function(){
+$('profilePushEnable').addEventListener('click',async function(){
  if(!token){gpsfmSetPushUi('error','Silakan login kembali untuk mengaktifkan notifikasi.');return;}
+ const currentState=$('profilePushStatus').dataset.state||'idle';
+ if(currentState==='active'){
+  if(!gpsfmPushSubscriptionId){gpsfmSetPushUi('error','ID perangkat belum tersedia. Muat ulang aplikasi lalu coba kembali.');return;}
+  gpsfmSetPushUi('working','Menonaktifkan notifikasi pada perangkat ini...');
+  try{
+   const result=await call('apiUnregisterPushSubscription',token,gpsfmPushSubscriptionId);
+   if(!result||result.ok!==true)throw new Error('Server belum mengonfirmasi perubahan langganan.');
+   if(window.parent!==window)window.parent.postMessage({type:'gpsfm-disable-push'},'https://appfathanmubina.github.io');
+   gpsfmSetPushUi('idle','Notifikasi dinonaktifkan pada perangkat ini. Anda dapat mengaktifkannya kembali kapan saja.');
+  }catch(error){gpsfmSetPushUi('error',error&&error.message||'Notifikasi belum berhasil dinonaktifkan.');}
+  return;
+ }
  gpsfmSetPushUi('working','Menghubungi layanan notifikasi...');
  try{window.parent.postMessage({type:'gpsfm-enable-push'},'https://appfathanmubina.github.io');}
  catch(e){gpsfmSetPushUi('error','Tidak dapat menghubungi layanan notifikasi.');}
