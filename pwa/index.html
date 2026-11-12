@@ -140,8 +140,13 @@
     if (gpsfmPendingExternalUserId) {
       try {
         await OneSignal.login(gpsfmPendingExternalUserId);
-        if (Notification.permission === 'granted') await OneSignal.User.PushSubscription.optIn();
-        gpsfmRequestPushRegistration();
+        const optedOutByUser = localStorage.getItem('gpsfm_push_optout_' + gpsfmPendingExternalUserId) === '1';
+        if (optedOutByUser) {
+          gpsfmNotifyAppPushState('idle','Notifikasi dinonaktifkan untuk akun ini pada perangkat ini.');
+        } else {
+          if (Notification.permission === 'granted') await OneSignal.User.PushSubscription.optIn();
+          gpsfmRequestPushRegistration();
+        }
       } catch (error) { console.warn('Sinkronisasi langganan OneSignal tertunda:', error); }
     }
     // Tampilkan ajakan izin hanya jika pengguna belum menentukan izin.
