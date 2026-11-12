@@ -23,6 +23,11 @@
     if (gpsfmPushRegistrationTimer) clearTimeout(gpsfmPushRegistrationTimer);
     gpsfmPushRegistrationTimer = null;
   }
+  function gpsfmNotifyAppPushState(state,message) {
+    try {
+      if (gpsfmAppFrame && gpsfmAppFrame.contentWindow) gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-state',state:String(state||'idle'),message:String(message||'')},'*');
+    } catch (error) {}
+  }
   function gpsfmSendSubscriptionToApp() {
     if (!gpsfmAppFrame || !gpsfmAppFrame.contentWindow || !gpsfmOneSignalInstance || !gpsfmPendingExternalUserId) return false;
     const subscriptionId = gpsfmOneSignalInstance.User.PushSubscription.id;
@@ -37,10 +42,10 @@
       if (gpsfmPushRegistrationAckId) return;
       gpsfmPushRegistrationAttempts++;
       const sent = gpsfmSendSubscriptionToApp();
-      if (gpsfmPushRegistrationAttempts < 12) {
+      if (gpsfmPushRegistrationAttempts < 30) {
         gpsfmPushRegistrationTimer = setTimeout(attempt, sent ? 1500 : 1000);
       } else if (!sent) {
-        console.warn('GPS FM: ID subscription OneSignal belum tersedia setelah 12 percobaan.');
+        console.warn('GPS FM: ID subscription OneSignal belum tersedia setelah 30 percobaan.');
       }
     };
     attempt();
@@ -64,8 +69,32 @@
         gpsfmPushRegistrationAckId = String(data.subscriptionId);
         gpsfmStopPushRegistrationRetry();
         console.info('GPS FM: subscription perangkat berhasil ditautkan ke akun aplikasi.');
+        gpsfmNotifyAppPushState('active','Notifikasi aktif dan perangkat sudah terhubung ke akun GPS FM.');
       } else {
         console.warn('GPS FM: Apps Script gagal menyimpan subscription:', data.message || 'Tidak ada keterangan.');
+        gpsfmNotifyAppPushState('error',data.message || 'Subscription belum berhasil disimpan.');
+      }
+    } else if (data.type === 'gpsfm-enable-push') {
+      try {
+        if (!gpsfmOneSignalInstance) throw new Error('Layanan notifikasi belum siap. Muat ulang aplikasi lalu coba lagi.');
+        if (!gpsfmPendingExternalUserId) throw new Error('Silakan login kembali sebelum mengaktifkan notifikasi.');
+        gpsfmNotifyAppPushState('working','Meminta izin dan mengaktifkan langganan perangkat...');
+        if (Notification.permission === 'default') await gpsfmOneSignalInstance.Notifications.requestPermission();
+        if (Notification.permission === 'denied') {
+          gpsfmNotifyAppPushState('denied','Izin notifikasi diblokir. Aktifkan izin GPS FM melalui pengaturan situs di browser.');
+          return;
+        }
+        if (Notification.permission !== 'granted') {
+          gpsfmNotifyAppPushState('idle','Izin notifikasi belum diberikan. Tekan Aktifkan Notifikasi untuk mencoba kembali.');
+          return;
+        }
+        await gpsfmOneSignalInstance.login(gpsfmPendingExternalUserId);
+        await gpsfmOneSignalInstance.User.PushSubscription.optIn();
+        gpsfmNotifyAppPushState('working','Izin aktif. Menghubungkan perangkat dengan akun GPS FM...');
+        gpsfmRequestPushRegistration();
+      } catch (error) {
+        console.warn('GPS FM: aktivasi notifikasi manual gagal:',error);
+        gpsfmNotifyAppPushState('error',error && error.message || 'Aktivasi notifikasi belum berhasil.');
       }
     } else if (data.type === 'gpsfm-logout') {
       gpsfmPendingExternalUserId = '';
