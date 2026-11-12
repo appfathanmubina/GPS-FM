@@ -466,6 +466,55 @@ body{touch-action:auto}
 .external-app-open span{font-size:16px;line-height:1}
 @media(max-width:780px){.external-apps-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}.external-app-card{padding:16px;border-radius:17px}.external-app-icon{width:64px;height:64px;flex-basis:64px;border-radius:17px}.external-app-card h3{font-size:16px}.external-app-open{margin-top:16px;min-height:42px;font-size:12px}.nav.nav-many{display:flex;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:5px}.nav.nav-many::-webkit-scrollbar{display:none}.nav.nav-many button{flex:0 0 76px;min-width:76px}}
 @media(max-width:380px){.external-apps-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.external-app-card{padding:10px;border-radius:14px}.external-app-icon{width:44px;height:44px;flex-basis:44px;border-radius:12px}.external-app-card-head{gap:8px;align-items:center}.external-app-card h3{font-size:13px}.external-app-status{font-size:9px;padding:4px 6px}.external-app-open{min-height:40px;margin-top:12px;padding:8px 5px;font-size:10px}}
+
+/* GPS FM desktop shell: full-width header, collapsible sidebar, user identity popover */
+.topbar{width:100%;max-width:none;min-width:0;}
+.topbar-start{display:flex;align-items:center;gap:16px;min-width:0}
+.sidebar-toggle{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;flex:0 0 42px}
+.sidebar-toggle svg{width:21px;height:21px}
+.profile{position:relative}
+.profile-menu-wrap{position:relative}
+.profile-trigger{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid #ffffff65;border-radius:14px;background:#ffffff1c;color:#fff;box-shadow:inset 0 1px 0 #ffffff20;transition:background .16s ease,transform .16s ease}
+.profile-trigger:hover,.profile-trigger[aria-expanded="true"]{background:#ffffff30;transform:translateY(-1px)}
+.profile-trigger svg{width:25px;height:25px}
+.profile-popover{position:absolute;z-index:120;top:calc(100% + 12px);right:0;width:min(340px,calc(100vw - 24px));padding:18px;border:1px solid #eaddec;border-radius:18px;background:#fff;color:#2b1b31;box-shadow:0 18px 55px rgba(37,17,45,.22);animation:gpsProfilePop .16s ease-out}
+.profile-popover:before{content:"";position:absolute;right:13px;top:-7px;width:13px;height:13px;background:#fff;border-left:1px solid #eaddec;border-top:1px solid #eaddec;transform:rotate(45deg)}
+.profile-popover-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:13px;border-bottom:1px solid #f0e8f2}
+.profile-popover-eyebrow{font-size:9px;letter-spacing:1.1px;font-weight:850;color:#9b7aa3}
+.profile-popover-head h3{margin:4px 0 0;font-size:17px;color:#39213f}
+.profile-popover-close{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:9px;background:#f7f1f8;color:#76577e}
+.profile-popover-close:hover{background:#efe2f2;color:#800080}
+.profile-popover-close svg{width:17px;height:17px}
+.profile-identity{display:flex;align-items:center;gap:12px;padding:16px 0 13px}
+.profile-identity-avatar{display:grid;place-items:center;width:48px;height:48px;flex:0 0 48px;border-radius:15px;background:linear-gradient(145deg,#650065,#a64ca6);color:#fff;font-size:20px;font-weight:850}
+.profile-identity-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.profile-identity-copy b{font-size:14px;color:#39213f;overflow-wrap:anywhere}
+.profile-identity-copy span{font-size:12px;color:#806c87}
+.profile-details{display:grid;gap:9px;padding:12px 13px;border:1px solid #f0e7f2;border-radius:12px;background:#fcf9fd}
+.profile-details>div{display:flex;justify-content:space-between;gap:12px;font-size:12px}
+.profile-details span{color:#8a7b90}
+.profile-details b{color:#4b3152;text-align:right;overflow-wrap:anywhere}
+.profile-details .profile-active-status{color:#168253}
+.profile-popover-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+.profile-popover-actions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 10px;font-size:11px}
+.profile-popover-actions svg{width:16px;height:16px;flex:0 0 auto}
+@keyframes gpsProfilePop{from{opacity:0;transform:translateY(-5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(min-width:781px){
+ .topbar{position:sticky;left:0;right:0;width:100%;padding:14px 28px!important}
+ .wrap{transition:margin-left .22s ease,padding .22s ease}
+ body.gpsfm-sidebar-hidden #appScreen .wrap{margin-left:0!important}
+ body.gpsfm-sidebar-hidden #appScreen .nav{transform:translateX(-105%);opacity:0;pointer-events:none}
+ #appScreen .nav{transition:transform .22s ease,opacity .18s ease}
+}
+@media(max-width:780px){
+ .sidebar-toggle{display:none!important}
+ .profile-popover{position:fixed;top:calc(62px + env(safe-area-inset-top) + 8px);right:10px;width:min(340px,calc(100vw - 20px));}
+ .profile-popover:before{right:13px}
+ .profile-trigger{width:38px;height:38px;border-radius:12px}
+ .profile-trigger svg{width:23px;height:23px}
+}
+@media(prefers-reduced-motion:reduce){.profile-popover{animation:none}.wrap,#appScreen .nav{transition:none!important}}
+
 </style>
 </head>
 <body>
@@ -474,7 +523,23 @@ body{touch-action:auto}
  <section class="login-side"><form class="login-box" id="loginForm" autocomplete="on"><h2>Selamat datang</h2><p>Masuk menggunakan akun GPS FM Anda.</p><div id="loginError" class="error hidden"></div><div class="field"><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" required maxlength="50" placeholder="Masukkan username"></div><div class="field"><label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="200" placeholder="Masukkan password"><button class="password-toggle" id="toggleLoginPassword" type="button" aria-label="Tampilkan password" title="Tampilkan password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div></div><label class="remember-row" for="rememberMe"><input id="rememberMe" type="checkbox"><span>Ingat saya (Remember Me)</span></label><button class="btn btn-primary" id="loginButton" type="submit">Masuk ke GPS FM</button></form></section>
 </div>
 <div id="appScreen" class="shell hidden">
- <header class="topbar"><div class="brand"><div class="logo logo-image"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><div><h1>GPS FM</h1><p>Absensi Guru Pembina Santri</p></div></div><div class="profile"><div class="avatar" id="avatar">G</div><div class="user-name"><b id="profileName">Guru GPS</b><div class="small" id="profileRole" style="color:#dbeafe">Guru GPS</div></div><button class="btn btn-ghost header-icon-btn change-pass" id="changePassBtn" type="button" title="Ganti Password" aria-label="Ganti Password"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5zM12 14v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="btn btn-ghost header-icon-btn" id="logoutBtn" type="button" title="Keluar" aria-label="Keluar"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></header>
+ <header class="topbar" id="appTopbar">
+  <div class="topbar-start">
+   <button class="btn btn-ghost sidebar-toggle" id="sidebarToggle" type="button" aria-label="Sembunyikan navigasi utama" aria-expanded="true" title="Sembunyikan navigasi utama"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+   <div class="brand"><div class="logo logo-image"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><div><h1>GPS FM</h1><p>Absensi Guru Pembina Santri</p></div></div>
+  </div>
+  <div class="profile">
+   <div class="profile-menu-wrap" id="profileMenuWrap">
+    <button class="profile-trigger" id="profileMenuBtn" type="button" aria-label="Tampilkan identitas pengguna" aria-haspopup="dialog" aria-expanded="false" title="Identitas pengguna"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.8 20c.7-3.4 3.3-5.2 7.2-5.2s6.5 1.8 7.2 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <section class="profile-popover hidden" id="profilePopover" role="dialog" aria-label="Identitas pengguna">
+     <div class="profile-popover-head"><div><div class="profile-popover-eyebrow">IDENTITAS PENGGUNA</div><h3>Profil Akun</h3></div><button class="profile-popover-close" id="profilePopoverClose" type="button" aria-label="Tutup pop-up" title="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+     <div class="profile-identity"><div class="profile-identity-avatar" id="avatar">G</div><div class="profile-identity-copy"><b id="profileName">Guru GPS</b><span id="profileRole">Guru GPS</span></div></div>
+     <div class="profile-details"><div><span>Username</span><b id="profileUsername">—</b></div><div><span>Status</span><b class="profile-active-status">Aktif</b></div></div>
+     <div class="profile-popover-actions"><button class="btn btn-light" id="changePassBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5zM12 14v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Ganti Password</button><button class="btn btn-danger" id="logoutBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Keluar</button></div>
+    </section>
+   </div>
+  </div>
+ </header>
  <main class="wrap"><nav class="nav" id="nav"></nav><section id="page"></section><div class="footnote">GPS FM · Sistem Absensi Guru Pembina Santri · Pesantren Fathan Mubina</div></main>
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
@@ -598,8 +663,15 @@ function dateDefault(){return bootstrap&&bootstrap.serverDate||new Date().toLoca
 $('toggleLoginPassword').addEventListener('click',()=>{const input=$('password'),button=$('toggleLoginPassword'),show=input.type==='password';input.type=show?'text':'password';button.setAttribute('aria-pressed',String(show));button.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');button.title=show?'Sembunyikan password':'Tampilkan password';button.innerHTML=show?'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a16 16 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 4-.8"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>';});
 let gpsfmAuthBusy=false;
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();if(gpsfmAuthBusy)return;gpsfmAuthBusy=true;const btn=$('loginButton');$('loginError').classList.add('hidden');busy(btn,true,'Memeriksa akun...');try{const r=await call('apiLogin',$('username').value,$('password').value);token=r.token;me=r.user;gpsfmStorageSet(sessionStorage,'gpsfm_token',token);if($('rememberMe').checked){gpsfmStorageSet(localStorage,gpsfmRememberUsernameKey,$('username').value.trim());gpsfmStorageSet(localStorage,gpsfmRememberTokenKey,token);gpsfmStorageSet(localStorage,gpsfmRememberFlagKey,'1');}else{gpsfmStorageRemove(localStorage,gpsfmRememberUsernameKey);gpsfmStorageRemove(localStorage,gpsfmRememberTokenKey);gpsfmStorageRemove(localStorage,gpsfmRememberFlagKey);}await startApp();$('password').value='';}catch(err){errorBox('loginError',err.message);}finally{gpsfmAuthBusy=false;busy(btn,false);}});
-async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;gpsfmNotifyPushParent();$('profileName').textContent=me.fullName;$('profileRole').textContent=me.role==='superadmin'?'Superadmin':me.role==='admin_administrasi'?'Admin Administrasi':me.role==='supervisor'?'Supervisor GPS':'Guru GPS';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();renderNav();if(me.mustChangePassword){hideLogin();openChangePasswordModal(true);return;}await renderPage('dashboard');hideLogin();}
-$('logoutBtn').addEventListener('click',openLogoutConfirmation);
+async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;gpsfmNotifyPushParent();$('profileName').textContent=me.fullName||'Pengguna GPS FM';$('profileRole').textContent=me.role==='superadmin'?'Superadmin':me.role==='admin_administrasi'?'Admin Administrasi':me.role==='supervisor'?'Supervisor GPS':'Guru GPS';$('profileUsername').textContent=me.username||'—';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();renderNav();if(me.mustChangePassword){hideLogin();openChangePasswordModal(true);return;}await renderPage('dashboard');hideLogin();}
+function closeProfilePopover(){const pop=$('profilePopover'),trigger=$('profileMenuBtn');if(!pop||pop.classList.contains('hidden'))return;pop.classList.add('hidden');trigger.setAttribute('aria-expanded','false');}
+function toggleProfilePopover(){const pop=$('profilePopover'),trigger=$('profileMenuBtn'),open=pop.classList.contains('hidden');pop.classList.toggle('hidden',!open);trigger.setAttribute('aria-expanded',String(open));}
+$('profileMenuBtn').addEventListener('click',e=>{e.stopPropagation();toggleProfilePopover();});
+$('profilePopoverClose').addEventListener('click',closeProfilePopover);
+document.addEventListener('click',e=>{const wrap=$('profileMenuWrap');if(wrap&&!wrap.contains(e.target))closeProfilePopover();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfilePopover();});
+$('sidebarToggle').addEventListener('click',()=>{const hidden=document.body.classList.toggle('gpsfm-sidebar-hidden'),btn=$('sidebarToggle');btn.setAttribute('aria-expanded',String(!hidden));btn.setAttribute('aria-label',hidden?'Tampilkan navigasi utama':'Sembunyikan navigasi utama');btn.title=hidden?'Tampilkan navigasi utama':'Sembunyikan navigasi utama';btn.innerHTML=hidden?'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16M9 4l-5 8 5 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';});
+$('logoutBtn').addEventListener('click',()=>{closeProfilePopover();openLogoutConfirmation();});
 function openLogoutConfirmation(){
  if($('gpsLogoutModal'))return;
  const wrap=document.createElement('div');wrap.id='gpsLogoutModal';wrap.className='gps-logout-backdrop';
@@ -625,7 +697,7 @@ function openLogoutConfirmation(){
  });
  cancel.focus();
 }
-$('changePassBtn').addEventListener('click',openChangePasswordModal);
+$('changePassBtn').addEventListener('click',()=>{closeProfilePopover();openChangePasswordModal();});
 function navIcon(id){const paths={dashboard:'<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/>',attendance:'<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14l2.2 2.2L16 12"/>',report:'<path d="M5 4v16h15"/><path d="m8 15 3.5-4 3 2 4.5-6"/>',activityReport:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M8 4.5v15M13 12h4M13 15.5h4"/>',activities:'<path d="M8 4.5h6.8L18 7.7v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>',apps:'<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>'};return '<svg class="nav-flat-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]||paths.dashboard)+'</svg>';}
 function renderNav(){const nav=$('nav');const isSuperadmin=me.role==='superadmin';const isSupervisor=me.role==='supervisor';const isAdminAdministrasi=me.role==='admin_administrasi';const isPJ=!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.some(a=>a.isPJ));const canViewActivityReports=isSuperadmin||isSupervisor||isAdminAdministrasi;const items=[['dashboard','Dashboard']];if(isSuperadmin||isPJ)items.push(['attendance','Input Absensi']);items.push(['report','Evaluasi Diri']);if(canViewActivityReports||isPJ)items.push(['activityReport','Rekap Absen']);if(isSuperadmin)items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);items.push(['apps','Aplikasi Lainnya']);nav.classList.toggle('nav-five',items.length===5);nav.classList.toggle('nav-many',items.length>4);nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
 async function renderPage(page){
