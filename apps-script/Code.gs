@@ -240,9 +240,8 @@ function gpsfmIsPJ_(userId, activityId) {
   return false;
 }
 function gpsfmIsActivityTeacher_(teacherId, activityId) {
-  return gpsfmRows_('ActivityTeachers').some(function(a) {
-    return String(a.activityId) === String(activityId) && String(a.teacherId) === String(teacherId) && gpsfmBool_(a.active);
-  });
+  const assignment = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
+  return !!(assignment && gpsfmBool_(assignment.active));
 }
 function gpsfmIsParticipantRole_(role) {
   return ['gps','supervisor','admin_administrasi'].indexOf(String(role)) >= 0;
@@ -688,7 +687,7 @@ function gpsfmEnsureOccurrenceSheet_(){
 }
 function gpsfmGetOccurrence_(activityId,date){
  gpsfmEnsureOccurrenceSheet_();
- return gpsfmRows_('ActivityOccurrences').find(function(o){return String(o.activityId)===String(activityId)&&gpsfmDateKey_(o.occurrenceDate)===String(date);});
+ return gpsfmFindRowByCriteria_('ActivityOccurrences', {activityId:String(activityId),occurrenceDate:String(date)}, {occurrenceDate:'date'});
 }
 function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds){
  const lock=LockService.getScriptLock();lock.waitLock(10000);
