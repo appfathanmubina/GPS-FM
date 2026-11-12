@@ -75,6 +75,49 @@ function gpsfmFindRowByValue_(sheetName, keyName, keyValue) {
   return obj;
 }
 
+/**
+ * Cari satu baris berdasarkan beberapa kolom kunci.
+ * Hanya membaca kolom kunci saat pencarian, lalu mengambil satu baris lengkap
+ * untuk menjaga bentuk objek dan nomor baris yang dipakai fungsi lama.
+ * modes: lower = perbandingan teks tanpa membedakan kapital; date = normalisasi tanggal.
+ */
+function gpsfmFindRowByCriteria_(sheetName, criteria, modes, predicate) {
+  const sh = gpsfmSheet_(sheetName), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return null;
+  const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
+  const keys = Object.keys(criteria || {});
+  if (!keys.length) throw new Error('Kriteria pencarian database kosong.');
+  const columns = {};
+  keys.forEach(function(key) {
+    const index = headers.indexOf(key);
+    if (index < 0) throw new Error('Kolom database tidak ditemukan: ' + key + ' (' + sheetName + ').');
+    columns[key] = sh.getRange(2, index + 1, lastRow - 1, 1).getValues();
+  });
+  const compare = function(actual, expected, mode) {
+    if (mode === 'date') return gpsfmDateKey_(actual) === String(expected);
+    if (mode === 'lower') return String(actual == null ? '' : actual).trim().toLowerCase() === String(expected == null ? '' : expected).trim().toLowerCase();
+    return String(actual == null ? '' : actual) === String(expected == null ? '' : expected);
+  };
+  for (let rowIndex = 0; rowIndex < lastRow - 1; rowIndex++) {
+    let matched = true;
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (!compare(columns[key][rowIndex][0], criteria[key], modes && modes[key])) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) {
+      const rowNumber = rowIndex + 2;
+      const values = sh.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
+      const obj = {_row:rowNumber};
+      headers.forEach(function(header, index) { obj[header] = values[index]; });
+      if (!predicate || predicate(obj)) return obj;
+    }
+  }
+  return null;
+}
+
 function gpsfmAppend_(name, obj) {
   const sh = gpsfmSheet_(name), headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
   sh.appendRow(headers.map(function(h) { return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; }));
@@ -197,9 +240,10 @@ function gpsfmIsPJ_(userId, activityId) {
   return false;
 }
 function gpsfmIsActivityTeacher_(teacherId, activityId) {
-  return gpsfmRows_('ActivityTeachers').some(function(a) {
-    return String(a.activityId) === String(activityId) && String(a.teacherId) === String(teacherId) && gpsfmBool_(a.active);
+  const assignment = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)}, null, function(row) {
+    return gpsfmBool_(row.active);
   });
+  return !!assignment;
 }
 function gpsfmIsParticipantRole_(role) {
   return ['gps','supervisor','admin_administrasi'].indexOf(String(role)) >= 0;
@@ -304,9 +348,11 @@ function apiSaveUser(token, data) {
   if (!/^[a-z0-9._-]{3,50}$/.test(username)) throw new Error('Username 3–50 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.');
   if (!fullName) throw new Error('Nama lengkap wajib diisi.');
   if (['gps','supervisor','admin_administrasi','superadmin'].indexOf(role) < 0) throw new Error('Role tidak valid.');
-  const users = gpsfmRows_('Users');
-  if (users.some(function(u) { return String(u.username).toLowerCase() === username && String(u.userId) !== String(data.userId || ''); })) throw new Error('Username sudah digunakan.');
-  const now = gpsfmNow_(), existing = users.find(function(u) { return String(u.userId) === String(data.userId || ''); });
+  const duplicate = gpsfmFindRowByCriteria_('Users', {username:username}, {username:'lower'}, function(u) {
+    return String(u.userId) !== String(data.userId || '');
+  });
+  if (duplicate && String(duplicate.userId) !== String(data.userId || '')) throw new Error('Username sudah digunakan.');
+  const now = gpsfmNow_(), existing = data.userId ? gpsfmFindRowByCriteria_('Users', {userId:String(data.userId)}) : null;
   let record;
   if (existing) {
     record = {username:username,fullName:fullName,role:role,active:data.active !== false,updatedAt:now};
@@ -325,7 +371,7 @@ function apiSaveUser(token, data) {
 function apiSetUserPassword(token, userId, newPassword) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
   if (String(newPassword || '').length < 6) throw new Error('Password minimal 6 karakter.');
-  const u = gpsfmRows_('Users').find(function(x) { return String(x.userId) === String(userId); });
+  const u = gpsfmFindRowByCriteria_('Users', {userId:String(userId)});
   if (!u) throw new Error('Akun tidak ditemukan.');
   const salt = gpsfmId_().replace(/-/g,'');
   gpsfmUpdateRow_('Users', u._row, {passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),mustChangePassword:true,updatedAt:gpsfmNow_()});
@@ -353,7 +399,7 @@ function apiSaveActivity(token, data) {
   data = data || {};
   const name = gpsfmText_(data.name,120);
   if (!name) throw new Error('Nama kegiatan wajib diisi.');
-  const now = gpsfmNow_(), list = gpsfmRows_('Activities'), existing = list.find(function(a) { return String(a.activityId) === String(data.activityId || ''); });
+  const now = gpsfmNow_(), existing = data.activityId ? gpsfmFindRowByCriteria_('Activities', {activityId:String(data.activityId)}) : null;
   if (existing) gpsfmUpdateRow_('Activities',existing._row,{name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),active:data.active !== false,updatedAt:now});
   else gpsfmAppend_('Activities',{activityId:gpsfmId_(),name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),active:true,createdAt:now,updatedAt:now});
   gpsfmAudit_(s.user.userId,existing?'UPDATE_ACTIVITY':'CREATE_ACTIVITY','Activities',existing?existing.activityId:name,{name:name});
@@ -362,10 +408,10 @@ function apiSaveActivity(token, data) {
 
 function apiAssignPJ(token, activityId, userId, assigned) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  const activity = gpsfmRows_('Activities').find(function(a) { return String(a.activityId) === String(activityId); });
-  const user = gpsfmRows_('Users').find(function(u) { return String(u.userId) === String(userId) && gpsfmBool_(u.active) && gpsfmIsParticipantRole_(u.role); });
-  if (!activity || !user) throw new Error('Kegiatan atau akun peserta tidak valid.');
-  const list = gpsfmRows_('ActivityPJ'), old = list.find(function(a) { return String(a.activityId) === String(activityId) && String(a.userId) === String(userId); });
+  const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
+  const user = gpsfmFindRowByCriteria_('Users', {userId:String(userId)});
+  if (!activity || !user || !gpsfmBool_(user.active) || !gpsfmIsParticipantRole_(user.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
+  const old = gpsfmFindRowByCriteria_('ActivityPJ', {activityId:String(activityId),userId:String(userId)});
   if (old) gpsfmUpdateRow_('ActivityPJ',old._row,{active:!!assigned});
   else if (assigned) gpsfmAppend_('ActivityPJ',{assignmentId:gpsfmId_(),activityId:activityId,userId:userId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId});
   gpsfmAudit_(s.user.userId,assigned?'ASSIGN_PJ':'UNASSIGN_PJ','ActivityPJ',activityId,{userId:userId});
@@ -399,11 +445,10 @@ function apiGetActivityTeachers(token, activityId) {
 
 function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  const activity = gpsfmRows_('Activities').find(function(a) { return String(a.activityId) === String(activityId); });
-  const teacher = gpsfmRows_('Users').find(function(u) { return String(u.userId) === String(teacherId) && gpsfmBool_(u.active) && gpsfmIsParticipantRole_(u.role); });
-  if (!activity || !teacher) throw new Error('Kegiatan atau akun peserta tidak valid.');
-  const list = gpsfmRows_('ActivityTeachers');
-  const old = list.find(function(a) { return String(a.activityId) === String(activityId) && String(a.teacherId) === String(teacherId); });
+  const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
+  const teacher = gpsfmFindRowByCriteria_('Users', {userId:String(teacherId)});
+  if (!activity || !teacher || !gpsfmBool_(teacher.active) || !gpsfmIsParticipantRole_(teacher.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
+  const old = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
   // Bekukan roster occurrence lampau sebelum perubahan penugasan guru.
   gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId));
   if (old) gpsfmUpdateRow_('ActivityTeachers',old._row,{active:!!assigned,updatedAt:gpsfmNow_()});
@@ -610,8 +655,7 @@ function apiSaveAttendance(token, data) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const records = gpsfmRows_('Attendance');
-    const old = records.find(function(a) { return String(a.activityId) === activityId && String(a.teacherId) === teacherId && gpsfmDateKey_(a.attendanceDate) === date; });
+    const old = gpsfmFindRowByCriteria_('Attendance', {activityId:activityId,teacherId:teacherId,attendanceDate:date}, {attendanceDate:'date'});
     const now = gpsfmNow_();
     if (old) {
       gpsfmUpdateRow_('Attendance',old._row,{status:status,note:gpsfmText_(data.note,300),recordedBy:u.userId,updatedAt:now});
@@ -647,7 +691,7 @@ function gpsfmEnsureOccurrenceSheet_(){
 }
 function gpsfmGetOccurrence_(activityId,date){
  gpsfmEnsureOccurrenceSheet_();
- return gpsfmRows_('ActivityOccurrences').find(function(o){return String(o.activityId)===String(activityId)&&gpsfmDateKey_(o.occurrenceDate)===String(date);});
+ return gpsfmFindRowByCriteria_('ActivityOccurrences', {activityId:String(activityId),occurrenceDate:String(date)}, {occurrenceDate:'date'});
 }
 function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds){
  const lock=LockService.getScriptLock();lock.waitLock(10000);
