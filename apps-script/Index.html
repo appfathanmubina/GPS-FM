@@ -563,6 +563,9 @@ const gpsfmPageDomCache=Object.create(null);
 const gpsfmMutatingApi=/^(apiSave|apiAssign|apiSet|apiChange|apiDelete|apiLock|apiUnlock|apiClose|apiReopen|apiImport|apiReset)/;
 function gpsfmInvalidatePageCache(){Object.keys(gpsfmPageDomCache).forEach(k=>delete gpsfmPageDomCache[k]);}
 
+// postMessage targetOrigin harus berupa origin saja (tanpa /GPS atau /GPS-FM).
+// Path GitHub Pages tidak termasuk origin dan tidak boleh ditambahkan di sini.
+const GPSFM_PWA_ORIGIN = GPSFM_PWA_ORIGIN;
 let gpsfmPushSubscriptionId = '';
 let gpsfmPushRegisteredSubscriptionId = '';
 let gpsfmPushRegistrationInFlight = '';
@@ -574,13 +577,13 @@ function gpsfmNotifyPushParent() {
    // dapat dipindahkan dengan benar ketika pengguna berganti akun.
    gpsfmPushRegisteredSubscriptionId = '';
    gpsfmPushRegistrationInFlight = '';
-   window.parent.postMessage({type:'gpsfm-auth',userId:String(me&&me.userId||'')},'https://appfathanmubina.github.io');
+   window.parent.postMessage({type:'gpsfm-auth',userId:String(me&&me.userId||'')},GPSFM_PWA_ORIGIN);
   }
  } catch (e) {}
 }
 function gpsfmReplyPushRegistration(subscriptionId,ok,message) {
  try {
-  if(window.parent!==window)window.parent.postMessage({type:'gpsfm-push-registration-result',subscriptionId:String(subscriptionId||''),ok:!!ok,message:String(message||'')},'https://appfathanmubina.github.io');
+  if(window.parent!==window)window.parent.postMessage({type:'gpsfm-push-registration-result',subscriptionId:String(subscriptionId||''),ok:!!ok,message:String(message||'')},GPSFM_PWA_ORIGIN);
  } catch(e) {}
 }
 function gpsfmSetPushUi(state,message){
@@ -602,7 +605,7 @@ $('profilePushEnable').addEventListener('click',async function(){
   try{
    const result=await call('apiUnregisterPushSubscription',token,gpsfmPushSubscriptionId);
    if(!result||result.ok!==true)throw new Error('Server belum mengonfirmasi perubahan langganan.');
-   if(window.parent!==window)window.parent.postMessage({type:'gpsfm-disable-push'},'https://appfathanmubina.github.io');
+   if(window.parent!==window)window.parent.postMessage({type:'gpsfm-disable-push'},GPSFM_PWA_ORIGIN);
    gpsfmSetPushUi('idle','Notifikasi dinonaktifkan pada perangkat ini. Anda dapat mengaktifkannya kembali kapan saja.');
   }catch(error){gpsfmSetPushUi('error',error&&error.message||'Notifikasi belum berhasil dinonaktifkan.');}
   return;
@@ -614,11 +617,11 @@ $('profilePushEnable').addEventListener('click',async function(){
    gpsfmSetPushUi('error','Belum ada respons dari layanan notifikasi. Muat ulang PWA, lalu coba lagi. Jika tetap gagal, periksa apakah versi PWA terbaru sudah terpasang.');
   }
  },30000);
- try{window.parent.postMessage({type:'gpsfm-enable-push'},'https://appfathanmubina.github.io');}
+ try{window.parent.postMessage({type:'gpsfm-enable-push'},GPSFM_PWA_ORIGIN);}
  catch(e){gpsfmSetPushUi('error','Tidak dapat menghubungi layanan notifikasi.');}
 });
 window.addEventListener('message',function(event){
- if(event.source!==window.parent || event.origin!=='https://appfathanmubina.github.io')return;
+ if(event.source!==window.parent || event.origin!==GPSFM_PWA_ORIGIN)return;
  const data=event.data||{};
  if(data.type==='gpsfm-push-state'){
   gpsfmSetPushUi(String(data.state||'idle'),String(data.message||''));
@@ -733,7 +736,7 @@ function openLogoutConfirmation(){
   confirm.disabled=true;cancel.disabled=true;confirm.textContent='Sedang keluar…';
   let logoutConfirmed=false;
   try{if(gpsfmPushSubscriptionId)await call('apiUnregisterPushSubscription',token,gpsfmPushSubscriptionId);}catch(e){}
-  try{if(window.parent!==window)window.parent.postMessage({type:'gpsfm-logout'},'https://appfathanmubina.github.io');}catch(e){}
+  try{if(window.parent!==window)window.parent.postMessage({type:'gpsfm-logout'},GPSFM_PWA_ORIGIN);}catch(e){}
   try{const result=await call('apiLogout',token);logoutConfirmed=!!(result&&result.ok);}catch(e){}
   // Always end this tab locally; the server token is revoked independently above.
   token='';me=null;bootstrap=null;currentPage='';gpsfmStorageRemove(sessionStorage,'gpsfm_token');gpsfmStorageRemove(localStorage,gpsfmRememberTokenKey);gpsfmStorageRemove(localStorage,gpsfmRememberFlagKey);
