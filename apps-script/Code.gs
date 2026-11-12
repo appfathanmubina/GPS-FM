@@ -889,16 +889,34 @@ function apiGetSupervisorDashboard(token) {
 function apiGetTodayScheduledActivities(token) {
   const s = gpsfmSession_(token);
   const role = String(s.user.role);
-  if (role !== 'superadmin' && role !== 'supervisor') throw new Error('Akses ditolak. Fitur ini hanya untuk Superadmin atau Supervisor.');
+  const canSeeAllActivities = ['superadmin','supervisor','admin_administrasi'].indexOf(role) >= 0;
+  const assignedActivityIds = {};
+  if (!canSeeAllActivities) {
+    gpsfmRows_('ActivityTeachers').forEach(function(item) {
+      if (String(item.teacherId) === String(s.user.userId) && gpsfmBool_(item.active)) {
+        assignedActivityIds[String(item.activityId)] = true;
+      }
+    });
+    // PJ kegiatan juga termasuk guru yang terlibat, meskipun penugasannya
+    // tercatat terpisah dari roster ActivityTeachers.
+    gpsfmRows_('ActivityPJ').forEach(function(item) {
+      if (String(item.userId) === String(s.user.userId) && gpsfmBool_(item.active)) {
+        assignedActivityIds[String(item.activityId)] = true;
+      }
+    });
+  }
 
   const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
   const weekday = gpsfmWeekdayName_(today);
   const activities = gpsfmRows_('Activities').filter(function(a) {
-    return gpsfmBool_(a.active) && gpsfmParseScheduleDays_(a.schedule).indexOf(weekday) >= 0;
+    const id = String(a.activityId);
+    return gpsfmBool_(a.active) &&
+      gpsfmParseScheduleDays_(a.schedule).indexOf(weekday) >= 0 &&
+      (canSeeAllActivities || !!assignedActivityIds[id]);
   });
+
   const activityIds = {};
   activities.forEach(function(a) { activityIds[String(a.activityId)] = true; });
-
   const attendanceByActivity = {};
   gpsfmRows_('Attendance').forEach(function(row) {
     const id = String(row.activityId);
@@ -933,7 +951,6 @@ function apiGetTodayScheduledActivities(token) {
     }).sort(function(a,b) { return a.name.localeCompare(b.name); })
   };
 }
-
 function apiGetMonthlyReport(token, year, month) {
   const s = gpsfmSession_(token);
   year = Number(year); month = Number(month);
