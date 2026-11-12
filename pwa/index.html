@@ -30,7 +30,10 @@
   }
   function gpsfmSendSubscriptionToApp() {
     if (!gpsfmAppFrame || !gpsfmAppFrame.contentWindow || !gpsfmOneSignalInstance || !gpsfmPendingExternalUserId) return false;
-    const subscriptionId = gpsfmOneSignalInstance.User.PushSubscription.id;
+    const pushSubscription = gpsfmOneSignalInstance.User.PushSubscription;
+    // Jangan daftarkan ID lama/perangkat yang sudah opt-out sebagai subscription aktif.
+    if (pushSubscription.optedIn !== true) return false;
+    const subscriptionId = pushSubscription.id;
     if (!subscriptionId) return false;
     gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, '*');
     return true;
