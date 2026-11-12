@@ -20,6 +20,16 @@
   let gpsfmPushRegistrationAttempts = 0;
   let gpsfmPushRegistrationAckId = '';
   let gpsfmManualPushRequested = false;
+  let gpsfmOneSignalInitError = '';
+  // GitHub Pages project sites dapat memakai /GPS/, /GPS-FM/, atau path lain.
+  // Tentukan direktori aplikasi dari URL aktif agar worker dan scope selalu sejalan.
+  const gpsfmPwaBasePath = (() => {
+    const path = window.location.pathname || '/';
+    if (path.endsWith('/')) return path;
+    if (/\.[a-z0-9]+$/i.test(path)) return path.slice(0, path.lastIndexOf('/') + 1) || '/';
+    return path + '/';
+  })();
+  const gpsfmServiceWorkerPath = gpsfmPwaBasePath + 'sw.js';
   function gpsfmStopPushRegistrationRetry() {
     if (gpsfmPushRegistrationTimer) clearTimeout(gpsfmPushRegistrationTimer);
     gpsfmPushRegistrationTimer = null;
@@ -76,11 +86,18 @@
             gpsfmStopPushRegistrationRetry();
             gpsfmNotifyAppPushState('idle','Notifikasi dinonaktifkan untuk akun ini pada perangkat ini.');
           } else {
-            if (Notification.permission === 'granted') await gpsfmOneSignalInstance.User.PushSubscription.optIn();
+            if ('Notification' in window && Notification.permission === 'granted') await gpsfmOneSignalInstance.User.PushSubscription.optIn();
             gpsfmRequestPushRegistration();
           }
+        } else if (gpsfmOneSignalInitError) {
+          gpsfmNotifyAppPushState('error',gpsfmOneSignalInitError);
+        } else {
+          gpsfmNotifyAppPushState('working','Menyiapkan layanan notifikasi GPS FM...');
         }
-      } catch (error) { console.warn('Pengaitan akun OneSignal belum berhasil:', error); }
+      } catch (error) {
+        console.warn('Pengaitan akun OneSignal belum berhasil:', error);
+        gpsfmNotifyAppPushState('error',error && error.message || 'Pengaitan akun OneSignal belum berhasil.');
+      }
     } else if (data.type === 'gpsfm-push-registration-result') {
       if (data.ok && data.subscriptionId) {
         gpsfmPushRegistrationAckId = String(data.subscriptionId);
@@ -100,6 +117,10 @@
       }
       if (!gpsfmOneSignalInstance) {
         gpsfmNotifyAppPushState('error','Layanan notifikasi sedang dimuat. Muat ulang aplikasi lalu coba kembali.');
+        return;
+      }
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        gpsfmNotifyAppPushState('error','Browser atau mode aplikasi ini belum mendukung notifikasi web. Buka GPS FM melalui browser yang mendukung notifikasi.');
         return;
       }
       if (Notification.permission === 'denied') {
@@ -146,13 +167,15 @@
     }
   });
   OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "28faec3d-9ee1-45a0-9234-4a5922ce4f1a",
-      serviceWorkerPath: "/GPS/sw.js",
-      serviceWorkerParam: { scope: "/GPS/" }
-    });
+    try {
+      await OneSignal.init({
+        appId: "28faec3d-9ee1-45a0-9234-4a5922ce4f1a",
+        serviceWorkerPath: gpsfmServiceWorkerPath,
+        serviceWorkerParam: { scope: gpsfmPwaBasePath }
+      });
 
-    gpsfmOneSignalInstance = OneSignal;
+      gpsfmOneSignalInstance = OneSignal;
+      gpsfmOneSignalInitError = '';
     try {
       OneSignal.User.PushSubscription.addEventListener('change', gpsfmRequestPushRegistration);
     } catch (error) {}
@@ -217,11 +240,17 @@
       });
     }
 
-    if (dismissNotificationButton) {
-      dismissNotificationButton.addEventListener('click', () => {
-        localStorage.setItem('gpsfm_notification_prompt_dismissed', '1');
-        notificationPrompt.style.display = 'none';
-      });
+      if (dismissNotificationButton) {
+        dismissNotificationButton.addEventListener('click', () => {
+          localStorage.setItem('gpsfm_notification_prompt_dismissed', '1');
+          notificationPrompt.style.display = 'none';
+        });
+      }
+    } catch (error) {
+      gpsfmOneSignalInstance = null;
+      gpsfmOneSignalInitError = 'OneSignal belum berhasil diinisialisasi. Periksa service worker GPS FM dan muat ulang aplikasi. Detail: ' + String(error && error.message || error || 'kesalahan tidak diketahui');
+      console.error('GPS FM: inisialisasi OneSignal gagal:', error);
+      gpsfmNotifyAppPushState('error',gpsfmOneSignalInitError);
     }
   });
 </script>
@@ -310,7 +339,7 @@ installButton.addEventListener('click',async()=>{
 document.getElementById('closeInstallHelp').addEventListener('click',()=>{installHelp.style.display='none';});
 installHelp.addEventListener('click',event=>{if(event.target===installHelp)installHelp.style.display='none';});
 syncInstallButton();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register(gpsfmServiceWorkerPath,{scope:gpsfmPwaBasePath}).catch(error=>{console.error('GPS FM: registrasi service worker gagal:',error);gpsfmNotifyAppPushState('error','Service worker GPS FM gagal dipasang. Periksa URL PWA dan izin browser, lalu muat ulang.');}));
 </script>
 </body>
 </html>
