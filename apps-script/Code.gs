@@ -81,7 +81,7 @@ function gpsfmFindRowByValue_(sheetName, keyName, keyValue) {
  * untuk menjaga bentuk objek dan nomor baris yang dipakai fungsi lama.
  * modes: lower = perbandingan teks tanpa membedakan kapital; date = normalisasi tanggal.
  */
-function gpsfmFindRowByCriteria_(sheetName, criteria, modes) {
+function gpsfmFindRowByCriteria_(sheetName, criteria, modes, predicate) {
   const sh = gpsfmSheet_(sheetName), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
   if (lastRow < 2 || lastCol < 1) return null;
   const headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(String);
@@ -112,7 +112,7 @@ function gpsfmFindRowByCriteria_(sheetName, criteria, modes) {
       const values = sh.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
       const obj = {_row:rowNumber};
       headers.forEach(function(header, index) { obj[header] = values[index]; });
-      return obj;
+      if (!predicate || predicate(obj)) return obj;
     }
   }
   return null;
@@ -240,8 +240,10 @@ function gpsfmIsPJ_(userId, activityId) {
   return false;
 }
 function gpsfmIsActivityTeacher_(teacherId, activityId) {
-  const assignment = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
-  return !!(assignment && gpsfmBool_(assignment.active));
+  const assignment = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)}, null, function(row) {
+    return gpsfmBool_(row.active);
+  });
+  return !!assignment;
 }
 function gpsfmIsParticipantRole_(role) {
   return ['gps','supervisor','admin_administrasi'].indexOf(String(role)) >= 0;
@@ -346,7 +348,9 @@ function apiSaveUser(token, data) {
   if (!/^[a-z0-9._-]{3,50}$/.test(username)) throw new Error('Username 3–50 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.');
   if (!fullName) throw new Error('Nama lengkap wajib diisi.');
   if (['gps','supervisor','admin_administrasi','superadmin'].indexOf(role) < 0) throw new Error('Role tidak valid.');
-  const duplicate = gpsfmFindRowByCriteria_('Users', {username:username}, {username:'lower'});
+  const duplicate = gpsfmFindRowByCriteria_('Users', {username:username}, {username:'lower'}, function(u) {
+    return String(u.userId) !== String(data.userId || '');
+  });
   if (duplicate && String(duplicate.userId) !== String(data.userId || '')) throw new Error('Username sudah digunakan.');
   const now = gpsfmNow_(), existing = data.userId ? gpsfmFindRowByCriteria_('Users', {userId:String(data.userId)}) : null;
   let record;
