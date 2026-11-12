@@ -52,7 +52,11 @@
       OneSignal.User.PushSubscription.addEventListener('change', gpsfmSendSubscriptionToApp);
     } catch (error) {}
     if (gpsfmPendingExternalUserId) {
-      try { await OneSignal.login(gpsfmPendingExternalUserId); } catch (error) {}
+      try {
+        await OneSignal.login(gpsfmPendingExternalUserId);
+        if (Notification.permission === 'granted') await OneSignal.User.PushSubscription.optIn();
+        gpsfmSendSubscriptionToApp();
+      } catch (error) { console.warn('Sinkronisasi langganan OneSignal tertunda:', error); }
     }
     // Tampilkan ajakan izin hanya jika pengguna belum menentukan izin.
     const notificationPrompt = document.getElementById('gpsNotificationPrompt');
