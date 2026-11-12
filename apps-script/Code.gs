@@ -425,10 +425,12 @@ function gpsfmRunScheduledPushNotifications() {
       if (!attendanceByActivityDate[key]) attendanceByActivityDate[key] = {};
       attendanceByActivityDate[key][String(a.teacherId)] = true;
     });
-    const exceptions = {};
+    // Ambil status sekaligus roster guru khusus tanggal ini. Roster occurrence
+    // harus diutamakan agar perubahan penugasan tidak mengubah peserta tanggal lampau/hari ini.
+    const occurrencesByActivity = {};
     gpsfmEnsureOccurrenceSheet_();
     gpsfmRows_('ActivityOccurrences').forEach(function(o) {
-      if (gpsfmDateKey_(o.occurrenceDate) === today) exceptions[String(o.activityId)] = String(o.status || 'scheduled');
+      if (gpsfmDateKey_(o.occurrenceDate) === today) occurrencesByActivity[String(o.activityId)] = o;
     });
     const subscriptionsByUser = {};
     gpsfmRows_('PushSubscriptions').forEach(function(p) {
@@ -471,12 +473,23 @@ function gpsfmRunScheduledPushNotifications() {
       const activityId = String(activity.activityId), startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
       if (startMinute === null) { results.skippedNoTime++; return; }
       if (nowMinute < startMinute || nowMinute >= startMinute + 30) return;
-      if (['holiday','cancelled'].indexOf(exceptions[activityId] || 'scheduled') >= 0) return;
+      const occurrenceStatus = String((occurrencesByActivity[activityId] || {}).status || 'scheduled');
+      if (['holiday','cancelled'].indexOf(occurrenceStatus) >= 0) return;
 
       const teachers = {};
-      teacherAssignments.forEach(function(a) {
-        const id = String(a.teacherId), user = activeUsers[id];
-        if (String(a.activityId) === activityId && user && gpsfmIsParticipantRole_(user.role)) teachers[id] = true;
+      const occurrence = occurrencesByActivity[activityId] || null;
+      let candidateTeacherIds = teacherAssignments.filter(function(a) {
+        return String(a.activityId) === activityId;
+      }).map(function(a) { return String(a.teacherId); });
+      if (occurrence && occurrence.teacherIdsJson) {
+        try {
+          const snapshotIds = JSON.parse(String(occurrence.teacherIdsJson));
+          if (Array.isArray(snapshotIds)) candidateTeacherIds = snapshotIds.map(String);
+        } catch (e) {}
+      }
+      candidateTeacherIds.forEach(function(id) {
+        const user = activeUsers[id];
+        if (user && gpsfmIsParticipantRole_(user.role)) teachers[id] = true;
       });
       const teacherIds = Object.keys(teachers);
       if (teacherIds.length) deliver(activity,'activity',teacherIds,'Pengingat Kegiatan GPS FM',
@@ -539,11 +552,12 @@ function previewGpsFmPushRecipients() {
     if (!attendance[key]) attendance[key] = {};
     attendance[key][String(a.teacherId)] = true;
   });
-  const exceptions = {};
+  // Gunakan snapshot roster per tanggal yang sama dengan proses pengiriman.
+  const occurrencesByActivity = {};
   gpsfmEnsureOccurrenceSheet_();
   gpsfmRows_('ActivityOccurrences').forEach(function(o) {
     if (gpsfmDateKey_(o.occurrenceDate) === today) {
-      exceptions[String(o.activityId)] = String(o.status || 'scheduled');
+      occurrencesByActivity[String(o.activityId)] = o;
     }
   });
   const teacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(a) { return gpsfmBool_(a.active); });
@@ -561,15 +575,23 @@ function previewGpsFmPushRecipients() {
         gpsfmParseScheduleDays_(activity.schedule).indexOf(weekday) < 0) return;
     const activityId = String(activity.activityId);
     const startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
-    const occurrenceStatus = exceptions[activityId] || 'scheduled';
+    const occurrence = occurrencesByActivity[activityId] || null;
+    const occurrenceStatus = String((occurrence || {}).status || 'scheduled');
     const cancelled = ['holiday', 'cancelled'].indexOf(occurrenceStatus) >= 0;
     const withinWindow = startMinute !== null && nowMinute >= startMinute && nowMinute < startMinute + 30;
     const teacherMap = {};
-    teacherAssignments.forEach(function(a) {
-      const id = String(a.teacherId), user = users[id];
-      if (String(a.activityId) === activityId && user && gpsfmIsParticipantRole_(user.role)) {
-        teacherMap[id] = user;
-      }
+    let candidateTeacherIds = teacherAssignments.filter(function(a) {
+      return String(a.activityId) === activityId;
+    }).map(function(a) { return String(a.teacherId); });
+    if (occurrence && occurrence.teacherIdsJson) {
+      try {
+        const snapshotIds = JSON.parse(String(occurrence.teacherIdsJson));
+        if (Array.isArray(snapshotIds)) candidateTeacherIds = snapshotIds.map(String);
+      } catch (e) {}
+    }
+    candidateTeacherIds.forEach(function(id) {
+      const user = users[id];
+      if (user && gpsfmIsParticipantRole_(user.role)) teacherMap[id] = user;
     });
     const teacherIds = Object.keys(teacherMap);
     const recorded = attendance[activityId + '|' + today] || {};
