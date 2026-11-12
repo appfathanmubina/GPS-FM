@@ -36,7 +36,7 @@
     const attempt = function() {
       if (gpsfmPushRegistrationAckId) return;
       gpsfmPushRegistrationAttempts++;
-      const sent = gpsfmRequestPushRegistration();
+      const sent = gpsfmSendSubscriptionToApp();
       if (gpsfmPushRegistrationAttempts < 12) {
         gpsfmPushRegistrationTimer = setTimeout(attempt, sent ? 1500 : 1000);
       } else if (!sent) {
