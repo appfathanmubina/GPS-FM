@@ -678,7 +678,7 @@ function openLogoutConfirmation(){
  wrap.innerHTML='<section class="gps-logout-dialog" role="alertdialog" aria-modal="true" aria-labelledby="gpsLogoutTitle" aria-describedby="gpsLogoutMessage"><div class="gps-logout-accent"></div><div class="gps-logout-content"><div class="gps-logout-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M8 12h10"/></svg></div><h3 id="gpsLogoutTitle">Konfirmasi Keluar</h3><p id="gpsLogoutMessage">Apakah Anda yakin ingin keluar dari GPS FM? Pastikan pekerjaan Anda sudah tersimpan.</p></div><div class="gps-logout-actions"><button type="button" class="gps-logout-cancel" id="gpsLogoutCancel">Batal</button><button type="button" class="gps-logout-confirm" id="gpsLogoutConfirm">Ya, Keluar</button></div></section>';
  document.body.appendChild(wrap);
  const cancel=$('gpsLogoutCancel'),confirm=$('gpsLogoutConfirm');
- const close=()=>{wrap.remove();$('logoutBtn').focus();};
+ const close=()=>{wrap.remove();$('profileMenuBtn').focus();};
  cancel.addEventListener('click',()=>{close();document.removeEventListener('keydown',onKey);});
  wrap.addEventListener('click',e=>{if(e.target===wrap){close();document.removeEventListener('keydown',onKey);}});
  const onKey=e=>{if(e.key==='Escape'&&wrap.isConnected){close();document.removeEventListener('keydown',onKey);}};
