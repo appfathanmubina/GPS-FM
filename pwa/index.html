@@ -13,6 +13,33 @@
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
+  let gpsfmPendingExternalUserId = '';
+  let gpsfmOneSignalInstance = null;
+  function gpsfmSendSubscriptionToApp() {
+    if (!gpsfmAppFrame || !gpsfmAppFrame.contentWindow || !gpsfmOneSignalInstance) return;
+    const subscriptionId = gpsfmOneSignalInstance.User.PushSubscription.id;
+    if (subscriptionId) {
+      gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:subscriptionId}, '*');
+    }
+  }
+  window.addEventListener('message', async function(event) {
+    if (!gpsfmAppFrame || event.source !== gpsfmAppFrame.contentWindow) return;
+    if (!(event.origin === 'https://script.google.com' || /^https:\/\/[^/]+\.googleusercontent\.com$/.test(event.origin))) return;
+    const data = event.data || {};
+    if (data.type === 'gpsfm-auth' && data.userId) {
+      gpsfmPendingExternalUserId = String(data.userId);
+      try {
+        if (gpsfmOneSignalInstance) {
+          await gpsfmOneSignalInstance.login(gpsfmPendingExternalUserId);
+          if (Notification.permission === 'granted') await gpsfmOneSignalInstance.User.PushSubscription.optIn();
+          gpsfmSendSubscriptionToApp();
+        }
+      } catch (error) { console.warn('Pengaitan akun OneSignal belum berhasil:', error); }
+    } else if (data.type === 'gpsfm-logout') {
+      gpsfmPendingExternalUserId = '';
+      try { if (gpsfmOneSignalInstance) await gpsfmOneSignalInstance.logout(); } catch (error) {}
+    }
+  });
   OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
       appId: "28faec3d-9ee1-45a0-9234-4a5922ce4f1a",
@@ -20,6 +47,13 @@
       serviceWorkerParam: { scope: "/GPS/" }
     });
 
+    gpsfmOneSignalInstance = OneSignal;
+    try {
+      OneSignal.User.PushSubscription.addEventListener('change', gpsfmSendSubscriptionToApp);
+    } catch (error) {}
+    if (gpsfmPendingExternalUserId) {
+      try { await OneSignal.login(gpsfmPendingExternalUserId); } catch (error) {}
+    }
     // Tampilkan ajakan izin hanya jika pengguna belum menentukan izin.
     const notificationPrompt = document.getElementById('gpsNotificationPrompt');
     const enableNotificationButton = document.getElementById('gpsEnableNotifications');
@@ -43,6 +77,10 @@
             } catch (subscriptionError) {
               console.warn('OneSignal opt-in belum berhasil:', subscriptionError);
             }
+            if (gpsfmPendingExternalUserId) {
+              try { await OneSignal.login(gpsfmPendingExternalUserId); } catch (error) {}
+            }
+            gpsfmSendSubscriptionToApp();
             notificationPrompt.style.display = 'none';
           } else if (Notification.permission === 'denied') {
             notificationPrompt.querySelector('.gps-notification-description').textContent =
@@ -113,8 +151,10 @@ section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-ra
 <script src="./config.js"></script>
 <script>
 const u=window.GPSFM_CONFIG&&window.GPSFM_CONFIG.appsScriptUrl;
+let gpsfmAppFrame=null;
 if(u&&u.indexOf('https://script.google.com/macros/s/')===0){
  const f=document.createElement('iframe');
+ gpsfmAppFrame=f;
  f.title='GPS FM';
  f.src=u;
  f.addEventListener('load',()=>{const status=document.getElementById('appStatus');if(status)status.remove();});
