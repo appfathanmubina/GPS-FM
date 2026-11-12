@@ -27,7 +27,7 @@
     if (!gpsfmAppFrame || !gpsfmAppFrame.contentWindow || !gpsfmOneSignalInstance || !gpsfmPendingExternalUserId) return false;
     const subscriptionId = gpsfmOneSignalInstance.User.PushSubscription.id;
     if (!subscriptionId) return false;
-    gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, 'https://script.google.com');
+    gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, '*');
     return true;
   }
   function gpsfmRequestPushRegistration() {
