@@ -152,6 +152,29 @@ function gpsfmSession_(token, allowForcedPasswordChange) {
   if(gpsfmBool_(user.mustChangePassword)&&!allowForcedPasswordChange)throw new Error('Anda wajib mengganti password sebelum menggunakan aplikasi.');
   return {user:user, token:token};
 }
+// Perbarui validasi hanya untuk token tab yang sedang mengganti password.
+// Token pada tab/perangkat lain tetap membawa hash lama dan otomatis ditolak.
+function gpsfmRefreshCurrentSessionPasswordHash_(token, userId, passwordHash) {
+  if (!token || String(token).length < 30) return false;
+  const cache = CacheService.getScriptCache();
+  const key = gpsfmTokenKey_(token);
+  const raw = cache.get(key);
+  if (!raw) return false;
+
+  let session;
+  try {
+    session = JSON.parse(raw);
+  } catch (e) {
+    return false;
+  }
+  if (String(session.userId || '') !== String(userId)) return false;
+
+  session.passwordHash = String(passwordHash);
+  // Perubahan password memperbarui sesi aktif ini; masa berlaku maksimum tetap 6 jam.
+  cache.put(key, JSON.stringify(session), GPSFM_SESSION_TTL);
+  return true;
+}
+
 function gpsfmRequireAdmin_(session) {
   if (String(session.user.role) !== 'superadmin') throw new Error('Akses ditolak. Fitur ini hanya untuk superadmin.');
 }
@@ -1014,8 +1037,19 @@ function apiChangeOwnPassword(token, oldPassword, newPassword) {
   const s = gpsfmSession_(token, true);
   if (String(newPassword || '').length < 6) throw new Error('Password baru minimal 6 karakter.');
   if (gpsfmHashPassword_(String(oldPassword || ''),s.user.passwordSalt) !== String(s.user.passwordHash)) throw new Error('Password lama tidak sesuai.');
+
   const salt = gpsfmId_().replace(/-/g,'');
-  gpsfmUpdateRow_('Users',s.user._row,{passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),mustChangePassword:false,updatedAt:gpsfmNow_()});
+  const newPasswordHash = gpsfmHashPassword_(newPassword,salt);
+  gpsfmUpdateRow_('Users',s.user._row,{
+    passwordSalt:salt,
+    passwordHash:newPasswordHash,
+    mustChangePassword:false,
+    updatedAt:gpsfmNow_()
+  });
+
+  // Sinkronkan hash pada token yang sedang dipakai agar pengguna tetap berada
+  // di tab ini setelah ganti password. Token sesi lain tidak ikut diperbarui.
+  const currentSessionUpdated = gpsfmRefreshCurrentSessionPasswordHash_(token,s.user.userId,newPasswordHash);
   gpsfmAudit_(s.user.userId,'CHANGE_PASSWORD','Users',s.user.userId,{});
-  return {ok:true};
+  return {ok:true,sessionKept:currentSessionUpdated};
 }
