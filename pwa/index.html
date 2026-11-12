@@ -41,6 +41,11 @@
   function gpsfmRequestPushRegistration() {
     gpsfmStopPushRegistrationRetry();
     gpsfmPushRegistrationAttempts = 0;
+    // Jangan membuat siklus retry saat izin belum diberikan atau pengguna memilih opt-out.
+    if (!gpsfmPendingExternalUserId || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      if (localStorage.getItem('gpsfm_push_optout_' + gpsfmPendingExternalUserId) === '1') return;
+    } catch (storageError) {}
     const attempt = function() {
       if (gpsfmPushRegistrationAckId) return;
       gpsfmPushRegistrationAttempts++;
