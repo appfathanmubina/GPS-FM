@@ -491,18 +491,38 @@ const gpsfmMutatingApi=/^(apiSave|apiAssign|apiSet|apiChange|apiDelete|apiLock|a
 function gpsfmInvalidatePageCache(){Object.keys(gpsfmPageDomCache).forEach(k=>delete gpsfmPageDomCache[k]);}
 
 let gpsfmPushSubscriptionId = '';
+let gpsfmPushRegisteredSubscriptionId = '';
+let gpsfmPushRegistrationInFlight = '';
 function gpsfmNotifyPushParent() {
  try {
   if (window.parent !== window) window.parent.postMessage({type:'gpsfm-auth',userId:String(me&&me.userId||'')},'https://appfathanmubina.github.io');
  } catch (e) {}
 }
+function gpsfmReplyPushRegistration(subscriptionId,ok,message) {
+ try {
+  if(window.parent!==window)window.parent.postMessage({type:'gpsfm-push-registration-result',subscriptionId:String(subscriptionId||''),ok:!!ok,message:String(message||'')},'https://appfathanmubina.github.io');
+ } catch(e) {}
+}
 window.addEventListener('message',function(event){
  if(event.source!==window.parent || event.origin!=='https://appfathanmubina.github.io')return;
  const data=event.data||{};
  if(data.type==='gpsfm-push-subscription' && data.subscriptionId && token){
-  gpsfmPushSubscriptionId=String(data.subscriptionId);
-  call('apiRegisterPushSubscription',token,gpsfmPushSubscriptionId,(navigator.userAgent||'GPS FM Web')).catch(function(error){
+  const subscriptionId=String(data.subscriptionId);
+  gpsfmPushSubscriptionId=subscriptionId;
+  if(gpsfmPushRegisteredSubscriptionId===subscriptionId){
+   gpsfmReplyPushRegistration(subscriptionId,true,'Subscription sudah terdaftar.');
+   return;
+  }
+  if(gpsfmPushRegistrationInFlight===subscriptionId)return;
+  gpsfmPushRegistrationInFlight=subscriptionId;
+  call('apiRegisterPushSubscription',token,subscriptionId,(navigator.userAgent||'GPS FM Web')).then(function(result){
+   gpsfmPushRegisteredSubscriptionId=subscriptionId;
+   gpsfmReplyPushRegistration(subscriptionId,!!(result&&result.registered),'');
+  }).catch(function(error){
+   gpsfmReplyPushRegistration(subscriptionId,false,error&&error.message||error||'Gagal menyimpan subscription.');
    console.warn('Pendaftaran langganan notifikasi belum berhasil:',error);
+  }).finally(function(){
+   if(gpsfmPushRegistrationInFlight===subscriptionId)gpsfmPushRegistrationInFlight='';
   });
  }
 });
