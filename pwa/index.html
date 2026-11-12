@@ -92,7 +92,7 @@
         } else if (gpsfmOneSignalInitError) {
           gpsfmNotifyAppPushState('error',gpsfmOneSignalInitError);
         } else {
-          gpsfmNotifyAppPushState('working','Menyiapkan layanan notifikasi GPS FM...');
+          gpsfmNotifyAppPushState('idle','Layanan notifikasi sedang disiapkan. Silakan coba kembali sebentar lagi.');
         }
       } catch (error) {
         console.warn('Pengaitan akun OneSignal belum berhasil:', error);
@@ -186,7 +186,7 @@
         if (optedOutByUser) {
           gpsfmNotifyAppPushState('idle','Notifikasi dinonaktifkan untuk akun ini pada perangkat ini.');
         } else {
-          if (Notification.permission === 'granted') await OneSignal.User.PushSubscription.optIn();
+          if ('Notification' in window && Notification.permission === 'granted') await OneSignal.User.PushSubscription.optIn();
           gpsfmRequestPushRegistration();
         }
       } catch (error) { console.warn('Sinkronisasi langganan OneSignal tertunda:', error); }
