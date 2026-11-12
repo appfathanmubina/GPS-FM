@@ -611,8 +611,9 @@ window.addEventListener('message',function(event){
   if(gpsfmPushRegistrationInFlight===subscriptionId)return;
   gpsfmPushRegistrationInFlight=subscriptionId;
   call('apiRegisterPushSubscription',token,subscriptionId,(navigator.userAgent||'GPS FM Web')).then(function(result){
+   if(!result||result.registered!==true)throw new Error('Apps Script belum mengonfirmasi penyimpanan subscription.');
    gpsfmPushRegisteredSubscriptionId=subscriptionId;
-   gpsfmReplyPushRegistration(subscriptionId,!!(result&&result.registered),'');
+   gpsfmReplyPushRegistration(subscriptionId,true,'');
   }).catch(function(error){
    gpsfmReplyPushRegistration(subscriptionId,false,error&&error.message||error||'Gagal menyimpan subscription.');
    console.warn('Pendaftaran langganan notifikasi belum berhasil:',error);
