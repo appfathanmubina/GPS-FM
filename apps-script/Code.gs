@@ -399,11 +399,11 @@ function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
   if (status < 200 || status >= 300) throw new Error('OneSignal HTTP ' + status + ': ' + body.slice(0,500));
   let parsed = {};
   try { parsed = JSON.parse(body); } catch (e) {}
-  if (parsed.errors && parsed.errors.length) throw new Error('OneSignal menolak pengiriman: ' + JSON.stringify(parsed.errors).slice(0,500));
+  if (parsed.errors && Object.keys(parsed.errors).length) throw new Error('OneSignal menolak pengiriman: ' + JSON.stringify(parsed.errors).slice(0,500));
   return parsed;
 }
 
-/** Trigger 15 menit: hanya kegiatan hari ini pada 20 menit sejak jam mulai. */
+/** Trigger 15 menit: hanya kegiatan hari ini pada 30 menit sejak jam mulai. */
 function gpsfmRunScheduledPushNotifications() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return {ok:false,skipped:'another-run'};
@@ -466,7 +466,7 @@ function gpsfmRunScheduledPushNotifications() {
     activities.forEach(function(activity) {
       const activityId = String(activity.activityId), startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
       if (startMinute === null) { results.skippedNoTime++; return; }
-      if (nowMinute < startMinute || nowMinute >= startMinute + 20) return;
+      if (nowMinute < startMinute || nowMinute >= startMinute + 30) return;
       if (['holiday','cancelled'].indexOf(exceptions[activityId] || 'scheduled') >= 0) return;
 
       const teachers = {};
