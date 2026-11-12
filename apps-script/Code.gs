@@ -324,6 +324,193 @@ function apiLogout(token) {
   return {ok:true};
 }
 
+
+/* OneSignal Web Push — langganan perangkat dan pengiriman berdasarkan jadwal aktual. */
+const GPSFM_ONESIGNAL_APP_ID = '28faec3d-9ee1-45a0-9234-4a5922ce4f1a';
+const GPSFM_PUSH_SUBSCRIPTION_HEADERS = ['subscriptionId','userId','active','deviceLabel','createdAt','updatedAt','lastSeenAt'];
+const GPSFM_PUSH_DELIVERY_HEADERS = ['dedupeKey','activityId','occurrenceDate','recipientUserId','notificationType','subscriptionIdsJson','status','response','createdAt'];
+
+function gpsfmEnsurePushSheets_() {
+  const ss = gpsfmDb_();
+  [
+    ['PushSubscriptions', GPSFM_PUSH_SUBSCRIPTION_HEADERS],
+    ['PushDeliveryLog', GPSFM_PUSH_DELIVERY_HEADERS]
+  ].forEach(function(def) {
+    let sh = ss.getSheetByName(def[0]);
+    if (!sh) {
+      sh = ss.insertSheet(def[0]);
+      sh.getRange(1,1,1,def[1].length).setValues([def[1]]);
+      sh.setFrozenRows(1);
+      sh.getRange(1,1,1,def[1].length).setFontWeight('bold');
+      return;
+    }
+    const current = sh.getLastRow() ? sh.getRange(1,1,1,Math.max(sh.getLastColumn(),def[1].length)).getDisplayValues()[0] : [];
+    const missing = def[1].filter(function(h) { return current.indexOf(h) < 0; });
+    if (missing.length) throw new Error('Struktur sheet ' + def[0] + ' tidak sesuai. Kolom hilang: ' + missing.join(', '));
+  });
+}
+
+function apiRegisterPushSubscription(token, subscriptionId, deviceLabel) {
+  const session = gpsfmSession_(token);
+  subscriptionId = gpsfmText_(subscriptionId,100);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subscriptionId)) {
+    throw new Error('ID langganan OneSignal tidak valid.');
+  }
+  gpsfmEnsurePushSheets_();
+  const rows = gpsfmRows_('PushSubscriptions');
+  const old = rows.find(function(r) { return String(r.subscriptionId) === subscriptionId; });
+  const now = gpsfmNow_();
+  const values = {subscriptionId:subscriptionId,userId:String(session.user.userId),active:true,
+    deviceLabel:gpsfmText_(deviceLabel,180),updatedAt:now,lastSeenAt:now};
+  if (old) gpsfmUpdateRow_('PushSubscriptions',old._row,values);
+  else {
+    values.createdAt = now;
+    gpsfmAppend_('PushSubscriptions',values);
+  }
+  return {ok:true,registered:true};
+}
+
+function apiUnregisterPushSubscription(token, subscriptionId) {
+  const session = gpsfmSession_(token);
+  subscriptionId = gpsfmText_(subscriptionId,100);
+  gpsfmEnsurePushSheets_();
+  const old = gpsfmRows_('PushSubscriptions').find(function(r) {
+    return String(r.subscriptionId) === subscriptionId && String(r.userId) === String(session.user.userId) && gpsfmBool_(r.active);
+  });
+  if (old) gpsfmUpdateRow_('PushSubscriptions',old._row,{active:false,updatedAt:gpsfmNow_()});
+  return {ok:true,unregistered:!!old};
+}
+
+function gpsfmPushDeliveryKey_(activityId,date,userId,type,subscriptionId) {
+  return [type,activityId,date,userId,subscriptionId].join('|');
+}
+
+function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('ONESIGNAL_REST_API_KEY');
+  if (!apiKey) throw new Error('Script Property ONESIGNAL_REST_API_KEY belum diatur.');
+  if (!subscriptionIds.length) return {};
+  const response = UrlFetchApp.fetch('https://api.onesignal.com/notifications', {
+    method:'post',contentType:'application/json',headers:{Authorization:'Key ' + apiKey},
+    payload:JSON.stringify({app_id:GPSFM_ONESIGNAL_APP_ID,include_subscription_ids:subscriptionIds,
+      headings:{en:title,id:title},contents:{en:message,id:message},data:data || {}}),
+    muteHttpExceptions:true
+  });
+  const status = response.getResponseCode(), body = response.getContentText();
+  if (status < 200 || status >= 300) throw new Error('OneSignal HTTP ' + status + ': ' + body.slice(0,500));
+  let parsed = {};
+  try { parsed = JSON.parse(body); } catch (e) {}
+  if (parsed.errors && parsed.errors.length) throw new Error('OneSignal menolak pengiriman: ' + JSON.stringify(parsed.errors).slice(0,500));
+  return parsed;
+}
+
+/** Trigger 15 menit: hanya kegiatan hari ini pada 20 menit sejak jam mulai. */
+function gpsfmRunScheduledPushNotifications() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return {ok:false,skipped:'another-run'};
+  try {
+    gpsfmEnsurePushSheets_();
+    const now = new Date(), today = Utilities.formatDate(now,'Asia/Jakarta','yyyy-MM-dd');
+    const nowMinute = Number(Utilities.formatDate(now,'Asia/Jakarta','HH')) * 60 + Number(Utilities.formatDate(now,'Asia/Jakarta','mm'));
+    const weekday = gpsfmWeekdayName_(today);
+    const activities = gpsfmRows_('Activities').filter(function(a) {
+      return gpsfmBool_(a.active) && gpsfmParseScheduleDays_(a.schedule).indexOf(weekday) >= 0;
+    });
+    const activeUsers = {};
+    gpsfmRows_('Users').forEach(function(u) { if (gpsfmBool_(u.active)) activeUsers[String(u.userId)] = u; });
+    const teacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(a) { return gpsfmBool_(a.active); });
+    const pjAssignments = gpsfmRows_('ActivityPJ').filter(function(a) { return gpsfmBool_(a.active); });
+    const attendanceDone = {};
+    gpsfmRows_('Attendance').forEach(function(a) { attendanceDone[String(a.activityId)+'|'+gpsfmDateKey_(a.attendanceDate)] = true; });
+    const exceptions = {};
+    gpsfmEnsureOccurrenceSheet_();
+    gpsfmRows_('ActivityOccurrences').forEach(function(o) {
+      if (gpsfmDateKey_(o.occurrenceDate) === today) exceptions[String(o.activityId)] = String(o.status || 'scheduled');
+    });
+    const subscriptionsByUser = {};
+    gpsfmRows_('PushSubscriptions').forEach(function(p) {
+      if (gpsfmBool_(p.active) && activeUsers[String(p.userId)]) {
+        if (!subscriptionsByUser[String(p.userId)]) subscriptionsByUser[String(p.userId)] = [];
+        subscriptionsByUser[String(p.userId)].push(String(p.subscriptionId));
+      }
+    });
+    const sent = {};
+    gpsfmRows_('PushDeliveryLog').forEach(function(r) { if (String(r.status) === 'sent') sent[String(r.dedupeKey)] = true; });
+    const results = {activitiesChecked:activities.length,teacherNotifications:0,pjNotifications:0,failed:0,skippedNoTime:0};
+    const pendingLogs = [];
+
+    function deliver(activity,type,userIds,title,message) {
+      const ids = [], keys = [];
+      userIds.forEach(function(userId) {
+        (subscriptionsByUser[String(userId)] || []).forEach(function(subscriptionId) {
+          const key = gpsfmPushDeliveryKey_(activity.activityId,today,userId,type,subscriptionId);
+          if (!sent[key]) { ids.push(subscriptionId); keys.push({key:key,userId:String(userId),subscriptionId:subscriptionId}); }
+        });
+      });
+      if (!ids.length) return;
+      let status = 'sent', detail = 'accepted';
+      try {
+        gpsfmSendOneSignal_(ids,title,message,{type:type,activityId:String(activity.activityId),date:today,url:'https://appfathanmubina.github.io/GPS/'});
+      } catch (error) {
+        status = 'failed'; detail = String(error.message || error).slice(0,500); results.failed++;
+      }
+      keys.forEach(function(item) {
+        if (status === 'sent') sent[item.key] = true;
+        pendingLogs.push({dedupeKey:item.key,activityId:String(activity.activityId),occurrenceDate:today,
+          recipientUserId:item.userId,notificationType:type,subscriptionIdsJson:JSON.stringify([item.subscriptionId]),
+          status:status,response:detail,createdAt:gpsfmNow_()});
+      });
+      if (status === 'sent' && type === 'activity') results.teacherNotifications += keys.length;
+      if (status === 'sent' && type === 'attendance') results.pjNotifications += keys.length;
+    }
+
+    activities.forEach(function(activity) {
+      const activityId = String(activity.activityId), startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
+      if (startMinute === null) { results.skippedNoTime++; return; }
+      if (nowMinute < startMinute || nowMinute >= startMinute + 20) return;
+      if (['holiday','cancelled'].indexOf(exceptions[activityId] || 'scheduled') >= 0) return;
+
+      const teachers = {};
+      teacherAssignments.forEach(function(a) {
+        const id = String(a.teacherId), user = activeUsers[id];
+        if (String(a.activityId) === activityId && user && gpsfmIsParticipantRole_(user.role)) teachers[id] = true;
+      });
+      const teacherIds = Object.keys(teachers);
+      if (teacherIds.length) deliver(activity,'activity',teacherIds,'Pengingat Kegiatan GPS FM',
+        'Kegiatan ' + String(activity.name || 'GPS FM') + ' terjadwal hari ini. Silakan buka GPS FM untuk melihat informasi kegiatan.');
+
+      if (!attendanceDone[activityId+'|'+today]) {
+        const pjs = {};
+        pjAssignments.forEach(function(a) {
+          const id = String(a.userId);
+          if (String(a.activityId) === activityId && activeUsers[id]) pjs[id] = true;
+        });
+        const pjIds = Object.keys(pjs);
+        if (pjIds.length) deliver(activity,'attendance',pjIds,'Pengingat Input Absensi GPS FM',
+          'Anda bertugas sebagai PJ kegiatan ' + String(activity.name || 'GPS FM') + '. Mohon input absensi pada GPS FM.');
+      }
+    });
+
+    if (pendingLogs.length) {
+      const sh = gpsfmSheet_('PushDeliveryLog'), headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+      const rows = pendingLogs.map(function(obj) { return headers.map(function(h) { return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; }); });
+      sh.getRange(sh.getLastRow()+1,1,rows.length,headers.length).setValues(rows);
+    }
+    return results;
+  } finally { lock.releaseLock(); }
+}
+
+function setupGpsFmPushNotifications() {
+  gpsfmEnsurePushSheets_();
+  if (!PropertiesService.getScriptProperties().getProperty('ONESIGNAL_REST_API_KEY')) {
+    throw new Error('Atur Script Property ONESIGNAL_REST_API_KEY terlebih dahulu. Gunakan REST API Key OneSignal, bukan App ID.');
+  }
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'gpsfmRunScheduledPushNotifications') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('gpsfmRunScheduledPushNotifications').timeBased().everyMinutes(15).create();
+  return {ok:true,intervalMinutes:15,sheets:['PushSubscriptions','PushDeliveryLog']};
+}
+
 function apiGetBootstrap(token) {
   const s = gpsfmSession_(token, true), u = s.user;
   const canSeeAllActivities = ['superadmin','supervisor','admin_administrasi'].indexOf(String(u.role)) >= 0;
