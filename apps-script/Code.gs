@@ -505,6 +505,107 @@ function gpsfmRunScheduledPushNotifications() {
   } finally { lock.releaseLock(); }
 }
 
+/**
+ * Pemeriksaan penerima push tanpa mengirim notifikasi.
+ * Hanya dapat dijalankan oleh pemilik/editor project dari Apps Script editor.
+ */
+function previewGpsFmPushRecipients() {
+  const activeEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  const effectiveEmail = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  if (!activeEmail || !effectiveEmail || activeEmail !== effectiveEmail) {
+    throw new Error('Preview ini hanya dapat dijalankan langsung oleh pemilik project dari Apps Script editor.');
+  }
+
+  gpsfmEnsurePushSheets_();
+  const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  const weekday = gpsfmWeekdayName_(today);
+  const now = new Date();
+  const nowMinute = Number(Utilities.formatDate(now, 'Asia/Jakarta', 'HH')) * 60 +
+    Number(Utilities.formatDate(now, 'Asia/Jakarta', 'mm'));
+  const users = {};
+  gpsfmRows_('Users').forEach(function(u) {
+    if (gpsfmBool_(u.active)) users[String(u.userId)] = u;
+  });
+  const subscriptions = {};
+  gpsfmRows_('PushSubscriptions').forEach(function(p) {
+    if (gpsfmBool_(p.active) && users[String(p.userId)]) {
+      const id = String(p.userId);
+      subscriptions[id] = (subscriptions[id] || 0) + 1;
+    }
+  });
+  const attendance = {};
+  gpsfmRows_('Attendance').forEach(function(a) {
+    const key = String(a.activityId) + '|' + gpsfmDateKey_(a.attendanceDate);
+    if (!attendance[key]) attendance[key] = {};
+    attendance[key][String(a.teacherId)] = true;
+  });
+  const exceptions = {};
+  gpsfmEnsureOccurrenceSheet_();
+  gpsfmRows_('ActivityOccurrences').forEach(function(o) {
+    if (gpsfmDateKey_(o.occurrenceDate) === today) {
+      exceptions[String(o.activityId)] = String(o.status || 'scheduled');
+    }
+  });
+  const teacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(a) { return gpsfmBool_(a.active); });
+  const pjAssignments = gpsfmRows_('ActivityPJ').filter(function(a) { return gpsfmBool_(a.active); });
+  const report = {
+    date: today,
+    weekday: weekday,
+    generatedAt: Utilities.formatDate(now, 'Asia/Jakarta', 'yyyy-MM-dd HH:mm:ss'),
+    triggerHandlers: ScriptApp.getProjectTriggers().map(function(t) { return t.getHandlerFunction(); }),
+    activities: []
+  };
+
+  gpsfmRows_('Activities').forEach(function(activity) {
+    if (!gpsfmBool_(activity.active) ||
+        gpsfmParseScheduleDays_(activity.schedule).indexOf(weekday) < 0) return;
+    const activityId = String(activity.activityId);
+    const startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
+    const occurrenceStatus = exceptions[activityId] || 'scheduled';
+    const cancelled = ['holiday', 'cancelled'].indexOf(occurrenceStatus) >= 0;
+    const withinWindow = startMinute !== null && nowMinute >= startMinute && nowMinute < startMinute + 30;
+    const teacherMap = {};
+    teacherAssignments.forEach(function(a) {
+      const id = String(a.teacherId), user = users[id];
+      if (String(a.activityId) === activityId && user && gpsfmIsParticipantRole_(user.role)) {
+        teacherMap[id] = user;
+      }
+    });
+    const teacherIds = Object.keys(teacherMap);
+    const recorded = attendance[activityId + '|' + today] || {};
+    const missingTeacherIds = teacherIds.filter(function(id) { return !recorded[id]; });
+    const pjMap = {};
+    if (teacherIds.length && missingTeacherIds.length && !cancelled) {
+      pjAssignments.forEach(function(a) {
+        const id = String(a.userId), user = users[id];
+        if (String(a.activityId) === activityId && user) pjMap[id] = user;
+      });
+    }
+    function recipientList(map) {
+      return Object.keys(map).map(function(id) {
+        return {
+          fullName: String(map[id].fullName || map[id].username || id),
+          role: String(map[id].role || ''),
+          activeSubscriptions: subscriptions[id] || 0
+        };
+      }).sort(function(a, b) { return a.fullName.localeCompare(b.fullName); });
+    }
+    report.activities.push({
+      activityName: String(activity.name || activityId),
+      schedule: String(activity.schedule || ''),
+      startTime: startMinute === null ? null : ('0' + Math.floor(startMinute / 60)).slice(-2) + ':' + ('0' + (startMinute % 60)).slice(-2),
+      withinReminderWindow: withinWindow,
+      occurrenceStatus: occurrenceStatus,
+      skippedBecause: cancelled ? 'occurrence-' + occurrenceStatus : (startMinute === null ? 'schedule-time-not-found' : ''),
+      assignedTeachers: recipientList(teacherMap),
+      teachersMissingAttendance: missingTeacherIds.length,
+      assignedPJsEligibleForReminder: recipientList(pjMap)
+    });
+  });
+  Logger.log(JSON.stringify(report, null, 2));
+  return report;
+}
+
 function setupGpsFmPushNotifications() {
   gpsfmEnsurePushSheets_();
   if (!PropertiesService.getScriptProperties().getProperty('ONESIGNAL_REST_API_KEY')) {
