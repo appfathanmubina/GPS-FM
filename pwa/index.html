@@ -15,6 +15,7 @@
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   var gpsfmAppFrame = null;
   let gpsfmAppFrameOrigin = '';
+  let gpsfmAppFrameWindow = null;
   function gpsfmIsTrustedAppsScriptOrigin(origin) {
     return origin === 'https://script.google.com' || /^https:\/\/[^/]+\.googleusercontent\.com$/.test(String(origin || ''));
   }
@@ -40,11 +41,11 @@
   }
   function gpsfmNotifyAppPushState(state,message) {
     try {
-      if (gpsfmAppFrame && gpsfmAppFrame.contentWindow && gpsfmAppFrameOrigin) gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-state',state:String(state||'idle'),message:String(message||'')},gpsfmAppFrameOrigin);
+      if (gpsfmAppFrameWindow && gpsfmAppFrameOrigin) gpsfmAppFrameWindow.postMessage({type:'gpsfm-push-state',state:String(state||'idle'),message:String(message||'')},gpsfmAppFrameOrigin);
     } catch (error) {}
   }
   function gpsfmSendSubscriptionToApp() {
-    if (!gpsfmAppFrame || !gpsfmAppFrame.contentWindow || !gpsfmOneSignalInstance || !gpsfmPendingExternalUserId) return false;
+    if (!gpsfmAppFrame || !gpsfmAppFrameWindow || !gpsfmOneSignalInstance || !gpsfmPendingExternalUserId) return false;
     const pushSubscription = gpsfmOneSignalInstance.User.PushSubscription;
     // Jangan daftarkan ID lama/perangkat yang sudah opt-out sebagai subscription aktif.
     if (pushSubscription.optedIn !== true) return false;
@@ -53,7 +54,7 @@
     // ID tanpa token belum membuktikan endpoint push siap menerima pesan.
     if (!subscriptionId || !pushToken) return false;
     if (!gpsfmAppFrameOrigin) return false;
-    gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, gpsfmAppFrameOrigin);
+    gpsfmAppFrameWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, gpsfmAppFrameOrigin);
     return true;
   }
   function gpsfmRequestPushRegistration() {
@@ -82,10 +83,15 @@
   }
   window.addEventListener('message', async function(event) {
     if (!gpsfmAppFrame || !gpsfmIsTrustedAppsScriptOrigin(event.origin)) return;
-    // HtmlService dapat menempatkan halaman aplikasi di frame bersarang.
-    // Validasi origin Google dan gunakan origin aktual untuk balasan, bukan '*'.
-    gpsfmAppFrameOrigin = event.origin;
     const data = event.data || {};
+    const knownTypes = ['gpsfm-auth','gpsfm-push-registration-result','gpsfm-enable-push','gpsfm-disable-push','gpsfm-logout'];
+    if (knownTypes.indexOf(String(data.type || '')) < 0) return;
+    // Simpan WindowProxy frame Apps Script yang benar-benar mengirim handshake.
+    // HtmlService dapat membungkus aplikasi dalam frame bersarang; membalas ke
+    // iframe terluar tidak menjangkau halaman Apps Script di dalamnya.
+    if (!gpsfmAppFrameWindow || data.type === 'gpsfm-auth') gpsfmAppFrameWindow = event.source;
+    if (event.source !== gpsfmAppFrameWindow) return;
+    gpsfmAppFrameOrigin = event.origin;
     if (data.type === 'gpsfm-auth' && data.userId) {
       gpsfmPendingExternalUserId = String(data.userId);
       gpsfmPushRegistrationAckId = '';
