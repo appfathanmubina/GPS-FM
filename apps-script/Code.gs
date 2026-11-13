@@ -403,7 +403,7 @@ function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
   return parsed;
 }
 
-/** Trigger 15 menit: hanya kegiatan hari ini pada 30 menit sejak jam mulai. */
+/** Trigger setiap menit: pengingat kegiatan sebelum jadwal dan pengingat absensi setelah mulai. */
 function gpsfmRunScheduledPushNotifications() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return {ok:false,skipped:'another-run'};
@@ -472,7 +472,6 @@ function gpsfmRunScheduledPushNotifications() {
     activities.forEach(function(activity) {
       const activityId = String(activity.activityId), startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
       if (startMinute === null) { results.skippedNoTime++; return; }
-      if (nowMinute < startMinute || nowMinute >= startMinute + 30) return;
       const occurrenceStatus = String((occurrencesByActivity[activityId] || {}).status || 'scheduled');
       if (['holiday','cancelled'].indexOf(occurrenceStatus) >= 0) return;
 
@@ -501,12 +500,17 @@ function gpsfmRunScheduledPushNotifications() {
       // Daftar roster tetap dipisahkan agar pemeriksaan kelengkapan absensi akurat.
       const activityRecipients = Object.assign({}, teachers, pjs);
       const activityRecipientIds = Object.keys(activityRecipients);
-      if (activityRecipientIds.length) deliver(activity,'activity',activityRecipientIds,'Pengingat Kegiatan GPS FM',
-        'Kegiatan ' + String(activity.name || 'GPS FM') + ' terjadwal hari ini. Silakan buka GPS FM untuk melihat jadwal dan penugasan Anda.');
+      // Lima menit sebelum jadwal. Jendela ini mengantisipasi trigger yang berjalan sedikit terlambat;
+      // dedupe berdasarkan kegiatan/tanggal/penerima memastikan hanya satu notifikasi terkirim.
+      if (nowMinute >= startMinute - 5 && nowMinute < startMinute && activityRecipientIds.length) {
+        deliver(activity,'activity',activityRecipientIds,'Pengingat Kegiatan GPS FM',
+          'Kegiatan ' + String(activity.name || 'GPS FM') + ' akan dimulai 5 menit lagi. Silakan bersiap dan buka GPS FM untuk melihat penugasan Anda.');
+      }
 
+      // Pertahankan pengingat absensi kepada PJ selama 30 menit pertama setelah kegiatan dimulai.
       const recordedTeachers = attendanceByActivityDate[activityId+'|'+today] || {};
       const hasMissingAttendance = teacherIds.some(function(teacherId) { return !recordedTeachers[teacherId]; });
-      if (teacherIds.length && hasMissingAttendance) {
+      if (nowMinute >= startMinute && nowMinute < startMinute + 30 && teacherIds.length && hasMissingAttendance) {
         const pjIds = Object.keys(pjs);
         if (pjIds.length) deliver(activity,'attendance',pjIds,'Pengingat Input Absensi GPS FM',
           'Anda bertugas sebagai PJ kegiatan ' + String(activity.name || 'GPS FM') + '. Masih ada absensi guru yang belum lengkap. Mohon lengkapi input absensi pada GPS FM.');
