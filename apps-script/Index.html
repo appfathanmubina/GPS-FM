@@ -874,7 +874,7 @@ async function loadTodaySchedule(root){
   if(currentPage!=='dashboard'||!root.isConnected)return;
   if(dateLabel)dateLabel.textContent=data.weekday+' · '+data.date;
   state.innerHTML=data.activities.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Status</th></tr></thead><tbody>'+data.activities.map(a=>{
-   const status=a.status==='Sudah'?'<span class="pill Hadir">✓ Sudah</span>':a.status==='Libur'?'<span class="pill Izin">Libur</span>':a.status==='Dibatalkan'?'<span class="pill Izin">Dibatalkan</span>':'<span class="pill Alpa">Belum</span>';
+   const status=a.status==='Sudah'||a.status==='Lengkap'?'<span class="pill Hadir">✓ '+(a.status==='Lengkap'?'Lengkap':'Sudah')+'</span>':a.status==='Libur'?'<span class="pill Izin">Libur</span>':a.status==='Dibatalkan'?'<span class="pill Izin">Dibatalkan</span>':a.status==='Belum Lengkap'?'<span class="pill Izin">Belum Lengkap</span>':'<span class="pill Alpa">Belum</span>';
    return '<tr><td><b>'+esc(a.name)+'</b>'+(a.reason?'<div class="small muted">'+esc(a.reason)+'</div>':'')+'</td><td>'+status+'</td></tr>';
   }).join('')+'</tbody></table></div>':'<div class="empty">Tidak ada kegiatan yang terjadwal hari ini.</div>';
  }catch(e){
