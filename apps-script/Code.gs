@@ -1484,7 +1484,7 @@ function apiGetMyActivityAchievement(token) {
     const dates = Object.keys(meetingDates).sort();
     let attended = 0, sick = 0, duty = 0, leave = 0, absent = 0, unrecorded = 0;
     dates.forEach(function(date) {
-      const raw = String(attendanceByKey[id + '|' + date] || '').trim().replace(/^[A-D][.]\\s*/i, '').toLowerCase().replace(/\\s+/g, ' ');
+      const raw = String(attendanceByKey[id + '|' + date] || '').trim().replace(/^[A-D][.]\s*/i, '').toLowerCase().replace(/\s+/g, ' ');
       if (!raw) { unrecorded++; return; }
       if (raw === 'hadir') attended++;
       else if (raw === 'sakit') sick++;
