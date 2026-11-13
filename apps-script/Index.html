@@ -545,6 +545,24 @@ body{touch-action:auto}
 }
 @media(prefers-reduced-motion:reduce){.profile-popover{animation:none}.wrap,#appScreen .nav{transition:none!important}}
 
+/* GPS FM: keep the application header visible while page content scrolls */
+#appScreen .topbar{
+  position:fixed!important;
+  top:0!important;
+  left:0!important;
+  right:0!important;
+  width:100%;
+  z-index:100!important;
+}
+@media(min-width:781px){
+  #appScreen .wrap{padding-top:98px!important}
+}
+@media(max-width:780px){
+  #appScreen .topbar{min-height:62px}
+  #appScreen .wrap,
+  body.embedded-app #appScreen .wrap{padding-top:80px!important}
+}
+
 </style>
 </head>
 <body>
@@ -1233,21 +1251,3 @@ const rememberedUsername=gpsfmStorageGet(localStorage,gpsfmRememberUsernameKey);
 </script>
 </body>
 </html>
-
-/* GPS FM: keep the application header visible while page content scrolls */
-#appScreen .topbar{
-  position:fixed!important;
-  top:0!important;
-  left:0!important;
-  right:0!important;
-  width:100%;
-  z-index:100!important;
-}
-@media(min-width:781px){
-  #appScreen .wrap{padding-top:98px!important}
-}
-@media(max-width:780px){
-  #appScreen .topbar{min-height:62px}
-  #appScreen .wrap,
-  body.embedded-app #appScreen .wrap{padding-top:80px!important}
-}
