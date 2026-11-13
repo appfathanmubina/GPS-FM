@@ -437,10 +437,16 @@ function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
   const apiKey = PropertiesService.getScriptProperties().getProperty('ONESIGNAL_REST_API_KEY');
   if (!apiKey) throw new Error('Script Property ONESIGNAL_REST_API_KEY belum diatur.');
   if (!subscriptionIds.length) return {};
+  const notificationPayload = {
+    app_id:GPSFM_ONESIGNAL_APP_ID,include_subscription_ids:subscriptionIds,
+    headings:{en:title,id:title},contents:{en:message,id:message},data:data || {}
+  };
+  // OneSignal hanya membuka halaman tujuan jika URL dikirim pada properti top-level,
+  // bukan sekadar disisipkan ke custom data.
+  if (data && data.url) notificationPayload.url = String(data.url);
   const response = UrlFetchApp.fetch('https://api.onesignal.com/notifications', {
     method:'post',contentType:'application/json',headers:{Authorization:'Key ' + apiKey},
-    payload:JSON.stringify({app_id:GPSFM_ONESIGNAL_APP_ID,include_subscription_ids:subscriptionIds,
-      headings:{en:title,id:title},contents:{en:message,id:message},data:data || {}}),
+    payload:JSON.stringify(notificationPayload),
     muteHttpExceptions:true
   });
   const status = response.getResponseCode(), body = response.getContentText();
