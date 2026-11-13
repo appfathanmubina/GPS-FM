@@ -66,11 +66,11 @@
       if (gpsfmPushRegistrationAckId) return;
       gpsfmPushRegistrationAttempts++;
       const sent = gpsfmSendSubscriptionToApp();
-      if (gpsfmPushRegistrationAttempts < 30) {
+      if (gpsfmPushRegistrationAttempts < 90) {
         gpsfmPushRegistrationTimer = setTimeout(attempt, sent ? 1500 : 1000);
       } else {
-        if (!sent) console.warn('GPS FM: ID subscription OneSignal belum tersedia setelah 30 percobaan.');
-        else console.warn('GPS FM: Apps Script belum mengonfirmasi penyimpanan subscription setelah 30 percobaan.');
+        if (!sent) console.warn('GPS FM: ID subscription OneSignal belum tersedia setelah 90 percobaan.');
+        else console.warn('GPS FM: Apps Script belum mengonfirmasi penyimpanan subscription setelah 90 percobaan.');
         gpsfmNotifyAppPushState('error','Subscription belum berhasil terhubung ke akun GPS FM. Periksa izin notifikasi, lalu tekan Aktifkan Notifikasi untuk mencoba lagi.');
       }
     };
