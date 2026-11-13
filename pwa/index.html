@@ -14,6 +14,10 @@
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   var gpsfmAppFrame = null;
+  let gpsfmAppFrameOrigin = '';
+  function gpsfmIsTrustedAppsScriptOrigin(origin) {
+    return origin === 'https://script.google.com' || /^https:\/\/[^/]+\.googleusercontent\.com$/.test(String(origin || ''));
+  }
   let gpsfmPendingExternalUserId = '';
   let gpsfmOneSignalInstance = null;
   let gpsfmPushRegistrationTimer = null;
@@ -36,7 +40,7 @@
   }
   function gpsfmNotifyAppPushState(state,message) {
     try {
-      if (gpsfmAppFrame && gpsfmAppFrame.contentWindow) gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-state',state:String(state||'idle'),message:String(message||'')},'*');
+      if (gpsfmAppFrame && gpsfmAppFrame.contentWindow && gpsfmAppFrameOrigin) gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-state',state:String(state||'idle'),message:String(message||'')},gpsfmAppFrameOrigin);
     } catch (error) {}
   }
   function gpsfmSendSubscriptionToApp() {
@@ -46,7 +50,8 @@
     if (pushSubscription.optedIn !== true) return false;
     const subscriptionId = pushSubscription.id;
     if (!subscriptionId) return false;
-    gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, '*');
+    if (!gpsfmAppFrameOrigin) return false;
+    gpsfmAppFrame.contentWindow.postMessage({type:'gpsfm-push-subscription',subscriptionId:String(subscriptionId)}, gpsfmAppFrameOrigin);
     return true;
   }
   function gpsfmRequestPushRegistration() {
@@ -72,8 +77,10 @@
     attempt();
   }
   window.addEventListener('message', async function(event) {
-    if (!gpsfmAppFrame || event.source !== gpsfmAppFrame.contentWindow) return;
-    if (!(event.origin === 'https://script.google.com' || /^https:\/\/[^/]+\.googleusercontent\.com$/.test(event.origin))) return;
+    if (!gpsfmAppFrame || !gpsfmIsTrustedAppsScriptOrigin(event.origin)) return;
+    // HtmlService dapat menempatkan halaman aplikasi di frame bersarang.
+    // Validasi origin Google dan gunakan origin aktual untuk balasan, bukan '*'.
+    gpsfmAppFrameOrigin = event.origin;
     const data = event.data || {};
     if (data.type === 'gpsfm-auth' && data.userId) {
       gpsfmPendingExternalUserId = String(data.userId);
@@ -299,6 +306,7 @@ section{max-width:640px;margin:10vh auto;background:white;padding:24px;border-ra
 <script>
 const u=window.GPSFM_CONFIG&&window.GPSFM_CONFIG.appsScriptUrl;
 gpsfmAppFrame=null;
+gpsfmAppFrameOrigin='';
 if(u&&u.indexOf('https://script.google.com/macros/s/')===0){
  const f=document.createElement('iframe');
  gpsfmAppFrame=f;
