@@ -1410,6 +1410,99 @@ function apiGetTodayScheduledActivities(token) {
     }).sort(function(a,b) { return a.name.localeCompare(b.name); })
   };
 }
+/**
+ * Ringkasan pencapaian kehadiran seluruh kegiatan yang diikuti akun aktif.
+ * Data selalu dibatasi pada userId dari sesi; role lain tidak dapat meminta
+ * data guru lain melalui parameter.
+ */
+function apiGetMyActivityAchievement(token) {
+  const s = gpsfmSession_(token), userId = String(s.user.userId);
+  const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  const nowJakarta = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm');
+  const activities = gpsfmRows_('Activities'), activityMap = {};
+  activities.forEach(function(a) { activityMap[String(a.activityId)] = a; });
+  const assignments = gpsfmRows_('ActivityTeachers').filter(function(row) { return String(row.teacherId) === userId; });
+  const assignedByActivity = {};
+  assignments.forEach(function(row) {
+    const id = String(row.activityId);
+    if (!assignedByActivity[id]) assignedByActivity[id] = [];
+    assignedByActivity[id].push(row);
+  });
+  const occurrenceByKey = {};
+  gpsfmEnsureOccurrenceSheet_();
+  gpsfmRows_('ActivityOccurrences').forEach(function(row) {
+    const key = String(row.activityId) + '|' + gpsfmDateKey_(row.occurrenceDate);
+    if (!occurrenceByKey[key]) occurrenceByKey[key] = row;
+  });
+  const attendanceByKey = {};
+  gpsfmRows_('Attendance').forEach(function(row) {
+    if (String(row.teacherId) === userId) attendanceByKey[String(row.activityId) + '|' + gpsfmDateKey_(row.attendanceDate)] = String(row.status || '');
+  });
+  function dueByToday(date, schedule) {
+    if (date < today) return true;
+    if (date > today) return false;
+    const minutes = gpsfmScheduleStartMinutes_(schedule);
+    return minutes !== null && nowJakarta >= gpsfmScheduledDueKey_(schedule, date);
+  }
+  function addMeeting(date, id, set, schedule) {
+    if (!date || date > today || !dueByToday(date, schedule)) return;
+    const occurrence = occurrenceByKey[id + '|' + date];
+    if (occurrence && ['holiday','cancelled'].indexOf(String(occurrence.status || '').toLowerCase()) >= 0) return;
+    set[date] = true;
+  }
+  const result = [];
+  Object.keys(assignedByActivity).forEach(function(id) {
+    const activity = activityMap[id];
+    if (!activity) return;
+    const schedule = String(activity.schedule || ''), days = gpsfmParseScheduleDays_(schedule);
+    if (!days.length) return;
+    const meetingDates = {};
+    // Snapshot roster menjaga riwayat guru meskipun penugasan kemudian diubah.
+    Object.keys(occurrenceByKey).forEach(function(key) {
+      if (key.indexOf(id + '|') !== 0) return;
+      const occurrence = occurrenceByKey[key];
+      let ids = [];
+      try { ids = JSON.parse(String(occurrence.teacherIdsJson || '[]')); } catch (e) {}
+      const date = key.slice(id.length + 1);
+      if (Array.isArray(ids) && ids.map(String).indexOf(userId) >= 0 && days.indexOf(gpsfmWeekdayName_(date)) >= 0) {
+        addMeeting(date, id, meetingDates, schedule);
+      }
+    });
+    // Lengkapi jadwal sejak tanggal penugasan untuk penugasan yang masih aktif.
+    assignedByActivity[id].filter(function(row) { return gpsfmBool_(row.active); }).forEach(function(row) {
+      const assignedAt = gpsfmDateKey_(row.assignedAt) || gpsfmDateKey_(activity.createdAt) || today;
+      const createdAt = gpsfmDateKey_(activity.createdAt) || assignedAt;
+      const cursor = gpsfmDateFromKey_(assignedAt > createdAt ? assignedAt : createdAt);
+      const end = gpsfmDateFromKey_(today);
+      cursor.setUTCHours(12,0,0,0);
+      while (cursor <= end) {
+        const date = gpsfmDateKeyUTC_(cursor);
+        if (days.indexOf(gpsfmWeekdayName_(date)) >= 0) addMeeting(date, id, meetingDates, schedule);
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    });
+    const dates = Object.keys(meetingDates).sort();
+    let attended = 0, sick = 0, duty = 0, leave = 0, absent = 0, unrecorded = 0;
+    dates.forEach(function(date) {
+      const raw = String(attendanceByKey[id + '|' + date] || '').trim().replace(/^[A-D][.]\\s*/i, '').toLowerCase().replace(/\\s+/g, ' ');
+      if (!raw) { unrecorded++; return; }
+      if (raw === 'hadir') attended++;
+      else if (raw === 'sakit') sick++;
+      else if (raw === 'tugas' || raw === 'tugas pondok') duty++;
+      else if (raw === 'izin' || raw === 'izin pribadi') leave++;
+      else if (raw === 'alpa' || raw === 'alfa') absent++;
+      else unrecorded++;
+    });
+    const total = dates.length;
+    result.push({activityId:id,activityName:String(activity.name || ''),totalMeetings:total,attended:attended,sick:sick,duty:duty,leave:leave,absent:absent,unrecorded:unrecorded,percentage:total ? Math.round(attended / total * 100) : 0});
+  });
+  result.sort(function(a,b) { return a.activityName.localeCompare(b.activityName); });
+  const totals = result.reduce(function(sum, item) {
+    sum.totalMeetings += item.totalMeetings; sum.attended += item.attended; return sum;
+  }, {totalMeetings:0,attended:0});
+  return {asOf:today,totalActivities:result.length,totalMeetings:totals.totalMeetings,attended:totals.attended,percentage:totals.totalMeetings ? Math.round(totals.attended / totals.totalMeetings * 100) : 0,activities:result};
+}
+
 function apiGetMonthlyReport(token, year, month) {
   const s = gpsfmSession_(token);
   year = Number(year); month = Number(month);
