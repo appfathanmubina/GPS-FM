@@ -1212,19 +1212,19 @@ function apiGetSupervisorDashboard(token) {
 
 function apiGetTodayScheduledActivities(token) {
   const s = gpsfmSession_(token);
-  const role = String(s.user.role);
+  const userId = String(s.user.userId), role = String(s.user.role);
   const canSeeAllActivities = ['superadmin','supervisor','admin_administrasi'].indexOf(role) >= 0;
-  const assignedActivityIds = {};
+  const teacherActivityIds = {}, pjActivityIds = {}, assignedActivityIds = {};
   if (!canSeeAllActivities) {
     gpsfmRows_('ActivityTeachers').forEach(function(item) {
-      if (String(item.teacherId) === String(s.user.userId) && gpsfmBool_(item.active)) {
+      if (String(item.teacherId) === userId && gpsfmBool_(item.active)) {
+        teacherActivityIds[String(item.activityId)] = true;
         assignedActivityIds[String(item.activityId)] = true;
       }
     });
-    // PJ kegiatan juga termasuk guru yang terlibat, meskipun penugasannya
-    // tercatat terpisah dari roster ActivityTeachers.
     gpsfmRows_('ActivityPJ').forEach(function(item) {
-      if (String(item.userId) === String(s.user.userId) && gpsfmBool_(item.active)) {
+      if (String(item.userId) === userId && gpsfmBool_(item.active)) {
+        pjActivityIds[String(item.activityId)] = true;
         assignedActivityIds[String(item.activityId)] = true;
       }
     });
@@ -1238,13 +1238,16 @@ function apiGetTodayScheduledActivities(token) {
       gpsfmParseScheduleDays_(a.schedule).indexOf(weekday) >= 0 &&
       (canSeeAllActivities || !!assignedActivityIds[id]);
   });
-
   const activityIds = {};
   activities.forEach(function(a) { activityIds[String(a.activityId)] = true; });
+
   const attendanceByActivity = {};
   gpsfmRows_('Attendance').forEach(function(row) {
     const id = String(row.activityId);
-    if (activityIds[id] && gpsfmDateKey_(row.attendanceDate) === today) attendanceByActivity[id] = true;
+    if (activityIds[id] && gpsfmDateKey_(row.attendanceDate) === today) {
+      if (!attendanceByActivity[id]) attendanceByActivity[id] = {};
+      attendanceByActivity[id][String(row.teacherId)] = true;
+    }
   });
 
   gpsfmEnsureOccurrenceSheet_();
@@ -1255,21 +1258,43 @@ function apiGetTodayScheduledActivities(token) {
       occurrenceByActivity[id] = row;
     }
   });
+  const activeTeacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(row) {
+    return gpsfmBool_(row.active) && activityIds[String(row.activityId)];
+  });
 
   return {
     date: today,
     weekday: weekday,
     activities: activities.map(function(a) {
-      const id = String(a.activityId);
-      const occurrence = occurrenceByActivity[id];
-      const saved = !!attendanceByActivity[id];
+      const id = String(a.activityId), occurrence = occurrenceByActivity[id];
       const exception = occurrence && String(occurrence.status || '') === 'holiday' ? 'Libur' :
         occurrence && String(occurrence.status || '') === 'cancelled' ? 'Dibatalkan' : '';
+      let rosterIds = activeTeacherAssignments.filter(function(row) {
+        return String(row.activityId) === id;
+      }).map(function(row) { return String(row.teacherId); });
+      if (occurrence && occurrence.teacherIdsJson) {
+        try {
+          const snapshotIds = JSON.parse(String(occurrence.teacherIdsJson));
+          if (Array.isArray(snapshotIds)) rosterIds = snapshotIds.map(String);
+        } catch (e) {}
+      }
+      rosterIds = rosterIds.filter(function(value,index,array) { return array.indexOf(value) === index; });
+      const recorded = attendanceByActivity[id] || {};
+      const ownTeacher = !!teacherActivityIds[id] || rosterIds.indexOf(userId) >= 0;
+      let status = 'Belum';
+      if (exception) status = exception;
+      else if (ownTeacher) status = recorded[userId] ? 'Sudah' : 'Belum';
+      else if (pjActivityIds[id] || canSeeAllActivities) {
+        const complete = rosterIds.length > 0 && rosterIds.every(function(teacherId) { return !!recorded[teacherId]; });
+        status = complete ? 'Lengkap' : 'Belum Lengkap';
+      }
       return {
         activityId: id,
         name: String(a.name || ''),
-        attendanceSaved: saved,
-        status: saved ? 'Sudah' : (exception || 'Belum'),
+        schedule: String(a.schedule || ''),
+        status: status,
+        attendanceCount: rosterIds.filter(function(teacherId) { return !!recorded[teacherId]; }).length,
+        teacherCount: rosterIds.length,
         reason: exception ? String(occurrence.reason || '') : ''
       };
     }).sort(function(a,b) { return a.name.localeCompare(b.name); })
