@@ -640,8 +640,8 @@ function setupGpsFmPushNotifications() {
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'gpsfmRunScheduledPushNotifications') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('gpsfmRunScheduledPushNotifications').timeBased().everyMinutes(15).create();
-  return {ok:true,intervalMinutes:15,sheets:['PushSubscriptions','PushDeliveryLog']};
+  ScriptApp.newTrigger('gpsfmRunScheduledPushNotifications').timeBased().everyMinutes(1).create();
+  return {ok:true,intervalMinutes:1,activityReminderMinutesBefore:5,sheets:['PushSubscriptions','PushDeliveryLog']};
 }
 
 function apiGetBootstrap(token) {
