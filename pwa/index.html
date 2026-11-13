@@ -37,7 +37,7 @@
   // OneSignal expects serviceWorkerPath relative to the site origin (without leading slash).
   // The native ServiceWorkerContainer.register() call below still uses the absolute URL.
   const gpsfmServiceWorkerUrl = gpsfmPwaBasePath + 'sw.js';
-  const gpsfmServiceWorkerPath = gpsfmServiceWorkerUrl.replace(/^\\/+/, '');
+  const gpsfmServiceWorkerPath = gpsfmServiceWorkerUrl.replace(/^\/+/, '');
   function gpsfmStopPushRegistrationRetry() {
     if (gpsfmPushRegistrationTimer) clearTimeout(gpsfmPushRegistrationTimer);
     gpsfmPushRegistrationTimer = null;
