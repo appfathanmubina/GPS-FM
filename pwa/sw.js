@@ -40,6 +40,24 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // HTML aplikasi harus network-first agar perubahan terbaru tidak tertahan
+  // oleh cache lama pada PWA yang sudah pernah dipasang.
+  if (request.mode === 'navigate' || url.pathname.endsWith('/index.html')) {
+    event.respondWith(
+      fetch(request, {cache: 'no-store'}).then(response => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then(cache => cache.put(request, copy));
+        }
+        return response;
+      }).catch(() => caches.open(CACHE).then(cache => cache.match(request)).then(cached => {
+        if (cached) return cached;
+        return caches.match('./index.html');
+      }))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.open(CACHE).then(cache =>
       cache.match(request).then(cached => cached || fetch(request))
