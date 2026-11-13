@@ -499,6 +499,8 @@ body{touch-action:auto}
 .profile-push-action{display:grid;gap:7px;margin-top:14px;padding:12px;border:1px solid #eaddec;border-radius:13px;background:#fcf8fd}
 .profile-push-action button{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:10px 12px;border:0;border-radius:10px;background:var(--primary);color:#fff;font-size:12px;font-weight:800}
 .profile-push-action button:disabled{opacity:.65;cursor:wait}
+.profile-push-action .push-test-button{min-height:36px;padding:8px 10px;border:1px solid #d9c4df;border-radius:10px;background:#fff;color:#6b2876;font-size:11px;font-weight:800}
+.profile-push-action .push-test-button.hidden{display:none}
 .profile-push-action button svg{width:17px;height:17px;flex:none}
 .profile-push-status{font-size:11px;line-height:1.45;color:#75667b;margin:0}
 .profile-push-status[data-state="active"]{color:#168253}
@@ -593,7 +595,7 @@ body{touch-action:auto}
      <div class="profile-popover-head"><div><div class="profile-popover-eyebrow">IDENTITAS PENGGUNA</div><h3>Profil Akun</h3></div><button class="profile-popover-close" id="profilePopoverClose" type="button" aria-label="Tutup pop-up" title="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
      <div class="profile-identity"><div class="profile-identity-avatar" id="avatar">G</div><div class="profile-identity-copy"><b id="profileName">Guru GPS</b><span id="profileRole">Guru GPS</span></div></div>
      <div class="profile-details"><div><span>Username</span><b id="profileUsername">—</b></div><div><span>Status</span><b class="profile-active-status">Aktif</b></div></div>
-     <div class="profile-push-action"><button id="profilePushEnable" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span id="profilePushButtonText">Aktifkan Notifikasi</span></button><p class="profile-push-status" id="profilePushStatus" data-state="idle" aria-live="polite">Aktifkan agar menerima pemberitahuan sesuai jadwal dan penugasan Anda.</p></div>
+     <div class="profile-push-action"><button id="profilePushEnable" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span id="profilePushButtonText">Aktifkan Notifikasi</span></button><p class="profile-push-status" id="profilePushStatus" data-state="idle" aria-live="polite">Aktifkan agar menerima pemberitahuan sesuai jadwal dan penugasan Anda.</p><button id="profilePushTest" class="push-test-button hidden" type="button">Kirim Notifikasi Uji ke HP Ini</button></div>
      <div class="profile-popover-actions"><button class="btn btn-light" id="changePassBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5zM12 14v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Ganti Password</button><button class="btn btn-danger" id="logoutBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Keluar</button></div>
     </section>
    </div>
@@ -646,7 +648,20 @@ function gpsfmSetPushUi(state,message){
  label.textContent=state==='active'?'Nonaktifkan Notifikasi':state==='working'?'Memproses...':state==='denied'?'Izin Diblokir':'Aktifkan Notifikasi';
  button.style.background=state==='active'?'#168253':'';
  button.setAttribute('aria-label',label.textContent);
+ const testButton=$('profilePushTest');
+ if(testButton){testButton.classList.toggle('hidden',state!=='active');testButton.disabled=state==='working';}
 }
+$('profilePushTest').addEventListener('click',async function(){
+ if(!token||!gpsfmPushSubscriptionId){gpsfmSetPushUi('error','ID perangkat belum tersedia. Aktifkan ulang notifikasi terlebih dahulu.');return;}
+ const button=$('profilePushTest');
+ button.disabled=true;button.textContent='Mengirim notifikasi uji...';
+ try{
+  const result=await call('apiSendPushTest',token,gpsfmPushSubscriptionId);
+  if(!result||result.accepted!==true||!result.messageId)throw new Error('OneSignal belum mengonfirmasi pembuatan pesan uji.');
+  gpsfmSetPushUi('active','Pesan uji diterima OneSignal. Periksa notifikasi HP; jika belum muncul, lanjutkan pemeriksaan perangkat/browser.');
+ }catch(error){gpsfmSetPushUi('error',error&&error.message||'Notifikasi uji gagal dikirim.');}
+ finally{button.disabled=false;button.textContent='Kirim Notifikasi Uji ke HP Ini';}
+});
 $('profilePushEnable').addEventListener('click',async function(){
  if(!token){gpsfmSetPushUi('error','Silakan login kembali untuk mengaktifkan notifikasi.');return;}
  const currentState=$('profilePushStatus').dataset.state||'idle';
