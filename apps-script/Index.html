@@ -1119,12 +1119,13 @@ async function activityReportPage(root){
 }
 async function reportPage(root){
  const now=new Date();
- root.innerHTML=title('Evaluasi Diri','Lihat catatan rekap kehadiran Anda sendiri, lalu filter berdasarkan periode dan kegiatan.')+
- '<div class="panel"><form id="reportForm" class="row">'+
- '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
- '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
- '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">'+'Pilih kegiatan...'+'</option></select></div>'+
- '<button class="btn btn-primary" type="submit" style="flex:1;min-width:180px">Tampilkan Rekap</button></form></div><div id="reportResult"></div>';
+ root.innerHTML=title('Evaluasi Diri','Pantau persentase pencapaian kehadiran seluruh kegiatan yang Anda ikuti.')+
+  '<div id="achievementSummary"><div class="panel empty">Memuat pencapaian kegiatan…</div></div>'+
+  '<div class="panel"><form id="reportForm" class="row">'+
+  '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
+  '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">'+'Pilih kegiatan...'+'</option></select></div>'+
+  '<button class="btn btn-primary" type="submit" style="flex:1;min-width:180px">Tampilkan Rekap</button></form></div><div id="reportResult"></div>';
 
  function filteredRows(){
   if(!report)return [];
@@ -1153,7 +1154,25 @@ async function reportPage(root){
    rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.activityName.localeCompare(b.activityName)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+
    '</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran untuk periode dan kegiatan yang dipilih.</div>')+'</div>';
  }
- let reportActivitiesLoaded=false,reportActivitiesLoading=false,reportDataLoading=false;
+ async function loadAchievementSummary(){
+   const target=$('achievementSummary');
+   try{
+    const data=await call('apiGetMyActivityAchievement',token);
+    if(currentPage!=='report'||!target)return;
+    const items=Array.isArray(data.activities)?data.activities:[];
+    const progress=value=>Math.max(0,Math.min(100,Number(value)||0));
+    target.innerHTML=
+     '<div class="grid" style="margin-top:14px">'+
+     [['Total kegiatan',data.totalActivities||0],['Total pertemuan',data.totalMeetings||0],['Hadir',data.attended||0],['Pencapaian keseluruhan',(data.percentage||0)+'%']].map((x,i)=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">'+(i===3?'Hadir ÷ total pertemuan':'Seluruh kegiatan yang diikuti')+'</div></div>').join('')+
+     '</div><div class="panel"><h3>Pencapaian per Kegiatan</h3><p class="muted small">Perhitungan: jumlah pertemuan berstatus Hadir dibandingkan seluruh pertemuan terjadwal yang sudah berlangsung. Libur dan kegiatan dibatalkan tidak dihitung.</p>'+
+     (items.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Hadir</th><th>Total Pertemuan</th><th>Pencapaian</th></tr></thead><tbody>'+
+      items.map(item=>'<tr><td><b>'+esc(item.activityName)+'</b></td><td>'+Number(item.attended||0)+'</td><td>'+Number(item.totalMeetings||0)+'</td><td><div style="display:flex;align-items:center;gap:10px;min-width:150px"><div style="height:9px;flex:1;background:var(--border,#eee);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+progress(item.percentage)+'%;background:var(--primary,#7950a1);border-radius:99px"></div></div><b>'+progress(item.percentage)+'%</b></div></td></tr>').join('')+
+      '</tbody></table></div>':'<div class="empty">Belum ada kegiatan yang ditugaskan kepada akun ini.</div>')+'</div>';
+   }catch(error){
+    if(target)target.innerHTML='<div class="panel empty">Pencapaian kegiatan belum dapat dimuat. '+esc(error.message||'Periksa koneksi lalu coba lagi.')+'</div>';
+   }
+  }
+  let reportActivitiesLoaded=false,reportActivitiesLoading=false,reportDataLoading=false;
  function showReportLoadingNotice(message){
   processNotice('Memuat data Evaluasi Diri',message,'working');
   const pop=$('gpsProcessPop');
@@ -1188,7 +1207,8 @@ async function reportPage(root){
  $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
  $('reportResult').innerHTML='<div class="panel empty">'+(me.role==='supervisor'||me.role==='admin_administrasi'?'Pilih periode untuk memuat catatan absensi Anda sendiri.':'Pilih kegiatan untuk memuat rekap evaluasi diri.')+'</div>';
  // Muat pilihan kegiatan yang memiliki catatan absensi milik akun ini.
- loadActivityOptions().then(()=>{if((me.role==='supervisor'||me.role==='admin_administrasi')&&currentPage==='report')load();});
+ loadAchievementSummary();
+  loadActivityOptions().then(()=>{if((me.role==='supervisor'||me.role==='admin_administrasi')&&currentPage==='report')load();});
 }
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
 function activityScheduleParts(value){
