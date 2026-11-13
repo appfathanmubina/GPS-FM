@@ -373,6 +373,22 @@ function apiLogout(token) {
 }
 
 
+/**
+ * Jalankan satu kali dari editor Apps Script untuk memicu permintaan
+ * otorisasi scope script.external_request.
+ * Endpoint tetap dan tanpa kredensial; respons HTTP non-2xx tidak menggagalkan otorisasi.
+ */
+function authorizeExternalRequest() {
+  const response = UrlFetchApp.fetch('https://api.onesignal.com', {
+    method: 'get',
+    muteHttpExceptions: true
+  });
+  return {
+    authorized: true,
+    httpStatus: response.getResponseCode()
+  };
+}
+
 /* OneSignal Web Push — langganan perangkat dan pengiriman berdasarkan jadwal aktual. */
 const GPSFM_ONESIGNAL_APP_ID = '28faec3d-9ee1-45a0-9234-4a5922ce4f1a';
 const GPSFM_PUSH_SUBSCRIPTION_HEADERS = ['subscriptionId','userId','active','deviceLabel','createdAt','updatedAt','lastSeenAt'];
