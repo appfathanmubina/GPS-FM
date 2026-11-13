@@ -2,7 +2,9 @@
  * GPS FM — Code.gs
  * Backend untuk Web App Apps Script. Otorisasi selalu dilakukan di server.
  */
-const GPSFM_SESSION_TTL = 21600; // 6 jam
+const GPSFM_SESSION_TTL = 21600; // 6 jam untuk sesi biasa
+const GPSFM_REMEMBER_SESSION_TTL = 2592000; // 30 hari jika Remember Me aktif
+const GPSFM_SESSION_HEADERS = ['tokenHash','userId','passwordHash','issuedAt','expiresAt','active','updatedAt'];
 // Cache objek Spreadsheet hanya selama satu eksekusi Apps Script.
 var GPSFM_DB_INSTANCE_ = null;
 const GPSFM_STATUSES = ['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
@@ -191,38 +193,78 @@ function gpsfmTokenKey_(token) {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(token), Utilities.Charset.UTF_8);
   return 'gpsfm_session_' + bytes.map(function(b) { return ('0' + ((b+256)%256).toString(16)).slice(-2); }).join('');
 }
+function gpsfmEnsureSessionSheet_() {
+  const ss = gpsfmDb_();
+  let sh = ss.getSheetByName('UserSessions');
+  if (!sh) {
+    sh = ss.insertSheet('UserSessions');
+    sh.getRange(1,1,1,GPSFM_SESSION_HEADERS.length).setValues([GPSFM_SESSION_HEADERS]);
+    sh.setFrozenRows(1);
+    sh.getRange(1,1,1,GPSFM_SESSION_HEADERS.length).setFontWeight('bold');
+  }
+  return sh;
+}
+function gpsfmFindSessionRow_(tokenHash) {
+  const sh = gpsfmEnsureSessionSheet_();
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return null;
+  const match = sh.getRange(2,1,lastRow-1,1).createTextFinder(String(tokenHash)).matchEntireCell(true).matchCase(true).findNext();
+  if (!match) return null;
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(String);
+  const values = sh.getRange(match.getRow(),1,1,headers.length).getValues()[0];
+  const data = {_row:match.getRow()};
+  headers.forEach(function(h,i){data[h]=values[i];});
+  return data;
+}
+function gpsfmSaveSession_(tokenHash, session) {
+  const sh = gpsfmEnsureSessionSheet_();
+  const values = {
+    tokenHash:tokenHash,userId:String(session.userId),passwordHash:String(session.passwordHash),
+    issuedAt:Number(session.issuedAt),expiresAt:Number(session.expiresAt),active:true,updatedAt:gpsfmNow_()
+  };
+  sh.appendRow(GPSFM_SESSION_HEADERS.map(function(h){return Object.prototype.hasOwnProperty.call(values,h)?values[h]:'';}));
+}
 function gpsfmSession_(token, allowForcedPasswordChange) {
   if (!token || String(token).length < 30) throw new Error('Sesi tidak valid. Silakan login kembali.');
-  const raw = CacheService.getScriptCache().get(gpsfmTokenKey_(token));
-  if (!raw) throw new Error('Sesi berakhir. Silakan login kembali.');
-  const session = JSON.parse(raw);
+  const tokenHash = gpsfmTokenKey_(token);
+  let session = gpsfmFindSessionRow_(tokenHash);
+
+  // Migrasi sesi lama secara otomatis selama token lama masih tersedia di cache.
+  // Setelah migrasi, validasi sesi tidak lagi bergantung pada CacheService.
+  if (!session) {
+    const raw = CacheService.getScriptCache().get(tokenHash);
+    if (!raw) throw new Error('Sesi berakhir. Silakan login kembali.');
+    try { session = JSON.parse(raw); } catch (e) { throw new Error('Sesi tidak valid. Silakan login kembali.'); }
+    const issuedAt = Number(session.issuedAt || Date.now());
+    const expiresAt = issuedAt + GPSFM_SESSION_TTL * 1000;
+    if (expiresAt <= Date.now()) throw new Error('Sesi berakhir. Silakan login kembali.');
+    session.expiresAt = expiresAt;
+    gpsfmSaveSession_(tokenHash, session);
+    session = gpsfmFindSessionRow_(tokenHash);
+  }
+
+  if (!session || !gpsfmBool_(session.active) || Number(session.expiresAt) <= Date.now()) {
+    throw new Error('Sesi berakhir. Silakan login kembali.');
+  }
   const user = gpsfmFindRowByValue_('Users', 'userId', session.userId);
-  if (user && !gpsfmBool_(user.active)) throw new Error('Akun tidak aktif atau tidak ditemukan.');
-  if (!user) throw new Error('Akun tidak aktif atau tidak ditemukan.');
-  if (String(session.passwordHash || '') !== String(user.passwordHash || '')) throw new Error('Password akun berubah. Silakan login kembali.');
+  if (!user || !gpsfmBool_(user.active)) throw new Error('Akun tidak aktif atau tidak ditemukan.');
+  if (String(session.passwordHash || '') !== String(user.passwordHash || '')) {
+    gpsfmUpdateRow_('UserSessions',session._row,{active:false,updatedAt:gpsfmNow_()});
+    throw new Error('Password akun berubah. Silakan login kembali.');
+  }
   if(gpsfmBool_(user.mustChangePassword)&&!allowForcedPasswordChange)throw new Error('Anda wajib mengganti password sebelum menggunakan aplikasi.');
-  return {user:user, token:token};
+  return {user:user, token:token, session:session};
 }
-// Perbarui validasi hanya untuk token tab yang sedang mengganti password.
-// Token pada tab/perangkat lain tetap membawa hash lama dan otomatis ditolak.
+// Perbarui hanya sesi yang sedang mengganti password; sesi perangkat lain tetap tidak berubah.
 function gpsfmRefreshCurrentSessionPasswordHash_(token, userId, passwordHash) {
   if (!token || String(token).length < 30) return false;
-  const cache = CacheService.getScriptCache();
-  const key = gpsfmTokenKey_(token);
-  const raw = cache.get(key);
-  if (!raw) return false;
-
-  let session;
-  try {
-    session = JSON.parse(raw);
-  } catch (e) {
-    return false;
-  }
-  if (String(session.userId || '') !== String(userId)) return false;
-
-  session.passwordHash = String(passwordHash);
-  // Perubahan password memperbarui sesi aktif ini; masa berlaku maksimum tetap 6 jam.
-  cache.put(key, JSON.stringify(session), GPSFM_SESSION_TTL);
+  const tokenHash = gpsfmTokenKey_(token);
+  const session = gpsfmFindSessionRow_(tokenHash);
+  if (!session || String(session.userId || '') !== String(userId) || !gpsfmBool_(session.active)) return false;
+  gpsfmUpdateRow_('UserSessions',session._row,{passwordHash:String(passwordHash),updatedAt:gpsfmNow_()});
+  CacheService.getScriptCache().put(tokenHash,JSON.stringify({
+    userId:String(userId),issuedAt:Number(session.issuedAt),passwordHash:String(passwordHash)
+  }),GPSFM_SESSION_TTL);
   return true;
 }
 
@@ -277,7 +319,7 @@ function gpsfmFindUserByUsername_(username) {
   return user;
 }
 
-function apiLogin(username, password) {
+function apiLogin(username, password, rememberMe) {
   gpsfmEnsurePasswordFlag_();
   username = gpsfmText_(username, 80).toLowerCase();
   password = String(password || '');
@@ -297,9 +339,15 @@ function apiLogin(username, password) {
   }
   cache.remove(rateKey);
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g,'');
-  cache.put(gpsfmTokenKey_(token), JSON.stringify({userId:String(user.userId), issuedAt:Date.now(), passwordHash:String(user.passwordHash)}), GPSFM_SESSION_TTL);
+  const issuedAt = Date.now();
+  const expiresIn = gpsfmBool_(rememberMe) ? GPSFM_REMEMBER_SESSION_TTL : GPSFM_SESSION_TTL;
+  const session = {userId:String(user.userId),issuedAt:issuedAt,expiresAt:issuedAt+expiresIn*1000,passwordHash:String(user.passwordHash)};
+  const tokenHash = gpsfmTokenKey_(token);
+  gpsfmSaveSession_(tokenHash,session);
+  // Cache hanya akselerator; sumber sesi yang tahan restart berada di sheet UserSessions.
+  cache.put(tokenHash,JSON.stringify(session),GPSFM_SESSION_TTL);
   gpsfmAudit_(user.userId, 'LOGIN', 'Users', user.userId, {});
-  return {token:token, user:gpsfmPublicUser_(user), expiresIn:GPSFM_SESSION_TTL};
+  return {token:token, user:gpsfmPublicUser_(user), expiresIn:expiresIn};
 }
 
 function apiLogout(token) {
@@ -310,10 +358,10 @@ function apiLogout(token) {
   const key = gpsfmTokenKey_(token);
   let session = null;
   try {
-    const raw = cache.get(key);
-    if (raw) session = JSON.parse(raw);
+    session = gpsfmFindSessionRow_(key);
+    if (session) gpsfmUpdateRow_('UserSessions',session._row,{active:false,updatedAt:gpsfmNow_()});
   } catch (e) {}
-  // Revoke first; audit logging must never prevent the session from ending.
+  // Revoke both persistent and cached copies before audit logging.
   cache.remove(key);
   try {
     if (session && session.userId) {
@@ -455,7 +503,7 @@ function gpsfmRunScheduledPushNotifications() {
       if (!ids.length) return;
       let status = 'sent', detail = 'accepted';
       try {
-        gpsfmSendOneSignal_(ids,title,message,{type:type,activityId:String(activity.activityId),date:today,url:'https://appfathanmubina.github.io/GPS/'});
+        gpsfmSendOneSignal_(ids,title,message,{type:type,activityId:String(activity.activityId),date:today,url:'https://appfathanmubina.github.io/GPS-FM/pwa/'});
       } catch (error) {
         status = 'failed'; detail = String(error.message || error).slice(0,500); results.failed++;
       }
