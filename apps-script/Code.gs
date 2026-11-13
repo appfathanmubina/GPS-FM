@@ -429,6 +429,34 @@ function apiUnregisterPushSubscription(token, subscriptionId) {
   return {ok:true,unregistered:!!old};
 }
 
+/** Kirim notifikasi uji hanya ke perangkat pemanggil yang terdaftar pada akun aktif. */
+function apiSendPushTest(token, subscriptionId) {
+  const session = gpsfmSession_(token);
+  subscriptionId = gpsfmText_(subscriptionId,100);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subscriptionId)) {
+    throw new Error('ID perangkat tidak valid. Aktifkan notifikasi terlebih dahulu.');
+  }
+  gpsfmEnsurePushSheets_();
+  const subscription = gpsfmRows_('PushSubscriptions').find(function(r) {
+    return String(r.subscriptionId) === subscriptionId &&
+      String(r.userId) === String(session.user.userId) && gpsfmBool_(r.active);
+  });
+  if (!subscription) throw new Error('Perangkat ini belum terdaftar aktif pada akun Anda. Aktifkan ulang notifikasi.');
+  const response = gpsfmSendOneSignal_([subscriptionId],
+    'Tes Notifikasi GPS FM',
+    'Berhasil! Perangkat ini dapat menerima push notification dari GPS FM.',
+    {type:'test',url:'https://appfathanmubina.github.io/GPS-FM/pwa/'});
+  const now = gpsfmNow_();
+  gpsfmAppend_('PushDeliveryLog',{
+    dedupeKey:'test|' + Utilities.getUuid(),activityId:'TEST',
+    occurrenceDate:Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),
+    recipientUserId:String(session.user.userId),notificationType:'test',
+    subscriptionIdsJson:JSON.stringify([subscriptionId]),status:'sent',
+    response:'accepted id=' + String(response.id),createdAt:now
+  });
+  return {ok:true,accepted:true,messageId:String(response.id)};
+}
+
 function gpsfmPushDeliveryKey_(activityId,date,userId,type,subscriptionId) {
   return [type,activityId,date,userId,subscriptionId].join('|');
 }
@@ -454,6 +482,8 @@ function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
   let parsed = {};
   try { parsed = JSON.parse(body); } catch (e) {}
   if (parsed.errors && Object.keys(parsed.errors).length) throw new Error('OneSignal menolak pengiriman: ' + JSON.stringify(parsed.errors).slice(0,500));
+  // HTTP 200 saja belum cukup: OneSignal mengembalikan ID pesan hanya jika pesan berhasil dibuat.
+  if (!parsed.id) throw new Error('OneSignal tidak membuat pesan. Tidak ada ID pesan; periksa subscription aktif dan konfigurasi Web Push. Respons: ' + body.slice(0,400));
   return parsed;
 }
 
@@ -509,7 +539,9 @@ function gpsfmRunScheduledPushNotifications() {
       if (!ids.length) return;
       let status = 'sent', detail = 'accepted';
       try {
-        gpsfmSendOneSignal_(ids,title,message,{type:type,activityId:String(activity.activityId),date:today,url:'https://appfathanmubina.github.io/GPS-FM/pwa/'});
+        const oneSignalResult = gpsfmSendOneSignal_(ids,title,message,{type:type,activityId:String(activity.activityId),date:today,url:'https://appfathanmubina.github.io/GPS-FM/pwa/'});
+        detail = 'accepted id=' + String(oneSignalResult.id) +
+          (oneSignalResult.recipients !== undefined ? ' recipients=' + String(oneSignalResult.recipients) : '');
       } catch (error) {
         status = 'failed'; detail = String(error.message || error).slice(0,500); results.failed++;
       }
