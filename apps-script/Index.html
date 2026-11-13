@@ -504,6 +504,29 @@ body{touch-action:auto}
 .profile-push-status[data-state="active"]{color:#168253}
 .profile-push-status[data-state="error"],.profile-push-status[data-state="denied"]{color:#b42318}
 .profile-popover-actions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 10px;font-size:11px}
+ .notification-menu-wrap{position:relative;flex:0 0 auto}
+ .notification-trigger{position:relative;display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid #ffffff45;border-radius:12px;background:#ffffff18;color:#fff}
+ .notification-trigger:hover,.notification-trigger[aria-expanded="true"]{background:#ffffff30}
+ .notification-trigger svg{width:20px;height:20px}
+ .notification-count{position:absolute;top:-5px;right:-5px;display:none;min-width:17px;height:17px;padding:0 4px;place-items:center;border:2px solid #800080;border-radius:99px;background:#f04438;color:#fff;font-size:9px;font-weight:850;line-height:1}
+ .notification-count.visible{display:grid}
+ .notification-popover{position:absolute;z-index:90;top:48px;right:-44px;width:min(370px,calc(100vw - 24px));max-height:min(70vh,520px);overflow:auto;padding:14px;border:1px solid #eaddec;border-radius:16px;background:#fff;color:#39213f;box-shadow:0 16px 44px #24132b24;animation:gpsProfilePop .16s ease}
+ .notification-popover:before{content:"";position:absolute;right:55px;top:-7px;width:13px;height:13px;background:#fff;border-left:1px solid #eaddec;border-top:1px solid #eaddec;transform:rotate(45deg)}
+ .notification-popover-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #f0e8f2}
+ .notification-popover-head b{font-size:14px}
+ .notification-popover-head span{font-size:10px;color:#8a7b90}
+ .notification-refresh{padding:6px 9px;border:1px solid #eaddec;border-radius:8px;background:#fbf7fc;color:#6b3d73;font-size:10px;font-weight:800}
+ .notification-list{display:grid;gap:8px;padding-top:10px}
+ .notification-item{display:grid;gap:5px;padding:10px 11px;border:1px solid #f0e7f2;border-radius:11px;background:#fdfafd}
+ .notification-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+ .notification-item b{font-size:12px;color:#39213f}
+ .notification-item small{font-size:10px;color:#8a7b90;line-height:1.4}
+ .notification-status{flex:none;padding:4px 7px;border-radius:99px;background:#fef3c7;color:#92400e;font-size:9px;font-weight:850}
+ .notification-status.done{background:#dcfce7;color:#166534}
+ .notification-status.exception{background:#f3e8ff;color:#6b21a8}
+ .notification-empty{padding:24px 10px;text-align:center;color:#817489;font-size:11px;line-height:1.5}
+ @media(max-width:780px){.notification-popover{position:fixed;top:calc(62px + env(safe-area-inset-top) + 8px);right:10px;width:min(370px,calc(100vw - 20px));max-height:calc(75vh - env(safe-area-inset-top))}.notification-popover:before{right:57px}}
+
 .profile-popover-actions svg{width:16px;height:16px;flex:0 0 auto}
 @keyframes gpsProfilePop{from{opacity:0;transform:translateY(-5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(min-width:781px){
@@ -536,6 +559,16 @@ body{touch-action:auto}
    <div class="brand"><div class="logo logo-image"><img src="https://raw.githubusercontent.com/appfathanmubina/GPS-FM/main/pwa/icon.png" alt="Logo GPS FM"></div><div><h1>GPS FM</h1><p>Absensi Guru Pembina Santri</p></div></div>
   </div>
   <div class="profile">
+   <div class="notification-menu-wrap" id="notificationMenuWrap">
+    <button class="notification-trigger" id="notificationMenuBtn" type="button" aria-label="Notifikasi kegiatan hari ini" aria-haspopup="dialog" aria-expanded="false" title="Notifikasi kegiatan hari ini">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+     <span class="notification-count" id="notificationCount" aria-label="Kegiatan belum selesai">0</span>
+    </button>
+    <section class="notification-popover hidden" id="notificationPopover" role="dialog" aria-label="Kegiatan hari ini">
+     <div class="notification-popover-head"><div><b>Kegiatan Hari Ini</b><div><span id="notificationDate">Memuat jadwal…</span></div></div><button class="notification-refresh" id="notificationRefresh" type="button">↻ Muat ulang</button></div>
+     <div class="notification-list" id="notificationList"><div class="notification-empty">Memuat kegiatan yang ditugaskan kepada Anda…</div></div>
+    </section>
+   </div>
    <div class="profile-menu-wrap" id="profileMenuWrap">
     <button class="profile-trigger" id="profileMenuBtn" type="button" aria-label="Tampilkan identitas pengguna" aria-haspopup="dialog" aria-expanded="false" title="Identitas pengguna"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.8 20c.7-3.4 3.3-5.2 7.2-5.2s6.5 1.8 7.2 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <section class="profile-popover hidden" id="profilePopover" role="dialog" aria-label="Identitas pengguna">
@@ -712,13 +745,43 @@ function dateDefault(){return bootstrap&&bootstrap.serverDate||new Date().toLoca
 $('toggleLoginPassword').addEventListener('click',()=>{const input=$('password'),button=$('toggleLoginPassword'),show=input.type==='password';input.type=show?'text':'password';button.setAttribute('aria-pressed',String(show));button.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');button.title=show?'Sembunyikan password':'Tampilkan password';button.innerHTML=show?'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a16 16 0 0 1-3.1 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 4-.8"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>';});
 let gpsfmAuthBusy=false;
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();if(gpsfmAuthBusy)return;gpsfmAuthBusy=true;const btn=$('loginButton');$('loginError').classList.add('hidden');busy(btn,true,'Memeriksa akun...');try{const r=await call('apiLogin',$('username').value,$('password').value);token=r.token;me=r.user;gpsfmStorageSet(sessionStorage,'gpsfm_token',token);if($('rememberMe').checked){gpsfmStorageSet(localStorage,gpsfmRememberUsernameKey,$('username').value.trim());gpsfmStorageSet(localStorage,gpsfmRememberTokenKey,token);gpsfmStorageSet(localStorage,gpsfmRememberFlagKey,'1');}else{gpsfmStorageRemove(localStorage,gpsfmRememberUsernameKey);gpsfmStorageRemove(localStorage,gpsfmRememberTokenKey);gpsfmStorageRemove(localStorage,gpsfmRememberFlagKey);}await startApp();$('password').value='';}catch(err){errorBox('loginError',err.message);}finally{gpsfmAuthBusy=false;busy(btn,false);}});
-async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;gpsfmNotifyPushParent();$('profileName').textContent=me.fullName||'Pengguna GPS FM';$('profileRole').textContent=me.role==='superadmin'?'Superadmin':me.role==='admin_administrasi'?'Admin Administrasi':me.role==='supervisor'?'Supervisor GPS':'Guru GPS';$('profileUsername').textContent=me.username||'—';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();renderNav();if(me.mustChangePassword){hideLogin();openChangePasswordModal(true);return;}await renderPage('dashboard');hideLogin();}
+async function startApp(){bootstrap=await call('apiGetBootstrap',token);me=bootstrap.user;gpsfmNotifyPushParent();loadTodayNotificationBar();$('profileName').textContent=me.fullName||'Pengguna GPS FM';$('profileRole').textContent=me.role==='superadmin'?'Superadmin':me.role==='admin_administrasi'?'Admin Administrasi':me.role==='supervisor'?'Supervisor GPS':'Guru GPS';$('profileUsername').textContent=me.username||'—';$('avatar').textContent=(me.fullName||'G').trim().charAt(0).toUpperCase();renderNav();if(me.mustChangePassword){hideLogin();openChangePasswordModal(true);return;}await renderPage('dashboard');hideLogin();}
 function closeProfilePopover(){const pop=$('profilePopover'),trigger=$('profileMenuBtn');if(!pop||pop.classList.contains('hidden'))return;pop.classList.add('hidden');trigger.setAttribute('aria-expanded','false');}
 function toggleProfilePopover(){const pop=$('profilePopover'),trigger=$('profileMenuBtn'),open=pop.classList.contains('hidden');pop.classList.toggle('hidden',!open);trigger.setAttribute('aria-expanded',String(open));}
-$('profileMenuBtn').addEventListener('click',e=>{e.stopPropagation();toggleProfilePopover();});
+
+ let gpsfmTodayNotificationData=null;
+ function closeTodayNotificationPopover(){const pop=$('notificationPopover'),trigger=$('notificationMenuBtn');if(!pop||pop.classList.contains('hidden'))return;pop.classList.add('hidden');trigger.setAttribute('aria-expanded','false');}
+ function toggleTodayNotificationPopover(){const pop=$('notificationPopover'),trigger=$('notificationMenuBtn'),open=pop.classList.contains('hidden');pop.classList.toggle('hidden',!open);trigger.setAttribute('aria-expanded',String(open));if(open)loadTodayNotificationBar();}
+ async function loadTodayNotificationBar(){
+  const list=$('notificationList'),date=$('notificationDate'),count=$('notificationCount');
+  if(!list||!token)return;
+  list.innerHTML='<div class="notification-empty">Memuat kegiatan hari ini…</div>';
+  try{
+   const data=await call('apiGetTodayScheduledActivities',token);
+   gpsfmTodayNotificationData=data;
+   if(date)date.textContent=(data.weekday||'')+' · '+(data.date||'');
+   const items=Array.isArray(data.activities)?data.activities:[];
+   const pending=items.filter(a=>['Belum','Belum Lengkap'].includes(a.status)).length;
+   if(count){count.textContent=pending>9?'9+':String(pending);count.classList.toggle('visible',pending>0);}
+   if(!items.length){list.innerHTML='<div class="notification-empty">Tidak ada kegiatan yang ditugaskan kepada Anda hari ini.</div>';return;}
+   list.innerHTML=items.map(a=>{
+    const done=a.status==='Sudah'||a.status==='Lengkap',exception=a.status==='Libur'||a.status==='Dibatalkan';
+    const cls=done?'done':exception?'exception':'',label=a.status==='Sudah'?'Sudah absen':a.status==='Lengkap'?'Absensi lengkap':a.status==='Belum Lengkap'?'Belum lengkap':a.status==='Libur'?'Libur':a.status==='Dibatalkan'?'Dibatalkan':'Belum absen';
+    const detail=[a.schedule,a.teacherCount!=null&&a.teacherCount>0?(a.attendanceCount+'/'+a.teacherCount+' guru tercatat'):''].filter(Boolean).join(' · ');
+    return '<article class="notification-item"><div class="notification-item-head"><b>'+esc(a.name)+'</b><span class="notification-status '+cls+'">'+esc(label)+'</span></div>'+(detail?'<small>'+esc(detail)+'</small>':'')+(a.reason?'<small>'+esc(a.reason)+'</small>':'')+'</article>';
+   }).join('');
+  }catch(error){
+   if(list)list.innerHTML='<div class="notification-empty">Jadwal hari ini belum dapat dimuat. '+esc(error.message||'Periksa koneksi lalu coba lagi.')+'</div>';
+   if(count)count.classList.remove('visible');
+  }
+ }
+ $('notificationMenuBtn').addEventListener('click',e=>{e.stopPropagation();closeProfilePopover();toggleTodayNotificationPopover();});
+ $('notificationRefresh').addEventListener('click',e=>{e.stopPropagation();loadTodayNotificationBar();});
+
+ $('profileMenuBtn').addEventListener('click',e=>{e.stopPropagation();toggleProfilePopover();});
 $('profilePopoverClose').addEventListener('click',closeProfilePopover);
-document.addEventListener('click',e=>{const wrap=$('profileMenuWrap');if(wrap&&!wrap.contains(e.target))closeProfilePopover();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfilePopover();});
+document.addEventListener('click',e=>{const wrap=$('profileMenuWrap');if(wrap&&!wrap.contains(e.target))closeProfilePopover();const notificationWrap=$('notificationMenuWrap');if(notificationWrap&&!notificationWrap.contains(e.target))closeTodayNotificationPopover();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfilePopover();closeTodayNotificationPopover();}});
 $('sidebarToggle').addEventListener('click',()=>{const hidden=document.body.classList.toggle('gpsfm-sidebar-hidden'),btn=$('sidebarToggle');btn.setAttribute('aria-expanded',String(!hidden));btn.setAttribute('aria-label',hidden?'Tampilkan navigasi utama':'Sembunyikan navigasi utama');btn.title=hidden?'Tampilkan navigasi utama':'Sembunyikan navigasi utama';btn.innerHTML=hidden?'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16M9 4l-5 8 5 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';});
 $('logoutBtn').addEventListener('click',()=>{closeProfilePopover();openLogoutConfirmation();});
 function openLogoutConfirmation(){
