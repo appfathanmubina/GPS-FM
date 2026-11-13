@@ -1120,7 +1120,8 @@ async function activityReportPage(root){
 async function reportPage(root){
  const now=new Date();
  root.innerHTML=title('Evaluasi Diri','Pantau persentase pencapaian kehadiran seluruh kegiatan yang Anda ikuti.')+
-  '<div id="achievementSummary"><div class="panel empty">Memuat pencapaian kegiatan…</div></div>'+
+  '<div id="achievementSummary"><div class="panel empty">Memuat pencapaian seluruh periode…</div></div>'+
+  '<div id="achievementMonthly"><div class="panel empty">Memuat pencapaian bulan aktif…</div></div>'+
   '<div class="panel"><form id="reportForm" class="row">'+
   '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
   '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
@@ -1155,21 +1156,25 @@ async function reportPage(root){
    '</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran untuk periode dan kegiatan yang dipilih.</div>')+'</div>';
  }
  async function loadAchievementSummary(){
-   const target=$('achievementSummary');
+   await loadAchievementPanel('achievementSummary','apiGetMyActivityAchievement','Pencapaian per Kegiatan — Seluruh Periode','Seluruh riwayat absensi');
+   await loadAchievementPanel('achievementMonthly','apiGetMyActivityAchievementCurrentMonth','Pencapaian per Kegiatan — Bulan Aktif','Bulan aktif mengikuti kalender berjalan');
+  }
+ async function loadAchievementPanel(targetId,apiName,heading,periodLabel){
+   const target=$(targetId);
    try{
-    const data=await call('apiGetMyActivityAchievement',token);
+    const data=await call(apiName,token);
     if(currentPage!=='report'||!target)return;
     const items=Array.isArray(data.activities)?data.activities:[];
     const progress=value=>Math.max(0,Math.min(100,Number(value)||0));
     target.innerHTML=
      '<div class="grid" style="margin-top:14px">'+
      [['Total kegiatan',data.totalActivities||0],['Absensi tercatat',data.totalMeetings||0],['Hadir',data.attended||0],['Belum diinput',data.unrecorded||0],['Pencapaian keseluruhan',(data.percentage||0)+'%']].map((x,i)=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">'+(i===4?'Hadir ÷ absensi tercatat':'Seluruh kegiatan yang diikuti')+'</div></div>').join('')+
-     '</div><div class="panel"><h3>Pencapaian per Kegiatan</h3><p class="muted small">Periode seluruh riwayat absensi. Persentase dihitung dari Hadir ÷ seluruh absensi yang sudah tercatat. Sesi pada kalender kegiatan yang absensinya belum diinput ditampilkan terpisah dan tidak dianggap Alfa. Libur dan kegiatan dibatalkan tidak dihitung.</p>'+
+     '</div><div class="panel"><h3>'+heading+'</h3><p class="muted small">'+periodLabel+'. Persentase dihitung dari Hadir ÷ seluruh absensi yang sudah tercatat. Sesi pada kalender kegiatan yang absensinya belum diinput ditampilkan terpisah dan tidak dianggap Alfa. Libur dan kegiatan dibatalkan tidak dihitung.</p>'+
      (items.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Hadir</th><th>Absensi Tercatat</th><th>Belum Diinput</th><th>Pencapaian</th></tr></thead><tbody>'+
       items.map(item=>'<tr><td><b>'+esc(item.activityName)+'</b></td><td>'+Number(item.attended||0)+'</td><td>'+Number(item.totalMeetings||0)+'</td><td>'+Number(item.unrecorded||0)+'</td><td><div style="display:flex;align-items:center;gap:10px;min-width:150px"><div style="height:9px;flex:1;background:var(--border,#eee);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+progress(item.percentage)+'%;background:var(--primary,#7950a1);border-radius:99px"></div></div><b>'+progress(item.percentage)+'%</b></div></td></tr>').join('')+
       '</tbody></table></div>':'<div class="empty">Belum ada kegiatan yang ditugaskan kepada akun ini.</div>')+'</div>';
    }catch(error){
-    if(target)target.innerHTML='<div class="panel empty">Pencapaian kegiatan belum dapat dimuat. '+esc(error.message||'Periksa koneksi lalu coba lagi.')+'</div>';
+    if(target)target.innerHTML='<div class="panel empty">'+esc(heading)+' belum dapat dimuat. '+esc(error.message||'Periksa koneksi lalu coba lagi.')+'</div>';
    }
   }
   let reportActivitiesLoaded=false,reportActivitiesLoading=false,reportDataLoading=false;
