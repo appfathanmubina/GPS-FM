@@ -492,17 +492,21 @@ function gpsfmRunScheduledPushNotifications() {
         if (user && gpsfmIsParticipantRole_(user.role)) teachers[id] = true;
       });
       const teacherIds = Object.keys(teachers);
-      if (teacherIds.length) deliver(activity,'activity',teacherIds,'Pengingat Kegiatan GPS FM',
-        'Kegiatan ' + String(activity.name || 'GPS FM') + ' terjadwal hari ini. Silakan buka GPS FM untuk melihat informasi kegiatan.');
+      const pjs = {};
+      pjAssignments.forEach(function(a) {
+        const id = String(a.userId);
+        if (String(a.activityId) === activityId && activeUsers[id]) pjs[id] = true;
+      });
+      // Pengingat kegiatan dikirim kepada seluruh guru roster dan PJ aktif.
+      // Daftar roster tetap dipisahkan agar pemeriksaan kelengkapan absensi akurat.
+      const activityRecipients = Object.assign({}, teachers, pjs);
+      const activityRecipientIds = Object.keys(activityRecipients);
+      if (activityRecipientIds.length) deliver(activity,'activity',activityRecipientIds,'Pengingat Kegiatan GPS FM',
+        'Kegiatan ' + String(activity.name || 'GPS FM') + ' terjadwal hari ini. Silakan buka GPS FM untuk melihat jadwal dan penugasan Anda.');
 
       const recordedTeachers = attendanceByActivityDate[activityId+'|'+today] || {};
       const hasMissingAttendance = teacherIds.some(function(teacherId) { return !recordedTeachers[teacherId]; });
       if (teacherIds.length && hasMissingAttendance) {
-        const pjs = {};
-        pjAssignments.forEach(function(a) {
-          const id = String(a.userId);
-          if (String(a.activityId) === activityId && activeUsers[id]) pjs[id] = true;
-        });
         const pjIds = Object.keys(pjs);
         if (pjIds.length) deliver(activity,'attendance',pjIds,'Pengingat Input Absensi GPS FM',
           'Anda bertugas sebagai PJ kegiatan ' + String(activity.name || 'GPS FM') + '. Masih ada absensi guru yang belum lengkap. Mohon lengkapi input absensi pada GPS FM.');
