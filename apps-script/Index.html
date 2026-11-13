@@ -617,7 +617,7 @@ $('profilePushEnable').addEventListener('click',async function(){
    gpsfmSetPushUi('error','Belum ada respons dari layanan notifikasi. Muat ulang PWA, lalu coba lagi. Jika tetap gagal, periksa apakah versi PWA terbaru sudah terpasang.');
   }
  },30000);
- try{window.parent.postMessage({type:'gpsfm-enable-push'},GPSFM_PWA_ORIGIN);}
+ try{if(window.parent!==window)window.parent.postMessage({type:'gpsfm-enable-push'},GPSFM_PWA_ORIGIN);}
  catch(e){gpsfmSetPushUi('error','Tidak dapat menghubungi layanan notifikasi.');}
 });
 window.addEventListener('message',function(event){
