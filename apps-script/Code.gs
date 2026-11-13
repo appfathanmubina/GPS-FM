@@ -1460,7 +1460,7 @@ function apiGetMyActivityAchievement(token) {
   });
 
   function attendanceCategory(value) {
-    const raw = String(value || '').trim().replace(/^[A-D][.]\\s*/i, '').toLowerCase().replace(/\\s+/g, ' ');
+    const raw = String(value || '').trim().replace(/^[A-D][.]\s*/i, '').toLowerCase().replace(/\s+/g, ' ');
     if (raw === 'hadir') return 'attended';
     if (raw === 'sakit') return 'sick';
     if (raw === 'tugas' || raw === 'tugas pondok') return 'duty';
