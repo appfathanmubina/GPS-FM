@@ -3,7 +3,7 @@
 // OneSignal Web SDK v16 digabung dengan service worker shell PWA GPS FM.
 importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 
-const CACHE = 'gps-fm-shell-v16';
+const CACHE = 'gps-fm-shell-v17';
 const CACHE_PREFIX = 'gps-fm-shell-';
 const FILES = ['./', './index.html', './manifest.json', './config.js', './icon.png'];
 
