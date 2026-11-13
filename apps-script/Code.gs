@@ -1416,6 +1416,15 @@ function apiGetTodayScheduledActivities(token) {
  * data guru lain melalui parameter.
  */
 function apiGetMyActivityAchievement(token) {
+  return gpsfmGetMyActivityAchievement_(token, '');
+}
+
+function apiGetMyActivityAchievementCurrentMonth(token) {
+  const monthPrefix = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM');
+  return gpsfmGetMyActivityAchievement_(token, monthPrefix);
+}
+
+function gpsfmGetMyActivityAchievement_(token, monthPrefix) {
   const s = gpsfmSession_(token), userId = String(s.user.userId);
   const today = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
   const activities = gpsfmRows_('Activities'), activityMap = {};
@@ -1427,7 +1436,7 @@ function apiGetMyActivityAchievement(token) {
     return String(row.teacherId) === userId;
   });
   const activityIds = {};
-  assignments.forEach(function(row) { activityIds[String(row.activityId)] = true; });
+  if (!monthPrefix) assignments.forEach(function(row) { activityIds[String(row.activityId)] = true; });
 
   const attendanceByKey = {};
   const attendanceRows = gpsfmRows_('Attendance').filter(function(row) {
@@ -1435,7 +1444,7 @@ function apiGetMyActivityAchievement(token) {
   });
   attendanceRows.forEach(function(row) {
     const activityId = String(row.activityId), date = gpsfmDateKey_(row.attendanceDate);
-    if (!date || date > today) return;
+    if (!date || date > today || (monthPrefix && date.slice(0,7) !== monthPrefix)) return;
     activityIds[activityId] = true;
     attendanceByKey[activityId + '|' + date] = String(row.status || '');
   });
@@ -1448,7 +1457,7 @@ function apiGetMyActivityAchievement(token) {
   gpsfmRows_('ActivityOccurrences').forEach(function(row) {
     const activityId = String(row.activityId);
     const date = gpsfmDateKey_(row.occurrenceDate);
-    if (!date || date > today) return;
+    if (!date || date > today || (monthPrefix && date.slice(0,7) !== monthPrefix)) return;
     let teacherIds = [];
     try { teacherIds = JSON.parse(String(row.teacherIdsJson || '[]')); } catch (e) {}
     if (!Array.isArray(teacherIds) || teacherIds.map(String).indexOf(userId) < 0) return;
@@ -1514,6 +1523,7 @@ function apiGetMyActivityAchievement(token) {
   }, {totalMeetings:0,attended:0,unrecorded:0});
   return {
     asOf:today,
+    period:monthPrefix || 'all',
     totalActivities:result.length,
     totalMeetings:totals.totalMeetings,
     attended:totals.attended,
