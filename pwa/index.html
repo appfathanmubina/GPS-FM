@@ -34,7 +34,10 @@
     if (/\.[a-z0-9]+$/i.test(path)) return path.slice(0, path.lastIndexOf('/') + 1) || '/';
     return path + '/';
   })();
-  const gpsfmServiceWorkerPath = gpsfmPwaBasePath + 'sw.js';
+  // OneSignal expects serviceWorkerPath relative to the site origin (without leading slash).
+  // The native ServiceWorkerContainer.register() call below still uses the absolute URL.
+  const gpsfmServiceWorkerUrl = gpsfmPwaBasePath + 'sw.js';
+  const gpsfmServiceWorkerPath = gpsfmServiceWorkerUrl.replace(/^\\/+/, '');
   function gpsfmStopPushRegistrationRetry() {
     if (gpsfmPushRegistrationTimer) clearTimeout(gpsfmPushRegistrationTimer);
     gpsfmPushRegistrationTimer = null;
@@ -357,7 +360,7 @@ installButton.addEventListener('click',async()=>{
 document.getElementById('closeInstallHelp').addEventListener('click',()=>{installHelp.style.display='none';});
 installHelp.addEventListener('click',event=>{if(event.target===installHelp)installHelp.style.display='none';});
 syncInstallButton();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register(gpsfmServiceWorkerPath,{scope:gpsfmPwaBasePath}).catch(error=>{console.error('GPS FM: registrasi service worker gagal:',error);gpsfmNotifyAppPushState('error','Service worker GPS FM gagal dipasang. Periksa URL PWA dan izin browser, lalu muat ulang.');}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register(gpsfmServiceWorkerUrl,{scope:gpsfmPwaBasePath}).catch(error=>{console.error('GPS FM: registrasi service worker gagal:',error);gpsfmNotifyAppPushState('error','Service worker GPS FM gagal dipasang. Periksa URL PWA dan izin browser, lalu muat ulang.');}));
 </script>
 </body>
 </html>
