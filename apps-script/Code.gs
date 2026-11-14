@@ -1833,6 +1833,14 @@ function apiGetAttendanceExcelData(token,year,month) {
   const sheets=activities.map(function(activity){
     const activityId=String(activity.activityId),relevant=attendanceByActivity[activityId]||[];
     const dates=Array.from(new Set(relevant.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
+    let reportTeachers=teachers;
+    if(String(activity.schedulingMode||'regular')!=='regular'){
+      const eligible={};
+      dates.forEach(function(date){gpsfmAttendanceTeacherIds_(activityId,date).forEach(function(id){eligible[String(id)]=true;});});
+      // Pertahankan guru yang memiliki catatan lama agar data historis tetap terlihat.
+      relevant.forEach(function(row){eligible[String(row.teacherId)]=true;});
+      reportTeachers=reportTeachers.filter(function(u){return !!eligible[String(u.userId)];});
+    }
     const values={};
     relevant.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)]=String(a.status||'');});
     const header=['No','Nama Peserta'].concat(dates.map(function(d){return d.split('-').reverse().join('-');})).concat(labels).concat(['Total Catatan']);
@@ -1840,11 +1848,11 @@ function apiGetAttendanceExcelData(token,year,month) {
     const totals={};labels.forEach(function(k){totals[k]=0;});
     const dailyTotals={};dates.forEach(function(d){dailyTotals[d]=0;});
     dates.forEach(function(date){
-      dailyTotals[date]=teachers.filter(function(u){
+      dailyTotals[date]=reportTeachers.filter(function(u){
         return !!gpsfmExportStatusKey_(values[String(u.userId)+'|'+date]||'');
       }).length;
     });
-    teachers.forEach(function(u,index){
+    reportTeachers.forEach(function(u,index){
       const counts={};labels.forEach(function(k){counts[k]=0;});
       const cells=dates.map(function(date){
         const raw=values[String(u.userId)+'|'+date]||'—',key=gpsfmExportStatusKey_(raw);
@@ -1861,7 +1869,7 @@ function apiGetAttendanceExcelData(token,year,month) {
     let sheetName=base,n=2;
     while(usedNames[sheetName.toLowerCase()]){const suffix=' ('+n+')';n++;sheetName=base.slice(0,31-suffix.length)+suffix;}
     usedNames[sheetName.toLowerCase()]=true;
-    return {name:sheetName,rows:rows,dateCount:dates.length,teacherCount:teachers.length};
+    return {name:sheetName,rows:rows,dateCount:dates.length,teacherCount:reportTeachers.length};
   });
   gpsfmAudit_(s.user.userId,'EXPORT_ATTENDANCE_EXCEL','Attendance','',{year:year,month:month,activityCount:sheets.length});
   return {filename:'GPS-FM_Rekap-Absen_'+year+'-'+('0'+month).slice(-2)+'.xlsx',year:year,month:month,sheets:sheets,activityCount:sheets.length};
