@@ -844,7 +844,7 @@ function openLogoutConfirmation(){
 }
 $('changePassBtn').addEventListener('click',()=>{closeProfilePopover();openChangePasswordModal();});
 function navIcon(id){const paths={dashboard:'<rect x="4" y="4" width="6" height="6" rx="1.2"/><rect x="14" y="4" width="6" height="6" rx="1.2"/><rect x="4" y="14" width="6" height="6" rx="1.2"/><rect x="14" y="14" width="6" height="6" rx="1.2"/>',attendance:'<rect x="4" y="5.5" width="16" height="15" rx="2"/><path d="M8 3.5v4M16 3.5v4M4 10h16M8 14l2.2 2.2L16 12"/>',report:'<path d="M5 4v16h15"/><path d="m8 15 3.5-4 3 2 4.5-6"/>',activityReport:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M8 4.5v15M13 12h4M13 15.5h4"/>',activities:'<path d="M8 4.5h6.8L18 7.7v11.8H6V4.5z"/><path d="M14.5 4.8v3.4h3.2M9 12h6.5M9 15.5h6.5"/>',users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.8 19v-1.3a5.2 5.2 0 0 1 10.4 0V19m2.1-12a3.2 3.2 0 0 1 0 6.2m1.1 2.8a4.4 4.4 0 0 1 2.8 4"/>',apps:'<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>'};return '<svg class="nav-flat-icon" aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]||paths.dashboard)+'</svg>';}
-function renderNav(){const nav=$('nav');const isSuperadmin=me.role==='superadmin';const isSupervisor=me.role==='supervisor';const isAdminAdministrasi=me.role==='admin_administrasi';const isPJ=!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.some(a=>a.isPJ));const canViewActivityReports=isSuperadmin||isSupervisor||isAdminAdministrasi;const items=[['dashboard','Dashboard']];if(isSuperadmin||isPJ)items.push(['attendance','Input Absensi']);items.push(['report','Evaluasi Diri']);if(canViewActivityReports||isPJ)items.push(['activityReport','Rekap Absen']);if(isSuperadmin)items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);items.push(['apps','Aplikasi Lainnya']);nav.classList.toggle('nav-five',items.length===5);nav.classList.toggle('nav-many',items.length>4);nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
+function renderNav(){const nav=$('nav');const isSuperadmin=me.role==='superadmin';const isSupervisor=me.role==='supervisor';const isAdminAdministrasi=me.role==='admin_administrasi';const isPJ=!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.some(a=>a.isPJ));const canViewActivityReports=isSuperadmin||isSupervisor||isAdminAdministrasi;const items=[['dashboard','Dashboard']];if(isSuperadmin||isPJ)items.push(['attendance','Input Absensi']);items.push(['report','Evaluasi Diri']);if(canViewActivityReports||isPJ)items.push(['activityReport','Rekap Absen']);if(isPJ)items.push(['dutySchedule','Jadwal Petugas']);if(isSuperadmin)items.push(['activities','Kegiatan & PJ'],['users','Akun Guru']);items.push(['apps','Aplikasi Lainnya']);nav.classList.toggle('nav-five',items.length===5);nav.classList.toggle('nav-many',items.length>4);nav.style.setProperty('--nav-count',String(items.length));nav.innerHTML=items.map(x=>'<button data-page="'+x[0]+'" class="'+(currentPage===x[0]?'active':'')+'">'+navIcon(x[0])+'<span>'+x[1]+'</span></button>').join('');nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>renderPage(b.dataset.page)));}
 async function renderPage(page){
  const root=$('page'),previous=currentPage;
  if(previous&&previous!==page&&root.childNodes.length&&!root.classList.contains('page-loading-state')&&!root.querySelector('.page-loading-state')){
@@ -858,7 +858,7 @@ async function renderPage(page){
   while(gpsfmPageDomCache[page].firstChild)root.appendChild(gpsfmPageDomCache[page].firstChild);
   return;
  }
- const pageNames={dashboard:'Dashboard',attendance:'Input Absensi',report:'Evaluasi Diri',activities:'Kegiatan & PJ',activityReport:'Rekap Absen',users:'Akun Guru',apps:'Aplikasi Lainnya'};
+ const pageNames={dashboard:'Dashboard',attendance:'Input Absensi',report:'Evaluasi Diri',activities:'Kegiatan & PJ',activityReport:'Rekap Absen',dutySchedule:'Jadwal Petugas',users:'Akun Guru',apps:'Aplikasi Lainnya'};
  const targetPages=['dashboard','attendance','report','activities'];
  const shouldNotify=targetPages.includes(page);
  root.classList.add('page-loading-state');
@@ -869,6 +869,7 @@ async function renderPage(page){
   else if(page==='attendance')await attendancePage(root);
   else if(page==='report')await reportPage(root);
   else if(page==='activityReport')await activityReportPage(root);
+  else if(page==='dutySchedule')await dutySchedulePage(root);
   else if(page==='activities')await activitiesPage(root);
   else if(page==='users')await usersPage(root);
   else if(page==='apps')await appsPage(root);
@@ -1268,6 +1269,20 @@ async function activitiesPage(root){
  root.querySelectorAll('.assignBtn').forEach(b=>b.onclick=()=>showAssignments(b.dataset.id,b.dataset.name));
  root.querySelectorAll('.teacherAssignBtn').forEach(b=>b.onclick=()=>showActivityTeachers(b.dataset.id,b.dataset.name));
  root.querySelectorAll('.dutyScheduleBtn').forEach(b=>b.onclick=()=>showActivityDutySchedule(b.dataset.id,b.dataset.name,b.dataset.mode));
+}
+async function dutySchedulePage(root){
+ root.innerHTML=title('Jadwal Petugas','Atur petugas kegiatan per tanggal, gunakan pola rutin mingguan, dan lakukan penyesuaian bila diperlukan.')+'<div class="panel"><div class="empty">Memuat kegiatan yang menjadi tanggung jawab Anda...</div></div>';
+ try{
+  const list=await call('apiListActivities',token);
+  if(currentPage!=='dutySchedule')return;
+  const managed=list.filter(a=>(a.schedulingMode||'regular')!=='regular');
+  root.innerHTML=title('Jadwal Petugas','Atur petugas kegiatan per tanggal, gunakan pola rutin mingguan, dan lakukan penyesuaian bila diperlukan.')+
+   (managed.length?'<div class="panel"><h3>Kegiatan yang Anda kelola</h3><div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Hari Kegiatan</th><th>Pola</th><th>Aksi</th></tr></thead><tbody>'+managed.map(a=>'<tr><td><b>'+esc(a.name)+'</b><div class="small muted">'+esc(a.description||'')+'</div></td><td>'+esc(a.schedule||'—')+'</td><td>'+esc(({flexible_monthly:"Fleksibel bulanan",weekly_routine:"Rutin mingguan",combined:"Kombinasi"})[a.schedulingMode]||"")+'</td><td><button type="button" class="btn btn-primary openPJDutyCalendar" data-id="'+esc(a.activityId)+'" data-name="'+esc(a.name)+'" data-mode="'+esc(a.schedulingMode)+'">Kelola Jadwal</button></td></tr>').join('')+'</tbody></table></div></div>':'<div class="panel"><div class="empty">Belum ada kegiatan dengan pola penjadwalan petugas yang ditugaskan kepada Anda. Hubungi Superadmin untuk mengatur pola kegiatan dan penugasan PJ.</div></div>')+
+   '<div id="dutySchedulePanel"></div>';
+  root.querySelectorAll('.openPJDutyCalendar').forEach(b=>b.onclick=()=>showActivityDutySchedule(b.dataset.id,b.dataset.name,b.dataset.mode));
+ }catch(err){
+  root.innerHTML=title('Jadwal Petugas','')+'<div class="panel"><div class="empty">'+esc(err.message||'Jadwal tidak dapat dimuat.')+'</div></div>';
+ }
 }
 async function showActivityDutySchedule(id,name,mode){
  const panel=$('dutySchedulePanel');
