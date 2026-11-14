@@ -1127,6 +1127,122 @@ function gpsfmParseScheduleDays_(schedule) {
 function gpsfmDateFromKey_(key){const p=String(key).split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2],12,0,0));}
 function gpsfmDateKeyUTC_(d){return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);}
 function gpsfmWeekdayName_(key){return ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][gpsfmDateFromKey_(key).getUTCDay()];}
+function gpsfmEnsureActivityDutySheets_(){
+ const ss=gpsfmDb_();
+ let schedules=ss.getSheetByName('ActivityDutySchedules');
+ if(!schedules){
+  schedules=ss.insertSheet('ActivityDutySchedules');
+  schedules.getRange(1,1,1,11).setValues([['scheduleId','activityId','dutyDate','teacherIdsJson','status','source','notes','createdBy','createdAt','updatedBy','updatedAt']]);
+  schedules.setFrozenRows(1);
+ }
+ let routines=ss.getSheetByName('ActivityDutyRoutines');
+ if(!routines){
+  routines=ss.insertSheet('ActivityDutyRoutines');
+  routines.getRange(1,1,1,9).setValues([['routineId','activityId','weekday','teacherIdsJson','active','createdBy','createdAt','updatedBy','updatedAt']]);
+  routines.setFrozenRows(1);
+ }
+ return {schedules:schedules,routines:routines};
+}
+function gpsfmActivityDutyContext_(token,activityId){
+ const s=gpsfmSession_(token),activity=gpsfmActivity_(activityId);
+ if(!activity)throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
+ if(['flexible_monthly','weekly_routine','combined'].indexOf(String(activity.schedulingMode||'regular'))<0)throw new Error('Kegiatan ini masih menggunakan pola Reguler.');
+ if(String(s.user.role)!=='superadmin'&&!gpsfmIsPJ_(s.user.userId,activityId))throw new Error('Anda bukan PJ untuk kegiatan ini.');
+ return {session:s,activity:activity,mode:String(activity.schedulingMode||'regular')};
+}
+function gpsfmActivityDutyTeacherIds_(activityId,teacherIds){
+ const allowed={};gpsfmActiveTeacherIds_(activityId).forEach(function(id){allowed[String(id)]=true;});
+ if(!Array.isArray(teacherIds)||teacherIds.length>100)throw new Error('Daftar petugas tidak valid.');
+ const unique=[];
+ teacherIds.forEach(function(value){
+  const id=String(value||'');
+  if(!id||!allowed[id])throw new Error('Petugas harus dipilih dari guru yang terdaftar aktif pada kegiatan ini.');
+  if(unique.indexOf(id)<0)unique.push(id);
+ });
+ if(!unique.length)throw new Error('Pilih minimal satu petugas.');
+ return unique;
+}
+function gpsfmActivityDutyMonthParts_(month){
+ const match=String(month||'').match(/^(\\d{4})-(\\d{2})$/);
+ if(!match||Number(match[2])<1||Number(match[2])>12||Number(match[1])<2020||Number(match[1])>2100)throw new Error('Bulan jadwal tidak valid.');
+ return {year:Number(match[1]),month:Number(match[2]),prefix:match[1]+'-'+match[2]};
+}
+function apiGetActivityDutyMonth(token,activityId,month){
+ const ctx=gpsfmActivityDutyContext_(token,activityId),parts=gpsfmActivityDutyMonthParts_(month);
+ gpsfmEnsureActivityDutySheets_();
+ const scheduledDays=gpsfmParseScheduleDays_(ctx.activity.schedule),teachers=[];
+ const userMap={};gpsfmRows_('Users').forEach(function(u){if(gpsfmBool_(u.active))userMap[String(u.userId)]=u;});
+ gpsfmActiveTeacherIds_(activityId).forEach(function(id){const u=userMap[id];if(u)teachers.push({userId:id,fullName:String(u.fullName||u.username||id)});});
+ const routines={};
+ gpsfmRows_('ActivityDutyRoutines').forEach(function(r){
+  if(String(r.activityId)!==String(activityId)||!gpsfmBool_(r.active))return;
+  let ids=[];try{ids=JSON.parse(String(r.teacherIdsJson||'[]'));}catch(e){}
+  routines[String(r.weekday)]={teacherIds:Array.isArray(ids)?ids.map(String):[],updatedAt:String(r.updatedAt||'')};
+ });
+ const overrides={};
+ gpsfmRows_('ActivityDutySchedules').forEach(function(r){
+  if(String(r.activityId)!==String(activityId)||!gpsfmBool_(r.active)||String(r.dutyDate).slice(0,7)!==parts.prefix)return;
+  let ids=[];try{ids=JSON.parse(String(r.teacherIdsJson||'[]'));}catch(e){}
+  overrides[String(r.dutyDate)]={teacherIds:Array.isArray(ids)?ids.map(String):[],status:String(r.status||'draft'),source:String(r.source||'manual'),notes:String(r.notes||''),updatedAt:String(r.updatedAt||'')};
+ });
+ const lastDay=new Date(Date.UTC(parts.year,parts.month,0)).getUTCDate(),days=[];
+ for(let day=1;day<=lastDay;day++){
+  const date=parts.prefix+'-'+('0'+day).slice(-2),weekday=gpsfmWeekdayName_(date),scheduled=scheduledDays.indexOf(weekday)>=0;
+  const override=overrides[date],routine=routines[weekday];
+  let teacherIds=[],source='none',status='empty',notes='';
+  if(scheduled&&override&&override.source==='manual'){
+   teacherIds=override.teacherIds;source='manual';status=override.status;notes=override.notes;
+  }else if(scheduled&&routine){
+   teacherIds=routine.teacherIds;source='routine';status='published';
+  }else if(scheduled&&override){
+   teacherIds=override.teacherIds;source=override.source;status=override.status;notes=override.notes;
+  }
+  days.push({date:date,weekday:weekday,scheduled:scheduled,teacherIds:teacherIds,source:source,status:status,notes:notes,updatedAt:override?override.updatedAt:(routine?routine.updatedAt:'')});
+ }
+ return {activityId:String(activityId),activityName:String(ctx.activity.name||''),mode:ctx.mode,month:parts.prefix,scheduledDays:scheduledDays,teachers:teachers,routines:routines,days:days};
+}
+function apiSaveActivityDutyDate(token,data){
+ data=data||{};
+ const activityId=gpsfmText_(data.activityId,80),date=gpsfmText_(data.dutyDate,10),ctx=gpsfmActivityDutyContext_(token,activityId);
+ if(!gpsfmIsValidAttendanceDate_(date))throw new Error('Tanggal tidak valid.');
+ if(gpsfmParseScheduleDays_(ctx.activity.schedule).indexOf(gpsfmWeekdayName_(date))<0)throw new Error('Tanggal ini bukan hari kegiatan yang ditetapkan.');
+ const useRoutine=data.useRoutine===true;
+ if(useRoutine&&['weekly_routine','combined'].indexOf(ctx.mode)<0)throw new Error('Kegiatan ini tidak menggunakan jadwal rutin.');
+ const ids=useRoutine?[]:gpsfmActivityDutyTeacherIds_(activityId,data.teacherIds||[]);
+ const status=String(data.status||'published');
+ if(!useRoutine&&['draft','published'].indexOf(status)<0)throw new Error('Status jadwal tidak valid.');
+ gpsfmEnsureActivityDutySheets_();
+ const lock=LockService.getScriptLock();lock.waitLock(10000);
+ try{
+  const old=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date}),now=gpsfmNow_();
+  if(useRoutine){
+   if(old)gpsfmUpdateRow_('ActivityDutySchedules',old._row,{active:false,updatedBy:ctx.session.user.userId,updatedAt:now});
+  }else if(old){
+   gpsfmUpdateRow_('ActivityDutySchedules',old._row,{teacherIdsJson:JSON.stringify(ids),status:status,source:'manual',notes:gpsfmText_(data.notes,300),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
+  }else{
+   gpsfmAppend_('ActivityDutySchedules',{scheduleId:gpsfmId_(),activityId:activityId,dutyDate:date,teacherIdsJson:JSON.stringify(ids),status:status,source:'manual',notes:gpsfmText_(data.notes,300),active:true,createdBy:ctx.session.user.userId,createdAt:now,updatedBy:ctx.session.user.userId,updatedAt:now});
+  }
+  gpsfmAudit_(ctx.session.user.userId,useRoutine?'RESET_ACTIVITY_DUTY_TO_ROUTINE':'SAVE_ACTIVITY_DUTY_DATE','ActivityDutySchedules',activityId,{date:date,teacherIds:ids,status:status,useRoutine:useRoutine});
+ }finally{lock.releaseLock();}
+ return {ok:true};
+}
+function apiSaveActivityDutyRoutine(token,data){
+ data=data||{};
+ const activityId=gpsfmText_(data.activityId,80),weekday=gpsfmText_(data.weekday,20),ctx=gpsfmActivityDutyContext_(token,activityId);
+ if(['weekly_routine','combined'].indexOf(ctx.mode)<0)throw new Error('Pola rutin hanya tersedia untuk kegiatan Rutin Mingguan atau Kombinasi.');
+ if(gpsfmParseScheduleDays_(ctx.activity.schedule).indexOf(weekday)<0)throw new Error('Hari tersebut tidak termasuk hari kegiatan.');
+ const ids=gpsfmActivityDutyTeacherIds_(activityId,data.teacherIds||[]);
+ gpsfmEnsureActivityDutySheets_();
+ const lock=LockService.getScriptLock();lock.waitLock(10000);
+ try{
+  const old=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday}),now=gpsfmNow_();
+  if(old)gpsfmUpdateRow_('ActivityDutyRoutines',old._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
+  else gpsfmAppend_('ActivityDutyRoutines',{routineId:gpsfmId_(),activityId:activityId,weekday:weekday,teacherIdsJson:JSON.stringify(ids),active:true,createdBy:ctx.session.user.userId,createdAt:now,updatedBy:ctx.session.user.userId,updatedAt:now});
+  gpsfmAudit_(ctx.session.user.userId,'SAVE_ACTIVITY_DUTY_ROUTINE','ActivityDutyRoutines',activityId,{weekday:weekday,teacherIds:ids});
+ }finally{lock.releaseLock();}
+ return {ok:true};
+}
+
 function gpsfmEnsureOccurrenceSheet_(){
  const ss=gpsfmDb_();let sh=ss.getSheetByName('ActivityOccurrences');
  if(!sh){
