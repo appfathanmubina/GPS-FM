@@ -1190,7 +1190,7 @@ function apiGetActivityDutyMonth(token,activityId,month){
   const date=parts.prefix+'-'+('0'+day).slice(-2),weekday=gpsfmWeekdayName_(date),scheduled=scheduledDays.indexOf(weekday)>=0;
   const override=overrides[date],routine=routines[weekday];
   let teacherIds=[],source='none',status='empty',notes='';
-  if(scheduled&&override&&override.source==='manual'){
+  if(scheduled&&override&&(override.source==='manual'||override.source==='snapshot')){
    teacherIds=override.teacherIds;source='manual';status=override.status;notes=override.notes;
   }else if(scheduled&&routine){
    teacherIds=routine.teacherIds;source='routine';status='published';
@@ -1226,6 +1226,35 @@ function apiSaveActivityDutyDate(token,data){
  }finally{lock.releaseLock();}
  return {ok:true};
 }
+function gpsfmSnapshotPastActivityDutyRoutine_(activity,weekday,teacherIds,actorId){
+ if(!Array.isArray(teacherIds)||!teacherIds.length)return 0;
+ const today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd');
+ const startKey=gpsfmDateKey_(activity.createdAt)||today;
+ const start=gpsfmDateFromKey_(startKey),end=gpsfmDateFromKey_(today),earliest=new Date(end.getTime());
+ earliest.setUTCDate(earliest.getUTCDate()-730);
+ const cursor=start<earliest?earliest:start;
+ cursor.setUTCHours(12,0,0,0);
+ const scheduledDays=gpsfmParseScheduleDays_(activity.schedule);
+ const rows=gpsfmRows_('ActivityDutySchedules').filter(function(row){return String(row.activityId)===String(activity.activityId);});
+ const byDate={};rows.forEach(function(row){const date=gpsfmDateKey_(row.dutyDate);if(date)byDate[date]=row;});
+ const sh=gpsfmSheet_('ActivityDutySchedules'),headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(String);
+ const pending=[],now=gpsfmNow_();let count=0;
+ while(cursor<=end){
+  const date=gpsfmDateKeyUTC_(cursor);
+  if(gpsfmWeekdayName_(date)===weekday&&scheduledDays.indexOf(weekday)>=0){
+   const existing=byDate[date];
+   if(!existing||!gpsfmBool_(existing.active)){
+    const record={scheduleId:existing?String(existing.scheduleId||gpsfmId_()):gpsfmId_(),activityId:String(activity.activityId),dutyDate:date,teacherIdsJson:JSON.stringify(teacherIds.map(String)),status:'published',source:'snapshot',notes:'Snapshot pola rutin sebelum perubahan',active:true,createdBy:existing&&existing.createdBy?existing.createdBy:actorId,createdAt:existing&&existing.createdAt?existing.createdAt:now,updatedBy:actorId,updatedAt:now};
+    if(existing)gpsfmUpdateRow_('ActivityDutySchedules',existing._row,record);
+    else pending.push(headers.map(function(header){return Object.prototype.hasOwnProperty.call(record,header)?record[header]:'';}));
+    count++;
+   }
+  }
+  cursor.setUTCDate(cursor.getUTCDate()+1);
+ }
+ if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,headers.length).setValues(pending);
+ return count;
+}
 function apiSaveActivityDutyRoutine(token,data){
  data=data||{};
  const activityId=gpsfmText_(data.activityId,80),weekday=gpsfmText_(data.weekday,20),ctx=gpsfmActivityDutyContext_(token,activityId);
@@ -1235,10 +1264,14 @@ function apiSaveActivityDutyRoutine(token,data){
  gpsfmEnsureActivityDutySheets_();
  const lock=LockService.getScriptLock();lock.waitLock(10000);
  try{
-  const old=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday}),now=gpsfmNow_();
+  const old=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday},null,function(row){return gpsfmBool_(row.active);});
+  const inactive=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday});
+  const snapshotCount=old?gpsfmSnapshotPastActivityDutyRoutine_(ctx.activity,weekday,JSON.parse(String(old.teacherIdsJson||'[]')),ctx.session.user.userId):0;
+  const now=gpsfmNow_();
   if(old)gpsfmUpdateRow_('ActivityDutyRoutines',old._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
+  else if(inactive)gpsfmUpdateRow_('ActivityDutyRoutines',inactive._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
   else gpsfmAppend_('ActivityDutyRoutines',{routineId:gpsfmId_(),activityId:activityId,weekday:weekday,teacherIdsJson:JSON.stringify(ids),active:true,createdBy:ctx.session.user.userId,createdAt:now,updatedBy:ctx.session.user.userId,updatedAt:now});
-  gpsfmAudit_(ctx.session.user.userId,'SAVE_ACTIVITY_DUTY_ROUTINE','ActivityDutyRoutines',activityId,{weekday:weekday,teacherIds:ids});
+  gpsfmAudit_(ctx.session.user.userId,'SAVE_ACTIVITY_DUTY_ROUTINE','ActivityDutyRoutines',activityId,{weekday:weekday,teacherIds:ids,pastDatesSnapshotted:snapshotCount});
  }finally{lock.releaseLock();}
  return {ok:true};
 }
