@@ -989,7 +989,7 @@ async function attendancePage(root){
    const box=$('attendanceTeachers');box.innerHTML='<div class="empty">Memuat daftar guru...</div>';
    try{
      const [teachers,existing]=await Promise.all([call('apiGetActivityTeachers',token,$('aActivity').value,$('aDate').value),call('apiGetAttendanceForDate',token,$('aActivity').value,$('aDate').value)]);
-     if(!teachers.length){box.innerHTML='<h3>Guru yang terlibat</h3><div class="empty">Belum ada guru yang ditetapkan untuk kegiatan ini. Hubungi superadmin agar mengatur daftar guru pada menu Kegiatan & PJ.</div>';return;}
+     if(!teachers.length){box.innerHTML='<h3>Guru yang terlibat</h3><div class="empty">Belum ada petugas yang diterbitkan untuk tanggal ini. Periksa Jadwal Petugas Bulanan, atau hubungi superadmin jika daftar guru kegiatan belum diatur.</div>';return;}
      const saved={};existing.forEach(x=>saved[x.teacherId]=x);
      box.innerHTML='<h3>Daftar Guru Terlibat · '+teachers.length+' guru</h3><p class="muted small">Centang guru yang akan disimpan. Status dan catatan dapat diatur per guru. Rekap diperbarui dari catatan yang disimpan.</p>'+
      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0"><label class="checkitem" style="width:max-content"><input type="checkbox" id="selectAllAttendance"><span>Pilih semua guru</span></label><span class="muted small" id="attendanceSelectedCount">0 dipilih</span></div>'+
