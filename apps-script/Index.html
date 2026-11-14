@@ -565,6 +565,48 @@ body{touch-action:auto}
   body.embedded-app #appScreen .wrap{padding-top:80px!important}
 }
 
+
+/* Perbaikan checklist hari kegiatan: teks tetap berada di dalam kotak pada semua lebar layar. */
+#appScreen .activity-day-checklist{
+  width:100%;
+  min-width:0;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:7px;
+}
+#appScreen .activity-day-checklist .checkitem{
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%;
+  justify-content:center;
+  gap:5px;
+  padding:8px 3px;
+  white-space:normal;
+  overflow:hidden;
+  font-size:11px;
+  line-height:1.2;
+}
+#appScreen .activity-day-checklist .checkitem input{
+  width:14px;
+  min-width:14px;
+  height:14px;
+  margin:0;
+  flex:0 0 14px;
+}
+#appScreen .activity-day-checklist .checkitem span{
+  min-width:0;
+  text-align:center;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+@media(max-width:640px){
+  #appScreen .activity-day-checklist{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  #appScreen .activity-day-checklist .checkitem{padding:8px 2px;gap:4px}
+}
+@media(max-width:380px){
+  #appScreen .activity-day-checklist{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  #appScreen .activity-day-checklist .checkitem{padding:9px 4px;font-size:12px;gap:6px}
+}
+
 </style>
 </head>
 <body>
