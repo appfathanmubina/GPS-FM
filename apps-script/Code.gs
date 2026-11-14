@@ -813,30 +813,43 @@ function apiSetUserPassword(token, userId, newPassword) {
   return {ok:true};
 }
 
+function gpsfmEnsureActivitySchedulingSchema_() {
+  const sh = gpsfmSheet_('Activities');
+  const lastCol = sh.getLastColumn();
+  if (lastCol < 1) throw new Error('Header sheet Activities tidak ditemukan.');
+  const headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
+  if (headers.indexOf('schedulingMode') < 0) sh.getRange(1,lastCol+1).setValue('schedulingMode');
+}
+
 function apiListActivities(token) {
   const s = gpsfmSession_(token);
+  gpsfmEnsureActivitySchedulingSchema_();
   const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   if (s.user.role === 'superadmin') return activities.map(function(a) {
-    return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),active:gpsfmBool_(a.active)};
+    return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),schedulingMode:String(a.schedulingMode || 'regular'),active:gpsfmBool_(a.active)};
   });
   const assigned = {};
   gpsfmRows_('ActivityPJ').forEach(function(p) {
     if (String(p.userId) === String(s.user.userId) && gpsfmBool_(p.active)) assigned[String(p.activityId)] = true;
   });
   return activities.filter(function(a) { return !!assigned[String(a.activityId)]; }).map(function(a) {
-    return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),active:gpsfmBool_(a.active)};
+    return {activityId:String(a.activityId),name:String(a.name),description:String(a.description || ''),schedule:String(a.schedule || ''),schedulingMode:String(a.schedulingMode || 'regular'),active:gpsfmBool_(a.active)};
   });
 }
 
 function apiSaveActivity(token, data) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
+  gpsfmEnsureActivitySchedulingSchema_();
   data = data || {};
   const name = gpsfmText_(data.name,120);
   if (!name) throw new Error('Nama kegiatan wajib diisi.');
+  const allowedModes = ['regular','flexible_monthly','weekly_routine','combined'];
+  const schedulingMode = String(data.schedulingMode || 'regular');
+  if (allowedModes.indexOf(schedulingMode) < 0) throw new Error('Pola penjadwalan tidak valid.');
   const now = gpsfmNow_(), existing = data.activityId ? gpsfmFindRowByCriteria_('Activities', {activityId:String(data.activityId)}) : null;
-  if (existing) gpsfmUpdateRow_('Activities',existing._row,{name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),active:data.active !== false,updatedAt:now});
-  else gpsfmAppend_('Activities',{activityId:gpsfmId_(),name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),active:true,createdAt:now,updatedAt:now});
-  gpsfmAudit_(s.user.userId,existing?'UPDATE_ACTIVITY':'CREATE_ACTIVITY','Activities',existing?existing.activityId:name,{name:name});
+  if (existing) gpsfmUpdateRow_('Activities',existing._row,{name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),schedulingMode:schedulingMode,active:data.active !== false,updatedAt:now});
+  else gpsfmAppend_('Activities',{activityId:gpsfmId_(),name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),schedulingMode:schedulingMode,active:true,createdAt:now,updatedAt:now});
+  gpsfmAudit_(s.user.userId,existing?'UPDATE_ACTIVITY':'CREATE_ACTIVITY','Activities',existing?existing.activityId:name,{name:name,schedulingMode:schedulingMode});
   return {ok:true};
 }
 
