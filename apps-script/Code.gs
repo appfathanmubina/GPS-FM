@@ -1253,10 +1253,10 @@ function apiSaveActivityDutyDate(token,data){
  }finally{lock.releaseLock();}
  return {ok:true};
 }
-function gpsfmSnapshotPastActivityDutyRoutine_(activity,weekday,teacherIds,actorId){
+function gpsfmSnapshotPastActivityDutyRoutine_(activity,weekday,teacherIds,actorId,routineStartDate){
  if(!Array.isArray(teacherIds)||!teacherIds.length)return 0;
  const today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd');
- const startKey=gpsfmDateKey_(activity.createdAt)||today;
+ const startKey=gpsfmDateKey_(routineStartDate)||gpsfmDateKey_(activity.createdAt)||today;
  const start=gpsfmDateFromKey_(startKey),end=gpsfmDateFromKey_(today),earliest=new Date(end.getTime());
  earliest.setUTCDate(earliest.getUTCDate()-730);
  const cursor=start<earliest?earliest:start;
@@ -1293,7 +1293,7 @@ function apiSaveActivityDutyRoutine(token,data){
  try{
   const old=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday},null,function(row){return gpsfmBool_(row.active);});
   const inactive=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday});
-  const snapshotCount=old?gpsfmSnapshotPastActivityDutyRoutine_(ctx.activity,weekday,JSON.parse(String(old.teacherIdsJson||'[]')),ctx.session.user.userId):0;
+  const snapshotCount=old?gpsfmSnapshotPastActivityDutyRoutine_(ctx.activity,weekday,JSON.parse(String(old.teacherIdsJson||'[]')),ctx.session.user.userId,old.createdAt):0;
   const now=gpsfmNow_();
   if(old)gpsfmUpdateRow_('ActivityDutyRoutines',old._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
   else if(inactive)gpsfmUpdateRow_('ActivityDutyRoutines',inactive._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
@@ -1663,6 +1663,32 @@ function gpsfmGetMyActivityAchievement_(token, monthPrefix) {
     const key = activityId + '|' + date;
     occurrenceByKey[key] = row;
     activityIds[activityId] = true;
+  });
+
+  // Untuk kegiatan terjadwal dinamis, bentuk sesi yang menjadi hak petugas dari roster terbit.
+  // Snapshot historis yang sudah ada tetap diutamakan; rentang dibatasi 730 hari agar pembacaan tetap terkendali.
+  activities.forEach(function(activity){
+    const activityId=String(activity.activityId);
+    if(String(activity.schedulingMode||'regular')==='regular')return;
+    const end=gpsfmDateFromKey_(today),earliest=new Date(end.getTime());earliest.setUTCDate(earliest.getUTCDate()-730);
+    const requestedStart=monthPrefix?gpsfmDateFromKey_(monthPrefix+'-01'):earliest;
+    const created=gpsfmDateFromKey_(gpsfmDateKey_(activity.createdAt)||today);
+    const cursor=requestedStart<earliest?earliest:requestedStart;
+    if(created>cursor)cursor.setTime(created.getTime());
+    cursor.setUTCHours(12,0,0,0);end.setUTCHours(12,0,0,0);
+    const scheduledDays=gpsfmParseScheduleDays_(activity.schedule);
+    while(cursor<=end){
+      const date=gpsfmDateKeyUTC_(cursor);
+      if(scheduledDays.indexOf(gpsfmWeekdayName_(date))>=0){
+        const roster=gpsfmAttendanceTeacherIds_(activityId,date);
+        if(roster.indexOf(userId)>=0){
+          const key=activityId+'|'+date;
+          if(!occurrenceByKey[key])occurrenceByKey[key]={activityId:activityId,occurrenceDate:date,status:'scheduled',teacherIdsJson:JSON.stringify(roster)};
+          activityIds[activityId]=true;
+        }
+      }
+      cursor.setUTCDate(cursor.getUTCDate()+1);
+    }
   });
 
   function attendanceCategory(value) {
