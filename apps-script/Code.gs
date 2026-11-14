@@ -894,7 +894,7 @@ function gpsfmPublishedDutyTeacherIds_(activity,date){
  }
  if(mode==='weekly_routine'||mode==='combined'){
   const routine=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:String(activity.activityId),weekday:gpsfmWeekdayName_(date)},null,function(row){return gpsfmBool_(row.active);});
-  if(routine){let ids=[];try{ids=JSON.parse(String(routine.teacherIdsJson||'[]'));}catch(e){}return Array.isArray(ids)?ids.map(String).filter(function(id){return base.indexOf(id)>=0;}):[];}
+  if(routine){const routineStart=gpsfmDateKey_(routine.createdAt);if(routineStart&&date<routineStart)return [];let ids=[];try{ids=JSON.parse(String(routine.teacherIdsJson||'[]'));}catch(e){}return Array.isArray(ids)?ids.map(String).filter(function(id){return base.indexOf(id)>=0;}):[];}
  }
  return [];
 }
