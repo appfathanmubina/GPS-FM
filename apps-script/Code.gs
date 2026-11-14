@@ -875,11 +875,40 @@ function apiGetPJAssignments(token, activityId) {
   });
 }
 
-function apiGetActivityTeachers(token, activityId) {
+
+/** Roster absensi berdasarkan jadwal petugas yang telah diterbitkan. Kegiatan reguler tetap memakai seluruh guru aktif. */
+function gpsfmPublishedDutyTeacherIds_(activity,date){
+ const base=gpsfmActiveTeacherIds_(activity.activityId);
+ if(String(activity.schedulingMode||'regular')==='regular')return base;
+ if(!gpsfmIsValidAttendanceDate_(date)||gpsfmParseScheduleDays_(activity.schedule).indexOf(gpsfmWeekdayName_(date))<0)return [];
+ gpsfmEnsureActivityDutySheets_();
+ const override=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:String(activity.activityId),dutyDate:String(date)});
+ const mode=String(activity.schedulingMode||'');
+ if(override&&gpsfmBool_(override.active)&&(String(override.source||'manual')==='manual'||String(override.source)==='snapshot')){
+  if(String(override.status||'draft')==='published'){
+   let ids=[];try{ids=JSON.parse(String(override.teacherIdsJson||'[]'));}catch(e){}
+   return Array.isArray(ids)?ids.map(String).filter(function(id){return base.indexOf(id)>=0;}):[];
+  }
+  // Draf manual tidak menimpa pola rutin yang sudah diterbitkan.
+  if(mode==='flexible_monthly')return [];
+ }
+ if(mode==='weekly_routine'||mode==='combined'){
+  const routine=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:String(activity.activityId),weekday:gpsfmWeekdayName_(date)},null,function(row){return gpsfmBool_(row.active);});
+  if(routine){let ids=[];try{ids=JSON.parse(String(routine.teacherIdsJson||'[]'));}catch(e){}return Array.isArray(ids)?ids.map(String).filter(function(id){return base.indexOf(id)>=0;}):[];}
+ }
+ return [];
+}
+function gpsfmAttendanceTeacherIds_(activityId,date){
+ const activity=gpsfmActivity_(activityId);if(!activity)return [];
+ return gpsfmPublishedDutyTeacherIds_(activity,date);
+}
+
+function apiGetActivityTeachers(token, activityId, attendanceDate) {
   const s = gpsfmSession_(token);
   if (s.user.role !== 'superadmin' && s.user.role !== 'supervisor' && s.user.role !== 'admin_administrasi' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda tidak memiliki akses laporan kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  const assigned = gpsfmRows_('ActivityTeachers').filter(function(a) { return String(a.activityId) === String(activityId) && gpsfmBool_(a.active); });
+  const rosterIds = attendanceDate ? gpsfmAttendanceTeacherIds_(activityId,attendanceDate) : null;
+  const assigned = gpsfmRows_('ActivityTeachers').filter(function(a) { return String(a.activityId) === String(activityId) && gpsfmBool_(a.active) && (!rosterIds || rosterIds.indexOf(String(a.teacherId))>=0); });
   const assignedIds = {};
   assigned.forEach(function(a) { assignedIds[String(a.teacherId)] = true; });
   // Keep the order from the Users sheet; do not alphabetically sort attendance teachers.
@@ -911,7 +940,7 @@ function apiGetAttendanceForDate(token, activityId, date) {
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   if (!gpsfmIsValidAttendanceDate_(date)) throw new Error('Tanggal tidak valid.');
   const allowed = {};
-  apiGetActivityTeachers(token, activityId).forEach(function(t) { allowed[String(t.userId)] = true; });
+  apiGetActivityTeachers(token, activityId, date).forEach(function(t) { allowed[String(t.userId)] = true; });
   if (!Object.keys(allowed).length) return [];
   const sh = gpsfmSheet_('Attendance'), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
   if (lastRow < 2 || lastCol < 1) return [];
@@ -992,9 +1021,7 @@ function apiSaveAttendanceBatch(token, data) {
     if (gpsfmBool_(x.active) && gpsfmIsParticipantRole_(x.role)) activeUsers[String(x.userId)] = true;
   });
   const activityTeachers = {};
-  gpsfmRows_('ActivityTeachers').forEach(function(x) {
-    if (String(x.activityId) === activityId && gpsfmBool_(x.active)) activityTeachers[String(x.teacherId)] = true;
-  });
+  gpsfmAttendanceTeacherIds_(activityId,date).forEach(function(id){activityTeachers[String(id)]=true;});
 
   const seen = {}, normalized = [];
   entries.forEach(function(e) {
@@ -1093,7 +1120,7 @@ function apiSaveAttendance(token, data) {
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   const teacher = gpsfmRows_('Users').find(function(x) { return String(x.userId) === teacherId && gpsfmBool_(x.active) && gpsfmIsParticipantRole_(x.role); });
   if (!teacher) throw new Error('Peserta kegiatan tidak ditemukan atau tidak aktif.');
-  if (!gpsfmIsActivityTeacher_(teacherId,activityId)) throw new Error('Guru tersebut belum ditetapkan sebagai guru yang terlibat dalam kegiatan ini.');
+  if (gpsfmAttendanceTeacherIds_(activityId,date).indexOf(teacherId)<0) throw new Error('Guru tersebut tidak termasuk petugas yang diterbitkan untuk tanggal ini.');
   if (!gpsfmIsValidAttendanceDate_(date)) throw new Error('Tanggal tidak valid.');
   gpsfmValidatePJAttendanceMonth_(u, date);
   if (GPSFM_STATUSES.indexOf(status) < 0) throw new Error('Status kehadiran tidak valid.');
@@ -1402,7 +1429,14 @@ function apiGetAttendanceTargets(token){
             o=gpsfmSaveOccurrence_(a.activityId,date,'scheduled','', '',[]);
             occurrenceByKey[occurrenceKey]=o;
           }
-          if(['holiday','cancelled'].indexOf(String(o.status||'scheduled'))<0&&!attendanceDates[occurrenceKey])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+          if(['holiday','cancelled'].indexOf(String(o.status||'scheduled'))<0){
+            if(String(a.schedulingMode||'regular')!=='regular'){
+              const roster=gpsfmAttendanceTeacherIds_(a.activityId,date);
+              if(!roster.length) return;
+              if(!String(o.teacherIdsJson||'').trim()||String(o.teacherIdsJson)==='[]')o=gpsfmSaveOccurrence_(a.activityId,date,String(o.status||'scheduled'),String(o.reason||''),'',roster);
+            }
+            if(!attendanceDates[occurrenceKey])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+          }
         }
       }
       cursor.setUTCDate(cursor.getUTCDate()+1);
