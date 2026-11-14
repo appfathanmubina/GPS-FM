@@ -1430,12 +1430,13 @@ function apiGetAttendanceTargets(token){
             occurrenceByKey[occurrenceKey]=o;
           }
           if(['holiday','cancelled'].indexOf(String(o.status||'scheduled'))<0){
+            let rosterReady=true;
             if(String(a.schedulingMode||'regular')!=='regular'){
               const roster=gpsfmAttendanceTeacherIds_(a.activityId,date);
-              if(!roster.length) return;
-              if(!String(o.teacherIdsJson||'').trim()||String(o.teacherIdsJson)==='[]')o=gpsfmSaveOccurrence_(a.activityId,date,String(o.status||'scheduled'),String(o.reason||''),'',roster);
+              rosterReady=roster.length>0;
+              if(rosterReady&&(!String(o.teacherIdsJson||'').trim()||String(o.teacherIdsJson)==='[]'))o=gpsfmSaveOccurrence_(a.activityId,date,String(o.status||'scheduled'),String(o.reason||''),'',roster);
             }
-            if(!attendanceDates[occurrenceKey])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
+            if(rosterReady&&!attendanceDates[occurrenceKey])occurrences.push({activityId:String(a.activityId),activityName:String(a.name),schedule:String(a.schedule||''),date:date,weekday:gpsfmWeekdayName_(date),missingCount:1,status:String(o.status||'scheduled'),reason:String(o.reason||'')});
           }
         }
       }
