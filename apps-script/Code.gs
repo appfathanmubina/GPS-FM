@@ -473,8 +473,9 @@ function apiSendPushTest(token, subscriptionId) {
   return {ok:true,accepted:true,messageId:String(response.id)};
 }
 
-function gpsfmPushDeliveryKey_(activityId,date,userId,type,subscriptionId) {
-  return [type,activityId,date,userId,subscriptionId].join('|');
+function gpsfmPushDeliveryKey_(activityId,date,userId,type) {
+  // Satu kunci per user dan per kegiatan/tanggal, bukan per perangkat.
+  return [type,activityId,date,userId].join('|');
 }
 
 function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
@@ -545,12 +546,21 @@ function gpsfmRunScheduledPushNotifications() {
     const pendingLogs = [];
 
     function deliver(activity,type,userIds,title,message) {
-      const ids = [], keys = [];
+      const ids = [], recipients = [], processedUsers = {};
       userIds.forEach(function(userId) {
-        (subscriptionsByUser[String(userId)] || []).forEach(function(subscriptionId) {
-          const key = gpsfmPushDeliveryKey_(activity.activityId,today,userId,type,subscriptionId);
-          if (!sent[key]) { ids.push(subscriptionId); keys.push({key:key,userId:String(userId),subscriptionId:subscriptionId}); }
+        const userKey = String(userId);
+        if (processedUsers[userKey]) return;
+        processedUsers[userKey] = true;
+        const userSubscriptionIds = subscriptionsByUser[userKey] || [];
+        if (!userSubscriptionIds.length) return;
+        const key = gpsfmPushDeliveryKey_(activity.activityId,today,userKey,type);
+        // Kompatibel dengan log lama yang masih menyimpan satu kunci per perangkat.
+        const alreadySent = sent[key] || userSubscriptionIds.some(function(subscriptionId) {
+          return !!sent[key + '|' + subscriptionId];
         });
+        if (alreadySent) return;
+        userSubscriptionIds.forEach(function(subscriptionId) { ids.push(subscriptionId); });
+        recipients.push({key:key,userId:userKey,subscriptionIds:userSubscriptionIds.slice()});
       });
       if (!ids.length) return;
       let status = 'sent', detail = 'accepted';
@@ -561,14 +571,14 @@ function gpsfmRunScheduledPushNotifications() {
       } catch (error) {
         status = 'failed'; detail = String(error.message || error).slice(0,500); results.failed++;
       }
-      keys.forEach(function(item) {
+      recipients.forEach(function(item) {
         if (status === 'sent') sent[item.key] = true;
         pendingLogs.push({dedupeKey:item.key,activityId:String(activity.activityId),occurrenceDate:today,
-          recipientUserId:item.userId,notificationType:type,subscriptionIdsJson:JSON.stringify([item.subscriptionId]),
+          recipientUserId:item.userId,notificationType:type,subscriptionIdsJson:JSON.stringify(item.subscriptionIds),
           status:status,response:detail,createdAt:gpsfmNow_()});
       });
-      if (status === 'sent' && type === 'activity') results.teacherNotifications += keys.length;
-      if (status === 'sent' && type === 'attendance') results.pjNotifications += keys.length;
+      if (status === 'sent' && type === 'activity') results.teacherNotifications += recipients.length;
+      if (status === 'sent' && type === 'attendance') results.pjNotifications += recipients.length;
     }
 
     activities.forEach(function(activity) {
@@ -602,11 +612,14 @@ function gpsfmRunScheduledPushNotifications() {
       // Daftar roster tetap dipisahkan agar pemeriksaan kelengkapan absensi akurat.
       const activityRecipients = Object.assign({}, teachers, pjs);
       const activityRecipientIds = Object.keys(activityRecipients);
-      // Lima menit sebelum jadwal. Jendela ini mengantisipasi trigger yang berjalan sedikit terlambat;
-      // dedupe berdasarkan kegiatan/tanggal/penerima memastikan hanya satu notifikasi terkirim.
-      if (nowMinute >= startMinute - 5 && nowMinute < startMinute && activityRecipientIds.length) {
+      // Jendela pengingat: mulai 10 menit sebelum jadwal hingga 5 menit sesudah waktu mulai.
+      // Pengiriman dibatasi satu kali per user untuk setiap kegiatan pada tanggal tersebut.
+      if (nowMinute >= startMinute - 10 && nowMinute <= startMinute + 5 && activityRecipientIds.length) {
+        const startTimeText = ('0' + Math.floor(startMinute / 60)).slice(-2) + ':' +
+          ('0' + (startMinute % 60)).slice(-2);
         deliver(activity,'activity',activityRecipientIds,'Pengingat Kegiatan GPS FM',
-          'Kegiatan ' + String(activity.name || 'GPS FM') + ' akan dimulai 5 menit lagi. Silakan bersiap dan buka GPS FM untuk melihat penugasan Anda.');
+          'Kegiatan ' + String(activity.name || 'GPS FM') + ' dijadwalkan mulai pukul ' + startTimeText +
+          '. Silakan bersiap dan buka GPS FM untuk melihat penugasan Anda.');
       }
 
       // Pertahankan pengingat absensi kepada PJ selama 30 menit pertama setelah kegiatan dimulai.
@@ -688,7 +701,7 @@ function previewGpsFmPushRecipients() {
     const occurrence = occurrencesByActivity[activityId] || null;
     const occurrenceStatus = String((occurrence || {}).status || 'scheduled');
     const cancelled = ['holiday', 'cancelled'].indexOf(occurrenceStatus) >= 0;
-    const withinWindow = startMinute !== null && nowMinute >= startMinute && nowMinute < startMinute + 30;
+    const withinWindow = startMinute !== null && nowMinute >= startMinute - 10 && nowMinute <= startMinute + 5;
     const teacherMap = {};
     let candidateTeacherIds = teacherAssignments.filter(function(a) {
       return String(a.activityId) === activityId;
@@ -747,7 +760,7 @@ function setupGpsFmPushNotifications() {
     if (t.getHandlerFunction() === 'gpsfmRunScheduledPushNotifications') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('gpsfmRunScheduledPushNotifications').timeBased().everyMinutes(1).create();
-  return {ok:true,intervalMinutes:1,activityReminderMinutesBefore:5,sheets:['PushSubscriptions','PushDeliveryLog']};
+  return {ok:true,intervalMinutes:1,activityReminderMinutesBefore:10,activityReminderMinutesAfter:5,sheets:['PushSubscriptions','PushDeliveryLog']};
 }
 
 function apiGetBootstrap(token) {
