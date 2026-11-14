@@ -1873,13 +1873,25 @@ function apiGetActivityReport(token, activityId) {
   if (s.user.role !== 'superadmin' && s.user.role !== 'supervisor' && s.user.role !== 'admin_administrasi' && !gpsfmIsPJ_(s.user.userId, activityId)) throw new Error('Anda tidak memiliki akses laporan kegiatan ini.');
   const activity = gpsfmActivity_(activityId);
   if (!activity) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
-  const teachers = apiGetActivityTeachers(token, activityId);
-  const teacherIds = teachers.map(function(t){return String(t.userId);});
-  const rows = gpsfmRows_('Attendance').filter(function(a){return String(a.activityId) === activityId && teacherIds.indexOf(String(a.teacherId)) >= 0;});
-  const dates = Array.from(new Set(rows.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
-  const values = {};
-  rows.forEach(function(a){values[String(a.teacherId)+'|'+gpsfmDateKey_(a.attendanceDate)] = String(a.status).replace(/^[A-D]\. /,'');});
-  return {activityName:String(activity.name),dates:dates,teachers:teachers.map(function(t){return {userId:String(t.userId),fullName:String(t.fullName),statuses:dates.map(function(d){return values[String(t.userId)+'|'+d] || '—';})};})};
+  const users=gpsfmRows_('Users'),userMap={};
+  users.forEach(function(u){userMap[String(u.userId)]=String(u.fullName||'');});
+  const allRows=gpsfmRows_('Attendance').filter(function(a){return String(a.activityId)===activityId;});
+  const dates=Array.from(new Set(allRows.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
+  const rowsByKey={},teacherIds={};
+  dates.forEach(function(date){
+    const eligible={};gpsfmAttendanceTeacherIds_(activityId,date).forEach(function(id){eligible[String(id)]=true;});
+    allRows.forEach(function(a){
+      if(gpsfmDateKey_(a.attendanceDate)!==date)return;
+      const id=String(a.teacherId);
+      // Catatan lama tetap ditampilkan walaupun roster kegiatan kemudian berubah.
+      if(eligible[id]||String(activity.schedulingMode||'regular')!=='regular'){
+        teacherIds[id]=true;rowsByKey[id+'|'+date]=String(a.status).replace(/^[A-D]\\. /,'');
+      }
+    });
+    Object.keys(eligible).forEach(function(id){teacherIds[id]=true;});
+  });
+  const ordered=users.filter(function(u){return !!teacherIds[String(u.userId)];});
+  return {activityName:String(activity.name),dates:dates,teachers:ordered.map(function(u){const id=String(u.userId);return {userId:id,fullName:String(u.fullName||''),statuses:dates.map(function(date){return rowsByKey[id+'|'+date]||'—';})};})};
 }
 
 function apiGetTeachers(token) {
