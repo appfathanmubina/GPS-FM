@@ -624,7 +624,7 @@ body{touch-action:auto}
 .duty-teacher-item:has(input:checked) .duty-teacher-check{border-color:#800080;background:#800080;color:#fff}
 .duty-teacher-item:focus-within{outline:2px solid #d9b5e3;outline-offset:2px}
 @media(max-width:560px){.duty-teacher-list{grid-template-columns:1fr;gap:7px}.duty-teacher-item{min-height:54px;padding-top:8px;padding-bottom:8px}}
-</style>
+.dashboard-summary{display:grid;gap:10px}.dashboard-total{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 19px}.dashboard-total .stat-label{font-size:13px}.dashboard-total .stat-value{margin:0;font-size:30px;line-height:1.1}.dashboard-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.dashboard-status-grid .stat{padding:14px 15px}.dashboard-status-grid .stat-value{margin:7px 0 0}.dashboard-icon-button{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;display:inline-grid;place-items:center;font-size:21px;line-height:1;border-radius:11px}.dashboard-icon-button:disabled{opacity:.55;cursor:wait}@media(max-width:780px){.dashboard-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-total{padding:14px 15px}.dashboard-total .stat-value{font-size:28px}}</style>
 </head>
 <body>
 <div id="loginScreen" class="login">
@@ -952,14 +952,14 @@ function appsPage(root){
 }
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
 function todaySchedulePanelHtml(){
- const heading=['superadmin','supervisor','admin_administrasi'].indexOf(String(me.role))>=0?'Kegiatan Terjadwal Hari Ini':'Kegiatan Saya Hari Ini';
- return '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">'+heading+'</h3><button class="btn btn-light" id="reloadTodaySchedule" type="button">↻ Muat Ulang</button></div><p class="muted small" id="todayScheduleDate">Memuat jadwal hari ini…</p><div id="todayScheduleState" class="empty">Memuat kegiatan terjadwal…</div></div>';
+ const heading=['superadmin','supervisor','admin_administrasi'].indexOf(String(me.role))>=0?'Kegiatan Terjadwal Hari Ini':'Kegiatan Hari Ini';
+ return '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">'+heading+'</h3><button class="btn btn-light dashboard-icon-button" id="reloadTodaySchedule" type="button" aria-label="Muat ulang kegiatan hari ini" title="Muat ulang kegiatan hari ini">↻</button></div><p class="muted small" id="todayScheduleDate">Memuat jadwal hari ini…</p><div id="todayScheduleState" class="empty">Memuat kegiatan terjadwal…</div></div>';
 }
 async function loadTodaySchedule(root){
  const button=root.querySelector('#reloadTodaySchedule'),state=root.querySelector('#todayScheduleState'),dateLabel=root.querySelector('#todayScheduleDate');
  if(!button||!state||!root.isConnected||currentPage!=='dashboard')return;
  if(button.dataset.loading==='1')return;
- button.dataset.loading='1';button.disabled=true;button.textContent='Memuat…';
+ button.dataset.loading='1';button.disabled=true;button.textContent='↻';button.setAttribute('aria-label','Memuat kegiatan hari ini…');
  try{
   const data=await call('apiGetTodayScheduledActivities',token);
   if(currentPage!=='dashboard'||!root.isConnected)return;
@@ -971,7 +971,7 @@ async function loadTodaySchedule(root){
  }catch(e){
   if(currentPage==='dashboard'&&root.isConnected)state.innerHTML='<div class="empty">Jadwal hari ini gagal dimuat: '+esc(e.message||'Terjadi kesalahan.')+'</div>';
  }finally{
-  if(root.isConnected){button.dataset.loading='0';button.disabled=false;button.textContent='↻ Muat Ulang';}
+  if(root.isConnected){button.dataset.loading='0';button.disabled=false;button.textContent='↻';button.setAttribute('aria-label','Muat ulang kegiatan hari ini');}
  }
 }
 async function supervisorDashboard(root){
@@ -994,7 +994,11 @@ async function dashboard(root){
  if(me.role==='supervisor'||me.role==='admin_administrasi') return supervisorDashboard(root);
  const canViewTargets=me.role==='superadmin'||!!(bootstrap&&Array.isArray(bootstrap.activities)&&bootstrap.activities.length);
  const canInputAttendance=Array.isArray(bootstrap.activities)&&bootstrap.activities.some(a=>a.isPJ);
- root.innerHTML=title('Dashboard','Pantau catatan kehadiran dan target absensi kegiatan mingguan.')+'<div class="grid" id="dashboardStats"><div class="stat"><div class="stat-label">Total catatan</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Hadir</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Sakit & Izin Pribadi</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div><div class="stat"><div class="stat-label">Alfa</div><div class="stat-value skeleton-line">&nbsp;</div><div class="stat-foot">Memperbarui data</div></div></div>'+todaySchedulePanelHtml()+(canViewTargets?'<div class="panel" id="attendanceTargetsPanel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Target Absensi</h3><button class="btn btn-primary" id="reloadAttendanceTargets" type="button">↻ Reload Target Absensi</button></div><p class="muted small">Target dimuat hanya saat tombol diklik. Pertemuan terlewat dihitung sesuai jadwal; status absensi apa pun yang tersimpan dianggap sudah masuk.</p><div class="empty" id="attendanceTargetsState">Target absensi belum dimuat.</div></div>':'');
+ const dashboardDateParts=String(bootstrap&&bootstrap.serverDate||dateDefault()).split('-').map(Number);
+ const dashboardDateValue=dashboardDateParts.length===3&&dashboardDateParts.every(Number.isFinite)?new Date(dashboardDateParts[0],dashboardDateParts[1]-1,dashboardDateParts[2],12):new Date();
+ const dashboardDateLabel=dashboardDateValue.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+ const dashboardMonthLabel=dashboardDateValue.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+ root.innerHTML=title('Dashboard',dashboardDateLabel+' · Bulan aktif: '+dashboardMonthLabel)+'<div class="dashboard-summary" id="dashboardStats"><div class="stat dashboard-total"><div class="stat-label">Total catatan</div><div class="stat-value skeleton-line">&nbsp;</div></div><div class="dashboard-status-grid"><div class="stat"><div class="stat-label">Hadir</div><div class="stat-value skeleton-line">&nbsp;</div></div><div class="stat"><div class="stat-label">Sakit</div><div class="stat-value skeleton-line">&nbsp;</div></div><div class="stat"><div class="stat-label">Izin Pribadi</div><div class="stat-value skeleton-line">&nbsp;</div></div><div class="stat"><div class="stat-label">Alfa</div><div class="stat-value skeleton-line">&nbsp;</div></div></div></div>'+todaySchedulePanelHtml()+(canViewTargets?'<div class="panel" id="attendanceTargetsPanel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">Target Absensi</h3><button class="btn btn-primary dashboard-icon-button" id="reloadAttendanceTargets" type="button" aria-label="Muat ulang target absensi" title="Muat ulang target absensi">↻</button></div><div class="empty" id="attendanceTargetsState">Target absensi belum dimuat.</div></div>':'');
  root.insertAdjacentHTML('beforeend','<div class="panel"><h3>Akses cepat</h3>'+(canInputAttendance?'<button class="btn btn-primary" id="quickAttendance">Buka Input Absensi</button> ':'')+'<button class="btn btn-light" id="quickReport">Lihat Evaluasi Diri</button></div>');
  const quickAttendanceButton=$('quickAttendance');if(quickAttendanceButton)quickAttendanceButton.onclick=()=>{window.gpsfmPendingAttendance=null;renderPage('attendance');};
  $('quickReport').onclick=()=>renderPage('report');
@@ -1005,7 +1009,7 @@ async function dashboard(root){
    const r=await call('apiGetMonthlyReport',token,new Date().getFullYear(),new Date().getMonth()+1);
    if(currentPage!=='dashboard'||!root.isConnected)return;
    const s=r.summary;
-   $('dashboardStats').innerHTML=[['Total catatan',Object.values(s).reduce((a,b)=>a+b,0),'Semua status'],['Hadir',s.Hadir||0,'Kehadiran tercatat'],['Sakit & Izin Pribadi',(s['A. Sakit']||0)+(s['C. Izin Pribadi']||0),'Ketidakhadiran berizin'],['Alfa',s['D. Alfa']||0,'Tidak hadir tanpa keterangan']].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">'+x[2]+'</div></div>').join('');
+   $('dashboardStats').innerHTML='<div class="stat dashboard-total"><div class="stat-label">Total catatan</div><div class="stat-value">'+Object.values(s).reduce((a,b)=>a+Number(b||0),0)+'</div></div><div class="dashboard-status-grid">'+[['Hadir',s.Hadir||0],['Sakit',s['A. Sakit']||0],['Izin Pribadi',s['C. Izin Pribadi']||0],['Alfa',s['D. Alfa']||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div></div>').join('')+'</div>';
   }catch(e){
    if(currentPage==='dashboard'&&root.isConnected){$('dashboardStats').innerHTML='<div class="panel"><div class="empty">Statistik belum berhasil dimuat: '+esc(e.message||'Terjadi kesalahan.')+' <button class="btn btn-light" id="retryDashboardStats" type="button">Coba lagi</button></div></div>';$('retryDashboardStats').onclick=()=>renderPage('dashboard');}
   }
@@ -1014,7 +1018,7 @@ async function dashboard(root){
  async function loadTargets(){
   const requestId=++targetsRequest,button=$('reloadAttendanceTargets'),state=$('attendanceTargetsState');
   if(!button||!state||currentPage!=='dashboard')return;
-  button.disabled=true;button.textContent='Memuat target…';state.innerHTML='<div class="empty">Sedang memuat target absensi…</div>';
+  button.disabled=true;button.textContent='↻';button.setAttribute('aria-label','Memuat target absensi…');state.innerHTML='<div class="empty">Sedang memuat target absensi…</div>';
   try{
    const targets=await call('apiGetAttendanceTargets',token);
    if(currentPage!=='dashboard'||requestId!==targetsRequest)return;
@@ -1033,7 +1037,7 @@ async function dashboard(root){
    if(currentPage!=='dashboard'||requestId!==targetsRequest)return;
    state.innerHTML='<div class="empty">Target absensi gagal dimuat: '+esc(e.message||'Terjadi kesalahan.')+'</div>';
   }finally{
-   if(currentPage==='dashboard'&&requestId===targetsRequest){const btn=$('reloadAttendanceTargets');if(btn){btn.disabled=false;btn.textContent='↻ Reload Target Absensi';}}
+   if(currentPage==='dashboard'&&requestId===targetsRequest){const btn=$('reloadAttendanceTargets');if(btn){btn.disabled=false;btn.textContent='↻';btn.setAttribute('aria-label','Muat ulang target absensi');}}
   }
  }
  const reloadTargetsButton=$('reloadAttendanceTargets');if(reloadTargetsButton)reloadTargetsButton.onclick=loadTargets;
