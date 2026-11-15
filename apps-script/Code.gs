@@ -1203,7 +1203,7 @@ function gpsfmActivityDutyTeacherIds_(activityId,teacherIds){
  return unique;
 }
 function gpsfmActivityDutyMonthParts_(month){
- const match=String(month||'').match(/^(\\d{4})-(\\d{2})$/);
+ const match=String(month||'').match(/^(\d{4})-(\d{2})$/);
  if(!match||Number(match[2])<1||Number(match[2])>12||Number(match[1])<2020||Number(match[1])>2100)throw new Error('Bulan jadwal tidak valid.');
  return {year:Number(match[1]),month:Number(match[2]),prefix:match[1]+'-'+match[2]};
 }
