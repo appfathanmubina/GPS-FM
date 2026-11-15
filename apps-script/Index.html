@@ -1006,7 +1006,7 @@ async function dashboard(root){
  // Statistik dimuat terpisah supaya komponen Dashboard yang datanya sudah tersedia dapat langsung digunakan.
  (async()=>{
   try{
-   const r=await call('apiGetMonthlyReport',token,new Date().getFullYear(),new Date().getMonth()+1);
+   const r=await call('apiGetMonthlyReport',token,dashboardDateParts[0],dashboardDateParts[1]);
    if(currentPage!=='dashboard'||!root.isConnected)return;
    const s=r.summary;
    $('dashboardStats').innerHTML='<div class="stat dashboard-total"><div class="stat-label">Total catatan</div><div class="stat-value">'+Object.values(s).reduce((a,b)=>a+Number(b||0),0)+'</div></div><div class="dashboard-status-grid">'+[['Hadir',s.Hadir||0],['Sakit',s['A. Sakit']||0],['Izin Pribadi',s['C. Izin Pribadi']||0],['Alfa',s['D. Alfa']||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div></div>').join('')+'</div>';
