@@ -1261,8 +1261,8 @@ function apiSaveActivityDutyDate(token,data){
  }finally{lock.releaseLock();}
  return {ok:true};
 }
-function gpsfmSnapshotPastActivityDutyRoutine_(activity,weekday,teacherIds,actorId,routineStartDate){
- if(!Array.isArray(teacherIds)||!teacherIds.length)return 0;
+function gpsfmPreparePastActivityDutyRoutineSnapshot_(activity,weekday,teacherIds,actorId,routineStartDate){
+ if(!Array.isArray(teacherIds)||!teacherIds.length)return {count:0,updates:[],pending:[]};
  const today=Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd');
  const startKey=gpsfmDateKey_(routineStartDate)||gpsfmDateKey_(activity.createdAt)||today;
  const start=gpsfmDateFromKey_(startKey),end=gpsfmDateFromKey_(today),earliest=new Date(end.getTime());
@@ -1291,26 +1291,29 @@ function gpsfmSnapshotPastActivityDutyRoutine_(activity,weekday,teacherIds,actor
     if(rowValues){
      Object.keys(record).forEach(function(key){if(Object.prototype.hasOwnProperty.call(cols,key))rowValues[cols[key]]=record[key];});
      updates.push({rowNumber:existing.rowNumber,values:rowValues});
-    }else{
-     pending.push(headers.map(function(header){return Object.prototype.hasOwnProperty.call(record,header)?record[header]:'';}));
-    }
+    }else pending.push(headers.map(function(header){return Object.prototype.hasOwnProperty.call(record,header)?record[header]:'';}));
     count++;
    }
   }
   cursor.setUTCDate(cursor.getUTCDate()+1);
  }
- // Tulis ulang hanya baris snapshot yang berubah, dikelompokkan per rentang berurutan.
+ return {count:count,updates:updates,pending:pending,headers:headers.length};
+}
+function gpsfmApplyPastActivityDutyRoutineSnapshot_(plan){
+ if(!plan||!plan.count)return 0;
+ const sh=gpsfmSheet_('ActivityDutySchedules'),updates=plan.updates||[];
  updates.sort(function(a,b){return a.rowNumber-b.rowNumber;});
  let index=0;
  while(index<updates.length){
   let endIndex=index+1;
   while(endIndex<updates.length&&updates[endIndex].rowNumber===updates[endIndex-1].rowNumber+1)endIndex++;
   const chunk=updates.slice(index,endIndex);
-  sh.getRange(chunk[0].rowNumber,1,chunk.length,headers.length).setValues(chunk.map(function(item){return item.values;}));
+  sh.getRange(chunk[0].rowNumber,1,chunk.length,plan.headers).setValues(chunk.map(function(item){return item.values;}));
   index=endIndex;
  }
- if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,headers.length).setValues(pending);
- return count;
+ const pending=plan.pending||[];
+ if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,plan.headers).setValues(pending);
+ return plan.count;
 }
 function apiSaveActivityDutyRoutine(token,data){
  data=data||{};
@@ -1319,11 +1322,18 @@ function apiSaveActivityDutyRoutine(token,data){
  if(gpsfmParseScheduleDays_(ctx.activity.schedule).indexOf(weekday)<0)throw new Error('Hari tersebut tidak termasuk hari kegiatan.');
  const ids=gpsfmActivityDutyTeacherIds_(activityId,data.teacherIds||[]);
  gpsfmEnsureActivityDutySheets_();
- const lock=LockService.getScriptLock();lock.waitLock(10000);
+ // Baca kondisi lama dan siapkan snapshot sebelum mengambil lock global.
+ // Perhitungan tanggal (hingga 730 hari) tidak lagi menahan lock.
+ const current=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday},null,function(row){return gpsfmBool_(row.active);});
+ const prior=current||gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday});
+ const snapshotPlan=current?gpsfmPreparePastActivityDutyRoutineSnapshot_(ctx.activity,weekday,JSON.parse(String(current.teacherIdsJson||'[]')),ctx.session.user.userId,current.createdAt):{count:0,updates:[],pending:[],headers:gpsfmSheet_('ActivityDutySchedules').getLastColumn()};
+ const lock=LockService.getScriptLock();
+ lock.waitLock(30000);
  try{
+  // Re-read record under lock to avoid duplicate routine rows on concurrent saves.
   const old=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday},null,function(row){return gpsfmBool_(row.active);});
-  const inactive=gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday});
-  const snapshotCount=old?gpsfmSnapshotPastActivityDutyRoutine_(ctx.activity,weekday,JSON.parse(String(old.teacherIdsJson||'[]')),ctx.session.user.userId,old.createdAt):0;
+  const inactive=old?null:gpsfmFindRowByCriteria_('ActivityDutyRoutines',{activityId:activityId,weekday:weekday});
+  const snapshotCount=gpsfmApplyPastActivityDutyRoutineSnapshot_(snapshotPlan);
   const now=gpsfmNow_();
   if(old)gpsfmUpdateRow_('ActivityDutyRoutines',old._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
   else if(inactive)gpsfmUpdateRow_('ActivityDutyRoutines',inactive._row,{teacherIdsJson:JSON.stringify(ids),active:true,updatedBy:ctx.session.user.userId,updatedAt:now});
@@ -1332,7 +1342,6 @@ function apiSaveActivityDutyRoutine(token,data){
  }finally{lock.releaseLock();}
  return {ok:true};
 }
-
 function gpsfmEnsureOccurrenceSheet_(){
  const ss=gpsfmDb_();let sh=ss.getSheetByName('ActivityOccurrences');
  if(!sh){
