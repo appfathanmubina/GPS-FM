@@ -1247,7 +1247,7 @@ function apiSaveActivityDutyDate(token,data){
  const status=String(data.status||'published');
  if(!useRoutine&&['draft','published'].indexOf(status)<0)throw new Error('Status jadwal tidak valid.');
  gpsfmEnsureActivityDutySheets_();
- const lock=LockService.getScriptLock();lock.waitLock(10000);
+ const lock=LockService.getScriptLock();lock.waitLock(30000);
  try{
   const old=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date}),now=gpsfmNow_();
   if(useRoutine){
