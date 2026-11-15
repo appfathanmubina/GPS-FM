@@ -972,6 +972,7 @@ function appsPage(root){
  root.innerHTML=title('Aplikasi Lainnya','Akses aplikasi pendukung Fathan Mubina tanpa meninggalkan GPS-FM sebagai aplikasi utama.')+'<div class="external-apps-grid">'+cards+'</div>';
 }
 function title(h,p,action){return '<div class="page-title"><div><h2>'+h+'</h2><p>'+p+'</p></div>'+(action||'')+'</div>';}
+function gpsfmBindPageReload(root,page,id){const button=root.querySelector('#'+id);if(button)button.onclick=()=>{delete gpsfmPageDomCache[page];renderPage(page);};}
 function todaySchedulePanelHtml(){
  const heading=['superadmin','supervisor','admin_administrasi'].indexOf(String(me.role))>=0?'Kegiatan Terjadwal Hari Ini':'Kegiatan Hari Ini';
  return '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">'+heading+'</h3><button class="btn btn-light dashboard-icon-button" id="reloadTodaySchedule" type="button" aria-label="Muat ulang kegiatan hari ini" title="Muat ulang kegiatan hari ini">↻</button></div><p class="muted small" id="todayScheduleDate">Memuat jadwal hari ini…</p><div id="todayScheduleState" class="empty">Memuat kegiatan terjadwal…</div></div>';
@@ -1142,8 +1143,9 @@ async function activityReportPage(root){
  const serverParts=String(bootstrap.serverDate||'').split('-').map(Number);
  const now=serverParts.length===3&&serverParts.every(Number.isFinite)?new Date(serverParts[0],serverParts[1]-1,serverParts[2]):new Date();
  const isGlobal=['superadmin','supervisor','admin_administrasi'].includes(me.role);
- root.innerHTML='<div class="page-title"><div><h2>Rekap Absen</h2></div></div>'+
+ root.innerHTML='<div class="page-title"><div><h2>Rekap Absen</h2></div><button class="btn btn-light dashboard-icon-button" id="reloadActivityReportPage" type="button" aria-label="Muat ulang Rekap Absen" title="Muat ulang Rekap Absen">↻</button></div>'+
  '<div class="panel"><div class="row"><div class="field"><label for="activityReportSelect">Pilih Kegiatan</label><select id="activityReportSelect"><option value="">Pilih kegiatan...</option>'+options+'</select></div><div class="field"><label for="activityReportMonth">Bulan</label><select id="activityReportMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div><div class="field"><label for="activityReportYear">Tahun</label><select id="activityReportYear">'+Array.from({length:7},(_,i)=>now.getFullYear()-3+i).map(y=>'<option '+(y===now.getFullYear()?'selected':'')+'>'+y+'</option>').join('')+'</select></div></div><div class="row" style="margin-top:14px;align-items:center"><button class="btn btn-light" id="activityReportPreviousMonth" type="button">↶ Rekap Bulan Sebelumnya</button><button class="btn btn-primary" id="exportAttendanceExcel" type="button">Export Rekap ke Excel</button></div><div id="activityReportResult" style="margin-top:14px"><div class="empty">Pilih kegiatan untuk menampilkan laporan.</div></div></div>';
+ gpsfmBindPageReload(root,'activityReport','reloadActivityReportPage');
  const sel=$('activityReportSelect'),month=$('activityReportMonth'),year=$('activityReportYear'),out=$('activityReportResult'),exportBtn=$('exportAttendanceExcel'),previousMonthBtn=$('activityReportPreviousMonth');
  async function load(){
   if(!sel.value){out.innerHTML='<div class="empty">Pilih kegiatan untuk menampilkan laporan.</div>';return;}
@@ -1215,7 +1217,7 @@ async function activityReportPage(root){
 }
 async function reportPage(root){
  const now=new Date();
- root.innerHTML='<div class="page-title"><div><h2>Evaluasi Diri</h2></div></div>'+
+ root.innerHTML='<div class="page-title"><div><h2>Evaluasi Diri</h2></div><button class="btn btn-light dashboard-icon-button" id="reloadReportPage" type="button" aria-label="Muat ulang Evaluasi Diri" title="Muat ulang Evaluasi Diri">↻</button></div>'+
   '<div id="achievementSummary"><div class="panel empty">Memuat pencapaian seluruh periode…</div></div>'+
   '<div id="achievementMonthly"><div class="panel empty">Memuat pencapaian bulan aktif…</div></div>'+
   '<div class="panel"><form id="reportForm" class="row">'+
@@ -1223,6 +1225,7 @@ async function reportPage(root){
   '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
   '<div class="field"><label>Kegiatan</label><select id="rActivity"><option value="">'+'Pilih kegiatan...'+'</option></select></div>'+
   '<button class="btn btn-primary" type="submit" style="flex:1;min-width:180px">Tampilkan Rekap</button></form></div><div id="reportResult"></div>';
+ gpsfmBindPageReload(root,'report','reloadReportPage');
 
  function filteredRows(){
   if(!report)return [];
@@ -1356,8 +1359,9 @@ async function activitiesPage(root){
  root.querySelectorAll('.dutyScheduleBtn').forEach(b=>b.onclick=()=>showActivityDutySchedule(b.dataset.id,b.dataset.name,b.dataset.mode));
 }
 async function dutySchedulePage(root){
- const pageTitle='<div class="page-title"><div><h2>Jadwal Petugas</h2></div></div>';
+ const pageTitle='<div class="page-title"><div><h2>Jadwal Petugas</h2></div><button class="btn btn-light dashboard-icon-button" id="reloadDutySchedulePage" type="button" aria-label="Muat ulang Jadwal Petugas" title="Muat ulang Jadwal Petugas">↻</button></div>';
  root.innerHTML=pageTitle+'<div class="panel"><div class="empty">Memuat kegiatan yang menjadi tanggung jawab Anda...</div></div>';
+ gpsfmBindPageReload(root,'dutySchedule','reloadDutySchedulePage');
  try{
   const list=await call('apiListActivities',token);
   if(currentPage!=='dutySchedule')return;
@@ -1365,9 +1369,11 @@ async function dutySchedulePage(root){
   root.innerHTML=pageTitle+
    (managed.length?'<div class="panel"><h3>Kegiatan yang Anda kelola</h3><div class="table-wrap"><table style="min-width:0;table-layout:fixed;width:100%"><colgroup><col style="width:72%"><col style="width:28%"></colgroup><thead><tr><th>Kegiatan</th><th>Aksi</th></tr></thead><tbody>'+managed.map(a=>'<tr><td style="white-space:normal;overflow-wrap:anywhere"><b>'+esc(a.name)+'</b><div class="small muted">'+esc(a.description||'')+'</div></td><td><button type="button" class="btn btn-primary openPJDutyCalendar" data-id="'+esc(a.activityId)+'" data-name="'+esc(a.name)+'" data-mode="'+esc(a.schedulingMode)+'">Kelola Jadwal</button></td></tr>').join('')+'</tbody></table></div></div>':'<div class="panel"><div class="empty">Belum ada kegiatan dengan pola penjadwalan petugas yang ditugaskan kepada Anda. Hubungi Superadmin untuk mengatur pola kegiatan dan penugasan PJ.</div></div>')+
    '<div id="dutySchedulePanel"></div>';
+  gpsfmBindPageReload(root,'dutySchedule','reloadDutySchedulePage');
   root.querySelectorAll('.openPJDutyCalendar').forEach(b=>b.onclick=()=>showActivityDutySchedule(b.dataset.id,b.dataset.name,b.dataset.mode));
  }catch(err){
   root.innerHTML=pageTitle+'<div class="panel"><div class="empty">'+esc(err.message||'Jadwal tidak dapat dimuat.')+'</div></div>';
+  gpsfmBindPageReload(root,'dutySchedule','reloadDutySchedulePage');
  }
 }
 async function showActivityDutySchedule(id,name,mode){
