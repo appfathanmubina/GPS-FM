@@ -1356,17 +1356,18 @@ async function activitiesPage(root){
  root.querySelectorAll('.dutyScheduleBtn').forEach(b=>b.onclick=()=>showActivityDutySchedule(b.dataset.id,b.dataset.name,b.dataset.mode));
 }
 async function dutySchedulePage(root){
- root.innerHTML=title('Jadwal Petugas','Atur petugas kegiatan per tanggal, gunakan pola rutin mingguan, dan lakukan penyesuaian bila diperlukan.')+'<div class="panel"><div class="empty">Memuat kegiatan yang menjadi tanggung jawab Anda...</div></div>';
+ const pageTitle='<div class="page-title"><div><h2>Jadwal Petugas</h2></div></div>';
+ root.innerHTML=pageTitle+'<div class="panel"><div class="empty">Memuat kegiatan yang menjadi tanggung jawab Anda...</div></div>';
  try{
   const list=await call('apiListActivities',token);
   if(currentPage!=='dutySchedule')return;
   const managed=list.filter(a=>(a.schedulingMode||'regular')!=='regular');
-  root.innerHTML=title('Jadwal Petugas','Atur petugas kegiatan per tanggal, gunakan pola rutin mingguan, dan lakukan penyesuaian bila diperlukan.')+
-   (managed.length?'<div class="panel"><h3>Kegiatan yang Anda kelola</h3><div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Hari Kegiatan</th><th>Pola</th><th>Aksi</th></tr></thead><tbody>'+managed.map(a=>'<tr><td><b>'+esc(a.name)+'</b><div class="small muted">'+esc(a.description||'')+'</div></td><td>'+esc(a.schedule||'—')+'</td><td>'+esc(({flexible_monthly:"Fleksibel bulanan",weekly_routine:"Rutin mingguan",combined:"Kombinasi"})[a.schedulingMode]||"")+'</td><td><button type="button" class="btn btn-primary openPJDutyCalendar" data-id="'+esc(a.activityId)+'" data-name="'+esc(a.name)+'" data-mode="'+esc(a.schedulingMode)+'">Kelola Jadwal</button></td></tr>').join('')+'</tbody></table></div></div>':'<div class="panel"><div class="empty">Belum ada kegiatan dengan pola penjadwalan petugas yang ditugaskan kepada Anda. Hubungi Superadmin untuk mengatur pola kegiatan dan penugasan PJ.</div></div>')+
+  root.innerHTML=pageTitle+
+   (managed.length?'<div class="panel"><h3>Kegiatan yang Anda kelola</h3><div class="table-wrap"><table style="min-width:0;table-layout:fixed;width:100%"><colgroup><col style="width:72%"><col style="width:28%"></colgroup><thead><tr><th>Kegiatan</th><th>Aksi</th></tr></thead><tbody>'+managed.map(a=>'<tr><td style="white-space:normal;overflow-wrap:anywhere"><b>'+esc(a.name)+'</b><div class="small muted">'+esc(a.description||'')+'</div></td><td><button type="button" class="btn btn-primary openPJDutyCalendar" data-id="'+esc(a.activityId)+'" data-name="'+esc(a.name)+'" data-mode="'+esc(a.schedulingMode)+'">Kelola Jadwal</button></td></tr>').join('')+'</tbody></table></div></div>':'<div class="panel"><div class="empty">Belum ada kegiatan dengan pola penjadwalan petugas yang ditugaskan kepada Anda. Hubungi Superadmin untuk mengatur pola kegiatan dan penugasan PJ.</div></div>')+
    '<div id="dutySchedulePanel"></div>';
   root.querySelectorAll('.openPJDutyCalendar').forEach(b=>b.onclick=()=>showActivityDutySchedule(b.dataset.id,b.dataset.name,b.dataset.mode));
  }catch(err){
-  root.innerHTML=title('Jadwal Petugas','')+'<div class="panel"><div class="empty">'+esc(err.message||'Jadwal tidak dapat dimuat.')+'</div></div>';
+  root.innerHTML=pageTitle+'<div class="panel"><div class="empty">'+esc(err.message||'Jadwal tidak dapat dimuat.')+'</div></div>';
  }
 }
 async function showActivityDutySchedule(id,name,mode){
