@@ -779,7 +779,8 @@ window.addEventListener('message',function(event){
   });
  }
 });
-function call(name,...args){return new Promise((resolve,reject)=>{if(!window.google||!google.script||!google.script.run){reject(new Error('Aplikasi harus dibuka melalui URL Web App Google Apps Script.'));return;}google.script.run.withSuccessHandler(result=>{if(gpsfmMutatingApi.test(name))gpsfmInvalidatePageCache();resolve(result);}).withFailureHandler(e=>reject(new Error((e&&e.message)||String(e)||'Terjadi kesalahan.')))[name](...args);});}
+function gpsfmFriendlyErrorMessage(error,fallback){const message=String(error&&error.message||error||'').trim();if(/networkerror|connection failure|failed to fetch|network request failed|rpc.*connection|connection.*lost/i.test(message))return 'Koneksi ke server terputus. Klik tombol Muat Ulang atau segarkan halaman untuk mencoba kembali.';return message||fallback||'Terjadi kesalahan.';}
+function call(name,...args){return new Promise((resolve,reject)=>{if(!window.google||!google.script||!google.script.run){reject(new Error('Aplikasi harus dibuka melalui URL Web App Google Apps Script.'));return;}google.script.run.withSuccessHandler(result=>{if(gpsfmMutatingApi.test(name))gpsfmInvalidatePageCache();resolve(result);}).withFailureHandler(e=>reject(new Error(gpsfmFriendlyErrorMessage(e,'Terjadi kesalahan.'))))[name](...args);});}
 function gpsfmStorageGet(storage,key){try{return storage.getItem(key)||'';}catch(e){return '';}}
 function gpsfmStorageSet(storage,key,value){try{storage.setItem(key,value);return true;}catch(e){return false;}}
 function gpsfmStorageRemove(storage,key){try{storage.removeItem(key);}catch(e){}}
@@ -959,7 +960,7 @@ async function renderPage(page){
   if(currentPage!==page)return;
   root.classList.remove('page-loading-state');
   if(shouldNotify)processNotice('Data belum berhasil dimuat',e.message||'Terjadi kesalahan saat mengambil data.','error');
-  root.insertAdjacentHTML('beforeend','<div class="panel"><h3>Belum dapat memuat data</h3><p class="muted">'+esc(e.message||'Terjadi kesalahan.')+'</p><button class="btn btn-primary" id="retry">Coba lagi</button></div>');
+  root.insertAdjacentHTML('beforeend','<div class="panel"><h3>Belum dapat memuat data</h3><p class="muted">'+esc(e.message||'Terjadi kesalahan.')+'</p><button class="btn btn-primary" id="retry">Muat Ulang</button></div>');
   const retry=$('retry');if(retry)retry.onclick=()=>renderPage(page);
  }
 }
@@ -1010,7 +1011,7 @@ async function supervisorDashboard(root){
   $('supervisorStats').innerHTML=[['Kegiatan aktif',d.totalActivities,'Seluruh kegiatan aktif'],['PJ aktif',d.totalPJ,'Guru yang menjadi PJ'],['Catatan absensi bulan ini',d.totalMonthlyRecords,'Semua kegiatan'],['Cakupan peserta tercatat',coverage+'%','Peserta dengan catatan / roster kegiatan']].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">'+x[2]+'</div></div>').join('');
   $('supervisorMonth').textContent='Periode: '+d.month+' · Cakupan menunjukkan jumlah guru yang sudah memiliki catatan dibanding roster aktif.';
   $('supervisorActivityTable').innerHTML=d.activities.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Jadwal</th><th>PJ</th><th>Peserta Terlibat</th><th>Catatan Bulan Ini</th><th>Cakupan Peserta</th></tr></thead><tbody>'+d.activities.map(a=>'<tr><td><b>'+esc(a.name)+'</b></td><td>'+esc(a.schedule||'—')+'</td><td>'+esc(a.pjs.join(', ')||'Belum ditetapkan')+'</td><td>'+a.rosterCount+'</td><td>'+a.monthlyRecords+'</td><td>'+a.coveragePercent+'%</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Belum ada kegiatan aktif.</div>';
- }catch(e){$('supervisorActivityTable').innerHTML='<div class="empty">Ringkasan gagal dimuat: '+esc(e.message||'Terjadi kesalahan.')+' <button id="retrySupervisor" class="btn btn-light">Coba lagi</button></div>';const b=$('retrySupervisor');if(b)b.onclick=()=>renderPage('dashboard');}
+ }catch(e){$('supervisorActivityTable').innerHTML='<div class="empty">Ringkasan gagal dimuat: '+esc(e.message||'Terjadi kesalahan.')+' <button id="retrySupervisor" class="btn btn-light">Muat Ulang</button></div>';const b=$('retrySupervisor');if(b)b.onclick=()=>renderPage('dashboard');}
 }
 async function dashboard(root){
  if(me.role==='supervisor'||me.role==='admin_administrasi') return supervisorDashboard(root);
@@ -1033,7 +1034,7 @@ async function dashboard(root){
    const s=r.summary;
    $('dashboardStats').innerHTML='<div class="stat dashboard-total"><div class="stat-label">Total catatan</div><div class="stat-value">'+Object.values(s).reduce((a,b)=>a+Number(b||0),0)+'</div></div><div class="dashboard-status-grid">'+[['Hadir',s.Hadir||0],['Sakit',s['A. Sakit']||0],['Izin Pribadi',s['C. Izin Pribadi']||0],['Alfa',s['D. Alfa']||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div></div>').join('')+'</div>';
   }catch(e){
-   if(currentPage==='dashboard'&&root.isConnected){$('dashboardStats').innerHTML='<div class="panel"><div class="empty">Statistik belum berhasil dimuat: '+esc(e.message||'Terjadi kesalahan.')+' <button class="btn btn-light" id="retryDashboardStats" type="button">Coba lagi</button></div></div>';$('retryDashboardStats').onclick=()=>renderPage('dashboard');}
+   if(currentPage==='dashboard'&&root.isConnected){$('dashboardStats').innerHTML='<div class="panel"><div class="empty">Statistik belum berhasil dimuat: '+esc(e.message||'Terjadi kesalahan.')+' <button class="btn btn-light" id="retryDashboardStats" type="button">Muat Ulang</button></div></div>';$('retryDashboardStats').onclick=()=>renderPage('dashboard');}
   }
  })();
  let targetsRequest=0;
@@ -1095,7 +1096,7 @@ async function attendancePage(root){
        catch(err){processNotice('Penyimpanan absensi gagal','Permintaan untuk '+selected.length+' guru tidak berhasil dikonfirmasi. Pesan sistem: '+(err.message||'Kesalahan tidak diketahui')+'. Periksa kembali data sebelum mencoba ulang.','error');}
        finally{busy(btn,false);}
      };
-   }catch(err){box.innerHTML='<h3>Daftar guru</h3><p class="muted">'+esc(err.message)+'</p><button class="btn btn-light" id="retryAttendanceTeachers">Coba lagi</button>';$('retryAttendanceTeachers').onclick=loadTeachers;}
+   }catch(err){box.innerHTML='<h3>Daftar guru</h3><p class="muted">'+esc(err.message)+'</p><button class="btn btn-light" id="retryAttendanceTeachers">Muat Ulang</button>';$('retryAttendanceTeachers').onclick=loadTeachers;}
  }
  let activityOptionsLoaded=false,activityOptionsLoading=false;
  async function loadActivityOptions(forceReload){
