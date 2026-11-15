@@ -478,7 +478,9 @@ function gpsfmSendOneSignal_(subscriptionIds, title, message, data) {
 
 /** Trigger setiap menit: pengingat kegiatan sebelum jadwal dan pengingat absensi setelah mulai. */
 function gpsfmRunScheduledPushNotifications() {
-  const lock = LockService.getScriptLock();
+  // Trigger notifikasi diserialisasi per pengguna pemilik trigger, bukan memakai
+  // script lock global yang juga dipakai penyimpanan absensi dan jadwal.
+  const lock = LockService.getUserLock();
   if (!lock.tryLock(1000)) return {ok:false,skipped:'another-run'};
   try {
     gpsfmEnsurePushSheets_();
@@ -1268,22 +1270,44 @@ function gpsfmSnapshotPastActivityDutyRoutine_(activity,weekday,teacherIds,actor
  const cursor=start<earliest?earliest:start;
  cursor.setUTCHours(12,0,0,0);
  const scheduledDays=gpsfmParseScheduleDays_(activity.schedule);
- const rows=gpsfmRows_('ActivityDutySchedules').filter(function(row){return String(row.activityId)===String(activity.activityId);});
- const byDate={};rows.forEach(function(row){const date=gpsfmDateKey_(row.dutyDate);if(date)byDate[date]=row;});
- const sh=gpsfmSheet_('ActivityDutySchedules'),headers=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(String);
- const pending=[],now=gpsfmNow_();let count=0;
+ const sh=gpsfmSheet_('ActivityDutySchedules'),lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();
+ const headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String),cols={};
+ headers.forEach(function(header,index){cols[header]=index;});
+ const values=lastRow>1?sh.getRange(2,1,lastRow-1,lastCol).getValues():[];
+ const byDate={};
+ values.forEach(function(row,index){
+  if(String(row[cols.activityId])!==String(activity.activityId))return;
+  const date=gpsfmDateKey_(row[cols.dutyDate]);
+  if(date)byDate[date]={rowNumber:index+2,values:row};
+ });
+ const pending=[],updates=[],now=gpsfmNow_();let count=0;
  while(cursor<=end){
   const date=gpsfmDateKeyUTC_(cursor);
   if(gpsfmWeekdayName_(date)===weekday&&scheduledDays.indexOf(weekday)>=0){
    const existing=byDate[date];
-   if(!existing||!gpsfmBool_(existing.active)){
-    const record={scheduleId:existing?String(existing.scheduleId||gpsfmId_()):gpsfmId_(),activityId:String(activity.activityId),dutyDate:date,teacherIdsJson:JSON.stringify(teacherIds.map(String)),status:'published',source:'snapshot',notes:'Snapshot pola rutin sebelum perubahan',active:true,createdBy:existing&&existing.createdBy?existing.createdBy:actorId,createdAt:existing&&existing.createdAt?existing.createdAt:now,updatedBy:actorId,updatedAt:now};
-    if(existing)gpsfmUpdateRow_('ActivityDutySchedules',existing._row,record);
-    else pending.push(headers.map(function(header){return Object.prototype.hasOwnProperty.call(record,header)?record[header]:'';}));
+   if(!existing||!gpsfmBool_(existing.values[cols.active])){
+    const record={scheduleId:existing?String(existing.values[cols.scheduleId]||gpsfmId_()):gpsfmId_(),activityId:String(activity.activityId),dutyDate:date,teacherIdsJson:JSON.stringify(teacherIds.map(String)),status:'published',source:'snapshot',notes:'Snapshot pola rutin sebelum perubahan',active:true,createdBy:existing&&existing.values[cols.createdBy]?existing.values[cols.createdBy]:actorId,createdAt:existing&&existing.values[cols.createdAt]?existing.values[cols.createdAt]:now,updatedBy:actorId,updatedAt:now};
+    const rowValues=existing?existing.values.slice():null;
+    if(rowValues){
+     Object.keys(record).forEach(function(key){if(Object.prototype.hasOwnProperty.call(cols,key))rowValues[cols[key]]=record[key];});
+     updates.push({rowNumber:existing.rowNumber,values:rowValues});
+    }else{
+     pending.push(headers.map(function(header){return Object.prototype.hasOwnProperty.call(record,header)?record[header]:'';}));
+    }
     count++;
    }
   }
   cursor.setUTCDate(cursor.getUTCDate()+1);
+ }
+ // Tulis ulang hanya baris snapshot yang berubah, dikelompokkan per rentang berurutan.
+ updates.sort(function(a,b){return a.rowNumber-b.rowNumber;});
+ let index=0;
+ while(index<updates.length){
+  let endIndex=index+1;
+  while(endIndex<updates.length&&updates[endIndex].rowNumber===updates[endIndex-1].rowNumber+1)endIndex++;
+  const chunk=updates.slice(index,endIndex);
+  sh.getRange(chunk[0].rowNumber,1,chunk.length,headers.length).setValues(chunk.map(function(item){return item.values;}));
+  index=endIndex;
  }
  if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,headers.length).setValues(pending);
  return count;
