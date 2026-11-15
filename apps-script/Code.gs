@@ -445,34 +445,6 @@ function apiUnregisterPushSubscription(token, subscriptionId) {
   return {ok:true,unregistered:!!old};
 }
 
-/** Kirim notifikasi uji hanya ke perangkat pemanggil yang terdaftar pada akun aktif. */
-function apiSendPushTest(token, subscriptionId) {
-  const session = gpsfmSession_(token);
-  subscriptionId = gpsfmText_(subscriptionId,100);
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subscriptionId)) {
-    throw new Error('ID perangkat tidak valid. Aktifkan notifikasi terlebih dahulu.');
-  }
-  gpsfmEnsurePushSheets_();
-  const subscription = gpsfmRows_('PushSubscriptions').find(function(r) {
-    return String(r.subscriptionId) === subscriptionId &&
-      String(r.userId) === String(session.user.userId) && gpsfmBool_(r.active);
-  });
-  if (!subscription) throw new Error('Perangkat ini belum terdaftar aktif pada akun Anda. Aktifkan ulang notifikasi.');
-  const response = gpsfmSendOneSignal_([subscriptionId],
-    'Tes Notifikasi GPS FM',
-    'Berhasil! Perangkat ini dapat menerima push notification dari GPS FM.',
-    {type:'test',url:'https://appfathanmubina.github.io/GPS-FM/pwa/'});
-  const now = gpsfmNow_();
-  gpsfmAppend_('PushDeliveryLog',{
-    dedupeKey:'test|' + Utilities.getUuid(),activityId:'TEST',
-    occurrenceDate:Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'),
-    recipientUserId:String(session.user.userId),notificationType:'test',
-    subscriptionIdsJson:JSON.stringify([subscriptionId]),status:'sent',
-    response:'accepted id=' + String(response.id),createdAt:now
-  });
-  return {ok:true,accepted:true,messageId:String(response.id)};
-}
-
 function gpsfmPushDeliveryKey_(activityId,date,userId,type) {
   // Satu kunci per user dan per kegiatan/tanggal, bukan per perangkat.
   return [type,activityId,date,userId].join('|');
