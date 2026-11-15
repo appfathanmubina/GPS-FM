@@ -1043,14 +1043,14 @@ async function dashboard(root){
  const reloadTargetsButton=$('reloadAttendanceTargets');if(reloadTargetsButton)reloadTargetsButton.onclick=loadTargets;
 }
 async function attendancePage(root){
- root.innerHTML=title('Input Absensi','Pilih kegiatan untuk memuat daftar guru, lalu tentukan tanggal absensi.','<button id="reloadAttendanceActivities" class="btn btn-light" type="button" style="white-space:nowrap;flex-shrink:0">↻ Muat Kegiatan</button>')+
- '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div><p class="muted small" style="margin:10px 0 0">PJ dapat mengisi absensi bulan berjalan. Absensi bulan sebelumnya masih dapat diinput sampai tanggal 2 bulan ini. Mulai tanggal 3, hubungi superadmin. Periode yang sudah dikunci tetap tidak dapat diubah.</p></form></div>'+
- '<div id="attendanceTeachers" class="panel"><div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div></div>';
+ root.innerHTML=title('Input Absensi','Pilih kegiatan dan tanggal absensi.','<button id="reloadAttendanceActivities" class="btn btn-light dashboard-icon-button" type="button" aria-label="Muat ulang daftar kegiatan" title="Muat ulang daftar kegiatan">↻</button>')+
+ '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div></form></div>'+
+ '<div id="attendanceTeachers" class="panel"><div class="empty">Silahkan pilih kegiatan dan tanggalnya.</div></div>';
  async function loadTeachers(){
    const box=$('attendanceTeachers');box.innerHTML='<div class="empty">Memuat daftar guru...</div>';
    try{
      const [teachers,existing]=await Promise.all([call('apiGetActivityTeachers',token,$('aActivity').value,$('aDate').value),call('apiGetAttendanceForDate',token,$('aActivity').value,$('aDate').value)]);
-     if(!teachers.length){box.innerHTML='<h3>Guru yang terlibat</h3><div class="empty">Belum ada petugas yang diterbitkan untuk tanggal ini. Periksa Jadwal Petugas Bulanan, atau hubungi superadmin jika daftar guru kegiatan belum diatur.</div>';return;}
+     if(!teachers.length){box.innerHTML='<h3>Guru yang terlibat</h3><div class="empty">Silahkan pilih kegiatan dan tanggalnya.</div>';return;}
      const saved={};existing.forEach(x=>saved[x.teacherId]=x);
      box.innerHTML='<h3>Daftar Guru Terlibat · '+teachers.length+' guru</h3><p class="muted small">Centang guru yang akan disimpan. Status dan catatan dapat diatur per guru. Rekap diperbarui dari catatan yang disimpan.</p>'+
      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0"><label class="checkitem" style="width:max-content"><input type="checkbox" id="selectAllAttendance"><span>Pilih semua guru</span></label><span class="muted small" id="attendanceSelectedCount">0 dipilih</span></div>'+
@@ -1082,7 +1082,7 @@ async function attendancePage(root){
   const select=$('aActivity'),dateInput=$('aDate'),box=$('attendanceTeachers'),reloadButton=$('reloadAttendanceActivities');
   const previousActivity=select.value;
   select.disabled=true;
-  if(reloadButton){reloadButton.disabled=true;reloadButton.textContent='Memuat...';}
+  if(reloadButton){reloadButton.disabled=true;reloadButton.textContent='↻';reloadButton.setAttribute('aria-label','Memuat daftar kegiatan…');}
   try{
    const loaded=await call('apiListActivities',token);
    // Tetap perbarui elemen halaman ini meskipun sedang tersimpan di cache
@@ -1106,7 +1106,7 @@ async function attendancePage(root){
   }finally{
    activityOptionsLoading=false;
    select.disabled=false;
-   if(reloadButton){reloadButton.disabled=false;reloadButton.textContent='↻ Muat Kegiatan';}
+   if(reloadButton){reloadButton.disabled=false;reloadButton.textContent='↻';reloadButton.setAttribute('aria-label','Muat ulang daftar kegiatan');}
   }
  }
  $('reloadAttendanceActivities').onclick=()=>loadActivityOptions(true);
