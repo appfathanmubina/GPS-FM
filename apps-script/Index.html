@@ -74,6 +74,27 @@
   .nav button{font-size:9px}
   .row>.field{min-width:100%}
 }
+/* Evaluasi Diri: ringkasan tiga baris */
+.achievement-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.achievement-stat{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:15px 18px}
+.achievement-stat .stat-label{font-size:13px;line-height:1.35}
+.achievement-stat .stat-value{font-size:25px;line-height:1.1;margin:0;white-space:nowrap}
+.achievement-stat-total{grid-column:1/-1}
+@media(max-width:780px){
+ .achievement-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ .achievement-stat{padding:12px 9px;gap:5px;flex-direction:column;align-items:flex-start;justify-content:center}
+ .achievement-stat .stat-label{font-size:10px;min-height:28px}
+ .achievement-stat .stat-value{font-size:22px}
+ .achievement-stat-total{flex-direction:row;align-items:center;justify-content:space-between;padding:13px 14px}
+ .achievement-stat-total .stat-label{font-size:12px;min-height:0}
+ .achievement-stat-total .stat-value{font-size:24px}
+}
+@media(max-width:360px){
+ .achievement-summary-grid{gap:6px}
+ .achievement-stat{padding:10px 7px}
+ .achievement-stat .stat-label{font-size:9px}
+ .achievement-stat .stat-value{font-size:19px}
+}
 /* GPS FM visual refinement v1 */
 :root{--ink:#251b2d;--muted:#786d80;--line:#e9dfed;--bg:#f8f5fa;--primary:#800080;--primary2:#620062;--primary-soft:#f5e8f7}
 body{background:linear-gradient(180deg,#faf7fc 0%,#f6f2f8 100%)}
@@ -1195,7 +1216,7 @@ async function activityReportPage(root){
 }
 async function reportPage(root){
  const now=new Date();
- root.innerHTML=title('Evaluasi Diri','Pantau persentase pencapaian kehadiran seluruh kegiatan yang Anda ikuti.')+
+ root.innerHTML='<div class="page-title"><div><h2>Evaluasi Diri</h2></div></div>'+
   '<div id="achievementSummary"><div class="panel empty">Memuat pencapaian seluruh periode…</div></div>'+
   '<div id="achievementMonthly"><div class="panel empty">Memuat pencapaian bulan aktif…</div></div>'+
   '<div class="panel"><form id="reportForm" class="row">'+
@@ -1243,9 +1264,13 @@ async function reportPage(root){
     const items=Array.isArray(data.activities)?data.activities:[];
     const progress=value=>Math.max(0,Math.min(100,Number(value)||0));
     target.innerHTML=
-     '<div class="grid" style="margin-top:14px">'+
-     [['Total kegiatan',data.totalActivities||0],['Absensi tercatat',data.totalMeetings||0],['Hadir',data.attended||0],['Belum diinput',data.unrecorded||0],['Pencapaian keseluruhan',(data.percentage||0)+'%']].map((x,i)=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-foot">'+(i===4?'Hadir ÷ absensi tercatat':'Seluruh kegiatan yang diikuti')+'</div></div>').join('')+
-     '</div><div class="panel"><h3>'+heading+'</h3><p class="muted small">'+periodLabel+'. Persentase dihitung dari Hadir ÷ seluruh absensi yang sudah tercatat. Sesi pada kalender kegiatan yang absensinya belum diinput ditampilkan terpisah dan tidak dianggap Alfa. Libur dan kegiatan dibatalkan tidak dihitung.</p>'+
+     '<div class="achievement-summary-grid">'+
+     '<div class="stat achievement-stat achievement-stat-total"><div class="stat-label">Total Kegiatan</div><div class="stat-value">'+(data.totalActivities||0)+'</div></div>'+
+     '<div class="stat achievement-stat"><div class="stat-label">Absensi Tercatat</div><div class="stat-value">'+(data.totalMeetings||0)+'</div></div>'+
+     '<div class="stat achievement-stat"><div class="stat-label">Hadir</div><div class="stat-value">'+(data.attended||0)+'</div></div>'+
+     '<div class="stat achievement-stat"><div class="stat-label">Belum Diinput</div><div class="stat-value">'+(data.unrecorded||0)+'</div></div>'+
+     '<div class="stat achievement-stat achievement-stat-total"><div class="stat-label">Pencapaian Keseluruhan</div><div class="stat-value">'+(data.percentage||0)+'%</div></div>'+
+     '</div><div class="panel"><h3>'+heading+'</h3>'+
      (items.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Hadir</th><th>Absensi Tercatat</th><th>Belum Diinput</th><th>Pencapaian</th></tr></thead><tbody>'+
       items.map(item=>'<tr><td><b>'+esc(item.activityName)+'</b></td><td>'+Number(item.attended||0)+'</td><td>'+Number(item.totalMeetings||0)+'</td><td>'+Number(item.unrecorded||0)+'</td><td><div style="display:flex;align-items:center;gap:10px;min-width:150px"><div style="height:9px;flex:1;background:var(--border,#eee);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+progress(item.percentage)+'%;background:var(--primary,#7950a1);border-radius:99px"></div></div><b>'+progress(item.percentage)+'%</b></div></td></tr>').join('')+
       '</tbody></table></div>':'<div class="empty">Belum ada kegiatan yang ditugaskan kepada akun ini.</div>')+'</div>';
