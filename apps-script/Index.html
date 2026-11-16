@@ -1235,8 +1235,8 @@ async function activityReportPage(root){
 async function reportPage(root){
  const now=new Date();
  root.innerHTML='<div class="page-title"><div><h2>Evaluasi Diri</h2></div><button class="btn btn-light dashboard-icon-button" id="reloadReportPage" type="button" aria-label="Muat ulang Evaluasi Diri" title="Muat ulang Evaluasi Diri">↻</button></div>'+
-  '<div id="achievementSummary"><div class="panel empty">Memuat pencapaian seluruh periode…</div></div>'+
-  '<div id="achievementMonthly"><div class="panel empty">Memuat pencapaian bulan aktif…</div></div>'+
+  '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">Pencapaian Seluruh Periode</h3><p class="muted small" style="margin:5px 0 0">Muat ringkasan seluruh riwayat absensi saat diperlukan.</p></div><button class="btn btn-primary" type="button" id="viewAchievementAll">Lihat</button></div><div id="achievementSummary" class="empty" style="margin-top:12px">Tekan tombol Lihat untuk memuat pencapaian seluruh periode.</div></div>'+
+  '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">Pencapaian Bulan Aktif</h3><p class="muted small" style="margin:5px 0 0">Muat ringkasan bulan berjalan saat diperlukan.</p></div><button class="btn btn-primary" type="button" id="viewAchievementMonth">Lihat</button></div><div id="achievementMonthly" class="empty" style="margin-top:12px">Tekan tombol Lihat untuk memuat pencapaian bulan aktif.</div></div>'+
   '<div class="panel"><form id="reportForm" class="row">'+
   '<div class="field"><label>Tahun</label><input id="rYear" type="number" value="'+now.getFullYear()+'" readonly aria-readonly="true"></div>'+
   '<div class="field"><label>Bulan</label><select id="rMonth">'+['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m,i)=>'<option value="'+(i+1)+'" '+(i===now.getMonth()?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'+
@@ -1271,12 +1271,11 @@ async function reportPage(root){
    rows.slice().sort((a,b)=>a.date.localeCompare(b.date)||a.activityName.localeCompare(b.activityName)||a.teacherName.localeCompare(b.teacherName)).map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.teacherName)+'</td><td>'+esc(x.activityName)+'</td><td><span class="pill '+esc(x.status)+'">'+esc(x.status)+'</span></td><td>'+esc(x.note||'—')+'</td></tr>').join('')+
    '</tbody></table></div>':'<div class="empty">Belum ada catatan kehadiran untuk periode dan kegiatan yang dipilih.</div>')+'</div>';
  }
- async function loadAchievementSummary(){
-   await loadAchievementPanel('achievementSummary','apiGetMyActivityAchievement','Pencapaian per Kegiatan — Seluruh Periode','Seluruh riwayat absensi');
-   await loadAchievementPanel('achievementMonthly','apiGetMyActivityAchievementCurrentMonth','Pencapaian per Kegiatan — Bulan Aktif','Bulan aktif mengikuti kalender berjalan');
-  }
- async function loadAchievementPanel(targetId,apiName,heading,periodLabel){
-   const target=$(targetId);
+ async function loadAchievementPanel(targetId,buttonId,apiName,heading){
+   const target=$(targetId),button=$(buttonId);
+   if(!target||!button||button.disabled)return;
+   button.disabled=true;button.textContent='Memuat…';
+   target.innerHTML='<div class="empty">Sedang memuat data…</div>';
    try{
     const data=await call(apiName,token);
     if(currentPage!=='report'||!target)return;
@@ -1294,7 +1293,9 @@ async function reportPage(root){
       items.map(item=>'<tr><td><b>'+esc(item.activityName)+'</b></td><td>'+Number(item.attended||0)+'</td><td>'+Number(item.totalMeetings||0)+'</td><td>'+Number(item.unrecorded||0)+'</td><td><div style="display:flex;align-items:center;gap:10px;min-width:150px"><div style="height:9px;flex:1;background:var(--border,#eee);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+progress(item.percentage)+'%;background:var(--primary,#7950a1);border-radius:99px"></div></div><b>'+progress(item.percentage)+'%</b></div></td></tr>').join('')+
       '</tbody></table></div>':'<div class="empty">Belum ada kegiatan yang ditugaskan kepada akun ini.</div>')+'</div>';
    }catch(error){
-    if(target)target.innerHTML='<div class="panel empty">'+esc(heading)+' belum dapat dimuat. '+esc(error.message||'Periksa koneksi lalu coba lagi.')+'</div>';
+    if(target)target.innerHTML='<div class="empty">'+esc(heading)+' belum dapat dimuat. '+esc(error.message||'Periksa koneksi lalu coba lagi.')+'</div>';
+   }finally{
+    if(button){button.disabled=false;button.textContent='Lihat';}
    }
   }
   let reportActivitiesLoaded=false,reportActivitiesLoading=false,reportDataLoading=false;
@@ -1331,8 +1332,10 @@ async function reportPage(root){
  $('rActivity').onchange=()=>{if($('rActivity').value)load();else{report=null;$('reportResult').innerHTML='<div class="panel empty">Pilih kegiatan untuk memuat rekap evaluasi diri.</div>';}};
  $('reportForm').onsubmit=async e=>{e.preventDefault();try{await load();}catch(err){toast(err.message);}};
  $('reportResult').innerHTML='<div class="panel empty">'+(me.role==='supervisor'||me.role==='admin_administrasi'?'Pilih periode untuk memuat catatan absensi Anda sendiri.':'Pilih kegiatan untuk memuat rekap evaluasi diri.')+'</div>';
- // Muat pilihan kegiatan yang memiliki catatan absensi milik akun ini.
- loadAchievementSummary();
+ // Ringkasan hanya dimuat setelah tombol masing-masing diklik.
+ $('viewAchievementAll').onclick=()=>loadAchievementPanel('achievementSummary','viewAchievementAll','apiGetMyActivityAchievement','Pencapaian seluruh periode');
+ $('viewAchievementMonth').onclick=()=>loadAchievementPanel('achievementMonthly','viewAchievementMonth','apiGetMyActivityAchievementCurrentMonth','Pencapaian bulan aktif');
+ // Muat daftar kegiatan untuk formulir rekap tanpa memuat kedua ringkasan di atas.
   loadActivityOptions().then(()=>{if((me.role==='supervisor'||me.role==='admin_administrasi')&&currentPage==='report')load();});
 }
 const GPSFM_DAYS=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
