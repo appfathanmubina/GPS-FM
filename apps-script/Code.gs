@@ -1966,22 +1966,60 @@ function apiSetPeriodLock(token, year, month, locked) {
 }
 
 function apiChangeOwnPassword(token, oldPassword, newPassword) {
-  const s = gpsfmSession_(token, true);
-  if (String(newPassword || '').length < 6) throw new Error('Password baru minimal 6 karakter.');
-  if (gpsfmHashPassword_(String(oldPassword || ''),s.user.passwordSalt) !== String(s.user.passwordHash)) throw new Error('Password lama tidak sesuai.');
+  const auth = gpsfmSession_(token, true);
+  oldPassword = String(oldPassword || '');
+  newPassword = String(newPassword || '');
+  if (newPassword.length < 6) throw new Error('Password baru minimal 6 karakter.');
+  if (newPassword.length > 200) throw new Error('Password baru terlalu panjang.');
+  if (gpsfmHashPassword_(oldPassword,auth.user.passwordSalt) !== String(auth.user.passwordHash)) {
+    throw new Error('Password lama tidak sesuai.');
+  }
 
-  const salt = gpsfmId_().replace(/-/g,'');
-  const newPasswordHash = gpsfmHashPassword_(newPassword,salt);
-  gpsfmUpdateRow_('Users',s.user._row,{
-    passwordSalt:salt,
-    passwordHash:newPasswordHash,
-    mustChangePassword:false,
-    updatedAt:gpsfmNow_()
-  });
+  // Serialisasi perubahan kredensial agar tidak bertabrakan dengan reset password
+  // admin atau permintaan ganti password lain yang berjalan pada saat bersamaan.
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
 
-  // Sinkronkan hash pada token yang sedang dipakai agar pengguna tetap berada
-  // di tab ini setelah ganti password. Token sesi lain tidak ikut diperbarui.
-  const currentSessionUpdated = gpsfmRefreshCurrentSessionPasswordHash_(token,s.user.userId,newPasswordHash);
-  gpsfmAudit_(s.user.userId,'CHANGE_PASSWORD','Users',s.user.userId,{});
-  return {ok:true,sessionKept:currentSessionUpdated};
+    // Baca ulang akun setelah lock didapat; data dari pemeriksaan sesi bisa sudah usang.
+    const currentUser = gpsfmFindRowByValue_('Users','userId',auth.user.userId);
+    if (!currentUser || !gpsfmBool_(currentUser.active)) throw new Error('Akun tidak aktif atau tidak ditemukan.');
+    if (gpsfmHashPassword_(oldPassword,currentUser.passwordSalt) !== String(currentUser.passwordHash)) {
+      throw new Error('Password akun sudah berubah. Muat ulang aplikasi lalu coba kembali.');
+    }
+
+    const salt = gpsfmId_().replace(/-/g,'');
+    const newPasswordHash = gpsfmHashPassword_(newPassword,salt);
+    gpsfmUpdateRow_('Users',currentUser._row,{
+      passwordSalt:salt,
+      passwordHash:newPasswordHash,
+      mustChangePassword:false,
+      updatedAt:gpsfmNow_()
+    });
+
+    // Perbarui hanya sesi yang sedang dipakai. Sesi perangkat lain tetap
+    // menggunakan hash lama sehingga otomatis tidak berlaku setelah password berubah.
+    const currentSessionUpdated = gpsfmRefreshCurrentSessionPasswordHash_(token,currentUser.userId,newPasswordHash);
+    if (!currentSessionUpdated) {
+      // Jangan mengembalikan status gagal setelah password sudah tersimpan.
+      // Pengguna dapat login kembali menggunakan password yang baru.
+      try { gpsfmUpdateRow_('UserSessions',auth.session._row,{active:false,updatedAt:gpsfmNow_()}); } catch (sessionError) {}
+    }
+
+    // Audit bersifat tambahan: gangguan pada AuditLogs tidak boleh membuat UI
+    // menyatakan password gagal jika Users dan sesi sudah berhasil diperbarui.
+    try { gpsfmAudit_(currentUser.userId,'CHANGE_PASSWORD','Users',currentUser.userId,{}); } catch (auditError) {
+      console.error('Audit CHANGE_PASSWORD gagal: ' + auditError.message);
+    }
+
+    return {ok:true,sessionKept:currentSessionUpdated};
+  } catch (error) {
+    if (error && /Password lama tidak sesuai|Password akun sudah berubah|Akun tidak aktif/.test(error.message || '')) throw error;
+    if (error && /Lock timeout|Service invoked too many times|timed out/i.test(error.message || '')) {
+      throw new Error('Server sedang sibuk memproses perubahan password. Silakan coba kembali.');
+    }
+    throw new Error('Perubahan password belum dapat diselesaikan. Silakan coba kembali; jika password baru sudah diterima, gunakan password baru saat login.');
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
 }
