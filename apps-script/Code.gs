@@ -337,10 +337,23 @@ function apiLogin(username, password, rememberMe) {
   const expiresIn = gpsfmBool_(rememberMe) ? GPSFM_REMEMBER_SESSION_TTL : GPSFM_SESSION_TTL;
   const session = {userId:String(user.userId),issuedAt:issuedAt,expiresAt:issuedAt+expiresIn*1000,passwordHash:String(user.passwordHash)};
   const tokenHash = gpsfmTokenKey_(token);
-  gpsfmSaveSession_(tokenHash,session);
+
+  // Koordinasikan dua penulisan yang selalu terjadi saat login.
+  // Lock hanya diambil setelah verifikasi password, sehingga proses baca/hash
+  // pengguna tidak ikut mengantre dan login paralel tetap dapat memvalidasi akun.
+  const loginWriteLock = LockService.getScriptLock();
+  try {
+    loginWriteLock.waitLock(20000);
+    gpsfmSaveSession_(tokenHash,session);
+    gpsfmAudit_(user.userId, 'LOGIN', 'Users', user.userId, {});
+  } catch (writeError) {
+    throw new Error('Server sedang menangani banyak login. Silakan coba kembali dalam beberapa saat.');
+  } finally {
+    if (loginWriteLock.hasLock()) loginWriteLock.releaseLock();
+  }
+
   // Cache hanya akselerator; sumber sesi yang tahan restart berada di sheet UserSessions.
   cache.put(tokenHash,JSON.stringify(session),GPSFM_SESSION_TTL);
-  gpsfmAudit_(user.userId, 'LOGIN', 'Users', user.userId, {});
   return {token:token, user:gpsfmPublicUser_(user), expiresIn:expiresIn};
 }
 
