@@ -91,6 +91,38 @@ function gpsfmRowsByDatePrefix_(name, dateField, prefix) {
   return result;
 }
 
+/**
+ * Ambil hanya baris yang cocok dengan satu kolom kunci, bukan seluruh tabel.
+ * Baris yang berurutan dibaca sekaligus untuk mengurangi panggilan Spreadsheet.
+ */
+function gpsfmRowsMatchingValue_(name, field, value) {
+  const sh=gpsfmSheet_(name),lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();
+  if(lastRow<2||lastCol<1)return [];
+  const headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
+  const fieldIndex=headers.indexOf(field);
+  if(fieldIndex<0)throw new Error('Kolom database tidak ditemukan: '+field+' ('+name+').');
+  const matches=sh.getRange(2,fieldIndex+1,lastRow-1,1).createTextFinder(String(value)).matchEntireCell(true).matchCase(true).findAll();
+  const rowNumbers=matches.map(function(cell){return cell.getRow();}).sort(function(a,b){return a-b;});
+  if(!rowNumbers.length)return [];
+  const result=[];
+  let start=rowNumbers[0],previous=start,rows=[];
+  function flush(){
+    const values=sh.getRange(start,1,rows.length,lastCol).getValues();
+    values.forEach(function(row,index){
+      const obj={_row:start+index};
+      headers.forEach(function(header,column){obj[header]=row[column];});
+      result.push(obj);
+    });
+    rows=[];
+  }
+  rowNumbers.forEach(function(rowNumber){
+    if(rows.length&&rowNumber!==previous+1){flush();start=rowNumber;}
+    rows.push(rowNumber);previous=rowNumber;
+  });
+  if(rows.length)flush();
+  return result;
+}
+
 function gpsfmRows_(name) {
   const sh = gpsfmSheet_(name), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
   if (lastRow < 2 || lastCol < 1) return [];
@@ -1633,8 +1665,8 @@ function apiListMyAttendanceActivities(token) {
   const activities = gpsfmRows_('Activities').filter(function(a) { return gpsfmBool_(a.active); });
   // Evaluasi Diri selalu bersifat pribadi untuk seluruh role, termasuk Superadmin.
   const ids = {};
-  gpsfmRows_('Attendance').forEach(function(row) {
-    if (String(row.teacherId) === String(s.user.userId)) ids[String(row.activityId)] = true;
+  gpsfmRowsMatchingValue_('Attendance','teacherId',String(s.user.userId)).forEach(function(row) {
+    ids[String(row.activityId)] = true;
   });
   return activities.filter(function(a) { return !!ids[String(a.activityId)]; }).map(function(a) {
     return {activityId:String(a.activityId),name:String(a.name),schedule:String(a.schedule||'')};
@@ -1804,9 +1836,7 @@ function gpsfmGetMyActivityAchievement_(token, monthPrefix) {
   if (!monthPrefix) assignments.forEach(function(row) { activityIds[String(row.activityId)] = true; });
 
   const attendanceByKey = {};
-  const attendanceRows = gpsfmRows_('Attendance').filter(function(row) {
-    return String(row.teacherId) === userId;
-  });
+  const attendanceRows = monthPrefix ? gpsfmRowsByDatePrefix_('Attendance','attendanceDate',monthPrefix) : gpsfmRowsMatchingValue_('Attendance','teacherId',userId);
   attendanceRows.forEach(function(row) {
     const activityId = String(row.activityId), date = gpsfmDateKey_(row.attendanceDate);
     if (!date || date > today || (monthPrefix && date.slice(0,7) !== monthPrefix)) return;
@@ -1933,7 +1963,7 @@ function apiGetMonthlyReport(token, year, month) {
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   allActivities.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
-  const attendance = gpsfmRows_('Attendance'), allowedActivityIds = {}, rows = [];
+  const attendance = gpsfmRowsByDatePrefix_('Attendance','attendanceDate',prefix), allowedActivityIds = {}, rows = [];
   attendance.forEach(function(a) {
     const activityId=String(a.activityId);
     if(String(a.teacherId)!==String(s.user.userId) || !Object.prototype.hasOwnProperty.call(actMap,activityId))return;
@@ -1985,7 +2015,7 @@ function apiGetAttendanceExcelData(token,year,month) {
   if(!isGlobal&&role!=='gps')throw new Error('Akses ekspor tidak diizinkan.');
   const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(isGlobal||gpsfmIsPJ_(s.user.userId,a.activityId));});
   if(!activities.length)throw new Error(isGlobal?'Belum ada kegiatan aktif untuk diekspor.':'Anda belum ditugaskan sebagai PJ pada kegiatan aktif.');
-  const users=gpsfmRows_('Users'),attendance=gpsfmRows_('Attendance'),prefix=year+'-'+('0'+month).slice(-2);
+  const users=gpsfmRows_('Users'),prefix=year+'-'+('0'+month).slice(-2),attendance=gpsfmRowsByDatePrefix_('Attendance','attendanceDate',prefix);
   const labels=['Hadir','A. Sakit','B. Tugas Pondok','C. Izin Pribadi','D. Alfa'];
   // Selaraskan roster ekspor dengan role peserta yang dapat ditugaskan ke kegiatan.
   const teachers=users.filter(function(u){return gpsfmBool_(u.active)&&gpsfmIsParticipantRole_(u.role);});
@@ -2051,7 +2081,7 @@ function apiGetActivityReport(token, activityId) {
   if (!activity) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   const users=gpsfmRows_('Users'),userMap={};
   users.forEach(function(u){userMap[String(u.userId)]=String(u.fullName||'');});
-  const allRows=gpsfmRows_('Attendance').filter(function(a){return String(a.activityId)===activityId;});
+  const allRows=gpsfmRowsMatchingValue_('Attendance','activityId',activityId);
   const dates=Array.from(new Set(allRows.map(function(a){return gpsfmDateKey_(a.attendanceDate);}))).filter(Boolean).sort();
   const rowsByKey={},teacherIds={};
   dates.forEach(function(date){
