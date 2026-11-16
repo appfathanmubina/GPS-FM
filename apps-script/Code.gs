@@ -1027,15 +1027,14 @@ function apiGetActivityTeachers(token, activityId, attendanceDate) {
 
 function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  // Snapshot riwayat dibuat terlebih dahulu oleh helper yang memiliki lock sendiri.
-  // Perubahan assignment kemudian diserialisasi agar tidak ada append/update bersamaan.
-  gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId));
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
     const teacher = gpsfmFindRowByCriteria_('Users', {userId:String(teacherId)});
     if (!activity || !teacher || !gpsfmBool_(teacher.active) || !gpsfmIsParticipantRole_(teacher.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
+    // Snapshot dan perubahan assignment berada dalam satu lock agar tidak saling mendahului.
+    gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId), true);
     const old = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
     if (old) gpsfmUpdateRow_('ActivityTeachers',old._row,{active:!!assigned,updatedAt:gpsfmNow_()});
     else if (assigned) gpsfmAppend_('ActivityTeachers',{assignmentId:gpsfmId_(),activityId:activityId,teacherId:teacherId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId,updatedAt:gpsfmNow_()});
@@ -1466,7 +1465,7 @@ function gpsfmActiveTeacherIds_(activityId){
  const active={};gpsfmRows_('ActivityTeachers').filter(function(a){return String(a.activityId)===String(activityId)&&gpsfmBool_(a.active);}).forEach(function(a){active[String(a.teacherId)]=true;});
  return gpsfmRows_('Users').filter(function(u){return active[String(u.userId)]&&gpsfmBool_(u.active)&&gpsfmIsParticipantRole_(u.role);}).map(function(u){return String(u.userId);});
 }
-function gpsfmSnapshotPastOccurrences_(activityId,teacherIds){
+function gpsfmSnapshotPastOccurrences_(activityId,teacherIds,lockAlreadyHeld){
   const a=gpsfmRows_('Activities').find(function(x){return String(x.activityId)===String(activityId);});
   if(!a)return;
   const days=gpsfmParseScheduleDays_(a.schedule);
@@ -1478,8 +1477,8 @@ function gpsfmSnapshotPastOccurrences_(activityId,teacherIds){
   const cursor=start<earliest?earliest:start;
   cursor.setUTCHours(12,0,0,0);
   gpsfmEnsureOccurrenceSheet_();
-  const lock=LockService.getScriptLock();
-  lock.waitLock(10000);
+  const lock=lockAlreadyHeld?null:LockService.getScriptLock();
+  if(lock)lock.waitLock(10000);
   try {
     const sh=gpsfmSheet_('ActivityOccurrences');
     const lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();
@@ -1505,7 +1504,7 @@ function gpsfmSnapshotPastOccurrences_(activityId,teacherIds){
       cursor.setUTCDate(cursor.getUTCDate()+1);
     }
     if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,headers.length).setValues(pending);
-  } finally { lock.releaseLock(); }
+  } finally { if(lock)lock.releaseLock(); }
 }
 
 function gpsfmOccurrenceTeacherIds_(o,id){
