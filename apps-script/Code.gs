@@ -797,14 +797,36 @@ function apiSaveUser(token, data) {
 }
 
 function apiSetUserPassword(token, userId, newPassword) {
-  const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  if (String(newPassword || '').length < 6) throw new Error('Password minimal 6 karakter.');
-  const u = gpsfmFindRowByCriteria_('Users', {userId:String(userId)});
-  if (!u) throw new Error('Akun tidak ditemukan.');
-  const salt = gpsfmId_().replace(/-/g,'');
-  gpsfmUpdateRow_('Users', u._row, {passwordSalt:salt,passwordHash:gpsfmHashPassword_(newPassword,salt),mustChangePassword:true,updatedAt:gpsfmNow_()});
-  gpsfmAudit_(s.user.userId, 'RESET_PASSWORD', 'Users', userId, {});
-  return {ok:true};
+  const auth = gpsfmSession_(token); gpsfmRequireAdmin_(auth);
+  newPassword = String(newPassword || '');
+  if (newPassword.length < 6) throw new Error('Password minimal 6 karakter.');
+  if (newPassword.length > 200) throw new Error('Password terlalu panjang.');
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    const user = gpsfmFindRowByCriteria_('Users', {userId:String(userId)});
+    if (!user) throw new Error('Akun tidak ditemukan.');
+    const salt = gpsfmId_().replace(/-/g,'');
+    gpsfmUpdateRow_('Users',user._row,{
+      passwordSalt:salt,
+      passwordHash:gpsfmHashPassword_(newPassword,salt),
+      mustChangePassword:true,
+      updatedAt:gpsfmNow_()
+    });
+    try { gpsfmAudit_(auth.user.userId,'RESET_PASSWORD','Users',userId,{}); } catch (auditError) {
+      console.error('Audit RESET_PASSWORD gagal: ' + auditError.message);
+    }
+    return {ok:true};
+  } catch (error) {
+    if (error && /Akun tidak ditemukan/.test(error.message || '')) throw error;
+    if (error && /Lock timeout|Service invoked too many times|timed out/i.test(error.message || '')) {
+      throw new Error('Server sedang sibuk memproses reset password. Silakan coba kembali.');
+    }
+    throw new Error('Reset password belum dapat diselesaikan. Silakan coba kembali.');
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
 }
 
 function gpsfmEnsureActivitySchedulingSchema_() {
