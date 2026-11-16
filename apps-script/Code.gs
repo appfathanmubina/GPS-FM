@@ -1486,7 +1486,7 @@ function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds,l
   if(old)gpsfmUpdateRow_('ActivityOccurrences',old._row,values);
   else gpsfmAppend_('ActivityOccurrences',{occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now,createdAt:now});
  } finally {if(lock)lock.releaseLock();}
- return gpsfmGetOccurrence_(activityId,date);
+ return gpsfmGetOccurrence_(activityId,date,!!lockAlreadyHeld);
 }
 function gpsfmActiveTeacherIds_(activityId){
  const active={};gpsfmRows_('ActivityTeachers').filter(function(a){return String(a.activityId)===String(activityId)&&gpsfmBool_(a.active);}).forEach(function(a){active[String(a.teacherId)]=true;});
@@ -1503,7 +1503,7 @@ function gpsfmSnapshotPastOccurrences_(activityId,teacherIds,lockAlreadyHeld){
   earliest.setUTCDate(earliest.getUTCDate()-730);
   const cursor=start<earliest?earliest:start;
   cursor.setUTCHours(12,0,0,0);
-  gpsfmEnsureOccurrenceSheet_(true);
+  gpsfmEnsureOccurrenceSheet_(!!lockAlreadyHeld);
   const lock=lockAlreadyHeld?null:LockService.getScriptLock();
   if(lock)lock.waitLock(10000);
   try {
