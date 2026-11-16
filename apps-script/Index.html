@@ -880,7 +880,7 @@ function toggleProfilePopover(){const pop=$('profilePopover'),trigger=$('profile
  let gpsfmTodayNotificationData=null;
  function closeTodayNotificationPopover(){const pop=$('notificationPopover'),trigger=$('notificationMenuBtn');if(!pop||pop.classList.contains('hidden'))return;pop.classList.add('hidden');trigger.setAttribute('aria-expanded','false');}
  function toggleTodayNotificationPopover(){const pop=$('notificationPopover'),trigger=$('notificationMenuBtn'),open=pop.classList.contains('hidden');pop.classList.toggle('hidden',!open);trigger.setAttribute('aria-expanded',String(open));if(open)loadTodayNotificationBar();}
- async async function loadTodayNotificationBar(forceRefresh){
+ async function loadTodayNotificationBar(forceRefresh){
   const list=$('notificationList'),date=$('notificationDate'),count=$('notificationCount');
   if(!list||!token)return;
   list.innerHTML='<div class="notification-empty">Memuat kegiatan hari ini…</div>';
