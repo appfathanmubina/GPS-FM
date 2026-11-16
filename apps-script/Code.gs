@@ -1620,7 +1620,7 @@ function apiSetOccurrenceException(token,activityId,date,status,reason){
  if(key>Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'))throw new Error('Pengecualian hanya dapat ditetapkan untuk pertemuan hari ini atau yang sudah lewat.');
  const lock=LockService.getScriptLock();lock.waitLock(20000);
  try{
-  const old=gpsfmGetOccurrence_(id,key),ids=gpsfmOccurrenceTeacherIds_(old,id);
+  const old=gpsfmGetOccurrence_(id,key,true),ids=gpsfmOccurrenceTeacherIds_(old,id);
   gpsfmSaveOccurrence_(id,key,status,status==='scheduled'?'':reason,s.user.userId,ids,true);
   try{gpsfmAudit_(s.user.userId,'SET_OCCURRENCE_EXCEPTION','ActivityOccurrences',id,{date:key,status:status,reason:reason});}
   catch(auditError){console.error('[GPSFM_AUDIT_FAILED] apiSetOccurrenceException: '+auditError.message);}
