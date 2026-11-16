@@ -1999,11 +1999,16 @@ function apiChangeOwnPassword(token, oldPassword, newPassword) {
 
     // Perbarui hanya sesi yang sedang dipakai. Sesi perangkat lain tetap
     // menggunakan hash lama sehingga otomatis tidak berlaku setelah password berubah.
-    const currentSessionUpdated = gpsfmRefreshCurrentSessionPasswordHash_(token,currentUser.userId,newPasswordHash);
+    let currentSessionUpdated = false;
+    try {
+      currentSessionUpdated = gpsfmRefreshCurrentSessionPasswordHash_(token,currentUser.userId,newPasswordHash);
+    } catch (sessionError) {
+      console.error('Sinkronisasi sesi setelah ganti password gagal: ' + sessionError.message);
+    }
     if (!currentSessionUpdated) {
-      // Jangan mengembalikan status gagal setelah password sudah tersimpan.
-      // Pengguna dapat login kembali menggunakan password yang baru.
-      try { gpsfmUpdateRow_('UserSessions',auth.session._row,{active:false,updatedAt:gpsfmNow_()}); } catch (sessionError) {}
+      // Jangan melaporkan password gagal setelah Users berhasil diperbarui.
+      // Nonaktifkan sesi lama bila memungkinkan; pengguna dapat login dengan password baru.
+      try { gpsfmUpdateRow_('UserSessions',auth.session._row,{active:false,updatedAt:gpsfmNow_()}); } catch (revokeError) {}
     }
 
     // Audit bersifat tambahan: gangguan pada AuditLogs tidak boleh membuat UI
