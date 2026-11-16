@@ -443,7 +443,6 @@ function apiLogin(username, password, rememberMe) {
 
 
 function apiLogout(token) {
-  // Revoke token directly so logout also works during mandatory password change.
   if (!token || String(token).length < 30) return {ok:true};
   const cache = CacheService.getScriptCache(), key = gpsfmTokenKey_(token);
   let session = null;
@@ -454,8 +453,9 @@ function apiLogout(token) {
     if (session) gpsfmUpdateRow_('UserSessions',session._row,{active:false,updatedAt:gpsfmNow_()});
   } catch (e) {
     console.error('[GPSFM_LOGOUT_REVOKE_FAILED] '+e.message);
+    throw new Error('Server sedang sibuk. Sesi belum dapat ditutup dengan aman; silakan coba keluar kembali.');
   } finally {
-    try { lock.releaseLock(); } catch (e) {}
+    if (lock.hasLock()) lock.releaseLock();
   }
   cache.remove(key);
   try {
@@ -1535,6 +1535,12 @@ function gpsfmSnapshotPastOccurrences_(activityId,teacherIds,lockAlreadyHeld){
   earliest.setUTCDate(earliest.getUTCDate()-730);
   const cursor=start<earliest?earliest:start;
   cursor.setUTCHours(12,0,0,0);
+  const candidateDates=[];
+  while(cursor<end){
+    const date=gpsfmDateKeyUTC_(cursor);
+    if(days.indexOf(gpsfmWeekdayName_(date))>=0)candidateDates.push(date);
+    cursor.setUTCDate(cursor.getUTCDate()+1);
+  }
   gpsfmEnsureOccurrenceSheet_(!!lockAlreadyHeld);
   const lock=lockAlreadyHeld?null:LockService.getScriptLock();
   if(lock)lock.waitLock(10000);
@@ -1550,18 +1556,13 @@ function gpsfmSnapshotPastOccurrences_(activityId,teacherIds,lockAlreadyHeld){
       });
     }
     const now=gpsfmNow_(),pending=[];
-    while(cursor<end){
-      const date=gpsfmDateKeyUTC_(cursor);
-      if(days.indexOf(gpsfmWeekdayName_(date))>=0){
-        const key=String(activityId)+'|'+date;
-        if(!existing[key]){
-          const obj={occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:date,status:'scheduled',reason:'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:'',updatedAt:now,createdAt:now};
-          pending.push(headers.map(function(h){return Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:'';}));
-          existing[key]=true;
-        }
-      }
-      cursor.setUTCDate(cursor.getUTCDate()+1);
-    }
+    candidateDates.forEach(function(date){
+      const key=String(activityId)+'|'+date;
+      if(existing[key])return;
+      const obj={occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:date,status:'scheduled',reason:'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:'',updatedAt:now,createdAt:now};
+      pending.push(headers.map(function(h){return Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:'';}));
+      existing[key]=true;
+    });
     if(pending.length)sh.getRange(sh.getLastRow()+1,1,pending.length,headers.length).setValues(pending);
   } finally { if(lock)lock.releaseLock(); }
 }
