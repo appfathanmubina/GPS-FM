@@ -177,6 +177,13 @@ function gpsfmUpdateRow_(name, rowNumber, obj) {
   sh.getRange(rowNumber,1,1,headers.length).setValues([old]);
 }
 
+function gpsfmWithScriptLock_(callback, timeoutMs, lockAlreadyHeld) {
+  if (lockAlreadyHeld) return callback();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(timeoutMs || 10000);
+  try { return callback(); } finally { lock.releaseLock(); }
+}
+
 function gpsfmId_() { return Utilities.getUuid(); }
 function gpsfmNow_() { return new Date().toISOString(); }
 function gpsfmDateKey_(value) {
@@ -213,18 +220,21 @@ function gpsfmPublicUser_(u) {
 function gpsfmEnsurePasswordFlag_() {
   const cache = CacheService.getScriptCache();
   if (cache.get('gpsfm_schema_password_flag_v1') === '1') return;
-  const sh=gpsfmSheet_('Users'),lastCol=sh.getLastColumn(),headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0];
-  if(headers.indexOf('mustChangePassword')<0){
-    sh.getRange(1,lastCol+1).setValue('mustChangePassword');
-    const lastRow=sh.getLastRow();
-    if(lastRow>1){
-      const rows=sh.getRange(2,1,lastRow-1,lastCol).getValues();
-      const roleIndex=headers.indexOf('role');
-      const flags=rows.map(function(row){return [String(row[roleIndex])==='superadmin'?false:true];});
-      sh.getRange(2,lastCol+1,flags.length,1).setValues(flags);
+  gpsfmWithScriptLock_(function() {
+    if (cache.get('gpsfm_schema_password_flag_v1') === '1') return;
+    const sh=gpsfmSheet_('Users'),lastCol=sh.getLastColumn(),headers=sh.getRange(1,1,1,lastCol).getDisplayValues()[0];
+    if(headers.indexOf('mustChangePassword')<0){
+      sh.getRange(1,lastCol+1).setValue('mustChangePassword');
+      const lastRow=sh.getLastRow();
+      if(lastRow>1){
+        const rows=sh.getRange(2,1,lastRow-1,lastCol).getValues();
+        const roleIndex=headers.indexOf('role');
+        const flags=rows.map(function(row){return [String(row[roleIndex])==='superadmin'?false:true];});
+        sh.getRange(2,lastCol+1,flags.length,1).setValues(flags);
+      }
     }
-  }
-  cache.put('gpsfm_schema_password_flag_v1', '1', 21600);
+    cache.put('gpsfm_schema_password_flag_v1', '1', 21600);
+  },10000,false);
 }
 function gpsfmAudit_(actorId, action, entityType, entityId, details) {
   gpsfmAppend_('AuditLogs', {logId:gpsfmId_(), actorId:actorId || '', action:action, entityType:entityType || '', entityId:entityId || '', details:JSON.stringify(details || {}), createdAt:gpsfmNow_()});
@@ -256,13 +266,15 @@ function gpsfmFindSessionRow_(tokenHash) {
   headers.forEach(function(h,i){data[h]=values[i];});
   return data;
 }
-function gpsfmSaveSession_(tokenHash, session) {
-  const sh = gpsfmEnsureSessionSheet_();
-  const values = {
-    tokenHash:tokenHash,userId:String(session.userId),passwordHash:String(session.passwordHash),
-    issuedAt:Number(session.issuedAt),expiresAt:Number(session.expiresAt),active:true,updatedAt:gpsfmNow_()
-  };
-  sh.appendRow(GPSFM_SESSION_HEADERS.map(function(h){return Object.prototype.hasOwnProperty.call(values,h)?values[h]:'';}));
+function gpsfmSaveSession_(tokenHash, session, lockAlreadyHeld) {
+  return gpsfmWithScriptLock_(function() {
+    const sh = gpsfmEnsureSessionSheet_();
+    const values = {
+      tokenHash:tokenHash,userId:String(session.userId),passwordHash:String(session.passwordHash),
+      issuedAt:Number(session.issuedAt),expiresAt:Number(session.expiresAt),active:true,updatedAt:gpsfmNow_()
+    };
+    sh.appendRow(GPSFM_SESSION_HEADERS.map(function(h){return Object.prototype.hasOwnProperty.call(values,h)?values[h]:'';}));
+  },10000,!!lockAlreadyHeld);
 }
 function gpsfmSession_(token, allowForcedPasswordChange) {
   if (!token || String(token).length < 30) throw new Error('Sesi tidak valid. Silakan login kembali.');
@@ -384,7 +396,7 @@ function apiLogin(username, password, rememberMe) {
   const loginWriteLock = LockService.getScriptLock();
   try {
     loginWriteLock.waitLock(20000);
-    gpsfmSaveSession_(tokenHash,session);
+    gpsfmSaveSession_(tokenHash,session,true);
     gpsfmAudit_(user.userId, 'LOGIN', 'Users', user.userId, {});
   } catch (writeError) {
     throw new Error('Server sedang menangani banyak login. Silakan coba kembali dalam beberapa saat.');
@@ -396,6 +408,7 @@ function apiLogin(username, password, rememberMe) {
   cache.put(tokenHash,JSON.stringify(session),GPSFM_SESSION_TTL);
   return {token:token, user:gpsfmPublicUser_(user), expiresIn:expiresIn};
 }
+
 
 function apiLogout(token) {
   // Revoke token directly so logout also works during mandatory password change.
@@ -444,24 +457,26 @@ const GPSFM_ONESIGNAL_APP_ID = '28faec3d-9ee1-45a0-9234-4a5922ce4f1a';
 const GPSFM_PUSH_SUBSCRIPTION_HEADERS = ['subscriptionId','userId','active','deviceLabel','createdAt','updatedAt','lastSeenAt'];
 const GPSFM_PUSH_DELIVERY_HEADERS = ['dedupeKey','activityId','occurrenceDate','recipientUserId','notificationType','subscriptionIdsJson','status','response','createdAt'];
 
-function gpsfmEnsurePushSheets_() {
-  const ss = gpsfmDb_();
-  [
-    ['PushSubscriptions', GPSFM_PUSH_SUBSCRIPTION_HEADERS],
-    ['PushDeliveryLog', GPSFM_PUSH_DELIVERY_HEADERS]
-  ].forEach(function(def) {
-    let sh = ss.getSheetByName(def[0]);
-    if (!sh) {
-      sh = ss.insertSheet(def[0]);
-      sh.getRange(1,1,1,def[1].length).setValues([def[1]]);
-      sh.setFrozenRows(1);
-      sh.getRange(1,1,1,def[1].length).setFontWeight('bold');
-      return;
-    }
-    const current = sh.getLastRow() ? sh.getRange(1,1,1,Math.max(sh.getLastColumn(),def[1].length)).getDisplayValues()[0] : [];
-    const missing = def[1].filter(function(h) { return current.indexOf(h) < 0; });
-    if (missing.length) throw new Error('Struktur sheet ' + def[0] + ' tidak sesuai. Kolom hilang: ' + missing.join(', '));
-  });
+function gpsfmEnsurePushSheets_(lockAlreadyHeld) {
+  return gpsfmWithScriptLock_(function() {
+    const ss = gpsfmDb_();
+    [
+      ['PushSubscriptions', GPSFM_PUSH_SUBSCRIPTION_HEADERS],
+      ['PushDeliveryLog', GPSFM_PUSH_DELIVERY_HEADERS]
+    ].forEach(function(def) {
+      let sh = ss.getSheetByName(def[0]);
+      if (!sh) {
+        sh = ss.insertSheet(def[0]);
+        sh.getRange(1,1,1,def[1].length).setValues([def[1]]);
+        sh.setFrozenRows(1);
+        sh.getRange(1,1,1,def[1].length).setFontWeight('bold');
+        return;
+      }
+      const current = sh.getLastRow() ? sh.getRange(1,1,1,Math.max(sh.getLastColumn(),def[1].length)).getDisplayValues()[0] : [];
+      const missing = def[1].filter(function(h) { return current.indexOf(h) < 0; });
+      if (missing.length) throw new Error('Struktur sheet ' + def[0] + ' tidak sesuai. Kolom hilang: ' + missing.join(', '));
+    });
+  },10000,!!lockAlreadyHeld);
 }
 
 function apiRegisterPushSubscription(token, subscriptionId, deviceLabel) {
@@ -471,7 +486,7 @@ function apiRegisterPushSubscription(token, subscriptionId, deviceLabel) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    gpsfmEnsurePushSheets_();
+    gpsfmEnsurePushSheets_(true);
     const old = gpsfmFindRowByCriteria_('PushSubscriptions', {subscriptionId:subscriptionId});
     const now = gpsfmNow_();
     const values = {subscriptionId:subscriptionId,userId:String(session.user.userId),active:true,deviceLabel:gpsfmText_(deviceLabel,180),updatedAt:now,lastSeenAt:now};
@@ -481,18 +496,20 @@ function apiRegisterPushSubscription(token, subscriptionId, deviceLabel) {
   } finally { lock.releaseLock(); }
 }
 
+
 function apiUnregisterPushSubscription(token, subscriptionId) {
   const session = gpsfmSession_(token);
   subscriptionId = gpsfmText_(subscriptionId,100);
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    gpsfmEnsurePushSheets_();
+    gpsfmEnsurePushSheets_(true);
     const old = gpsfmFindRowByCriteria_('PushSubscriptions', {subscriptionId:subscriptionId,userId:String(session.user.userId)});
     if (old && gpsfmBool_(old.active)) gpsfmUpdateRow_('PushSubscriptions',old._row,{active:false,updatedAt:gpsfmNow_()});
     return {ok:true,unregistered:!!(old && gpsfmBool_(old.active))};
   } finally { lock.releaseLock(); }
 }
+
 
 function gpsfmPushDeliveryKey_(activityId,date,userId,type) {
   // Satu kunci per user dan per kegiatan/tanggal, bukan per perangkat.
@@ -878,10 +895,15 @@ function apiSetUserPassword(token, userId, newPassword) {
 
 function gpsfmEnsureActivitySchedulingSchema_() {
   const sh = gpsfmSheet_('Activities');
-  const lastCol = sh.getLastColumn();
+  let lastCol = sh.getLastColumn();
   if (lastCol < 1) throw new Error('Header sheet Activities tidak ditemukan.');
-  const headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
-  if (headers.indexOf('schedulingMode') < 0) sh.getRange(1,lastCol+1).setValue('schedulingMode');
+  let headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
+  if (headers.indexOf('schedulingMode') >= 0) return;
+  gpsfmWithScriptLock_(function() {
+    lastCol = sh.getLastColumn();
+    headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
+    if (headers.indexOf('schedulingMode') < 0) sh.getRange(1,lastCol+1).setValue('schedulingMode');
+  },10000,false);
 }
 
 function apiListActivities(token) {
@@ -1260,20 +1282,22 @@ function gpsfmDateFromKey_(key){const p=String(key).split('-').map(Number);retur
 function gpsfmDateKeyUTC_(d){return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);}
 function gpsfmWeekdayName_(key){return ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][gpsfmDateFromKey_(key).getUTCDay()];}
 function gpsfmEnsureActivityDutySheets_(){
- const ss=gpsfmDb_();
- let schedules=ss.getSheetByName('ActivityDutySchedules');
- if(!schedules){
-  schedules=ss.insertSheet('ActivityDutySchedules');
-  schedules.getRange(1,1,1,11).setValues([['scheduleId','activityId','dutyDate','teacherIdsJson','status','source','notes','createdBy','createdAt','updatedBy','updatedAt']]);
-  schedules.setFrozenRows(1);
- }
- let routines=ss.getSheetByName('ActivityDutyRoutines');
- if(!routines){
-  routines=ss.insertSheet('ActivityDutyRoutines');
-  routines.getRange(1,1,1,9).setValues([['routineId','activityId','weekday','teacherIdsJson','active','createdBy','createdAt','updatedBy','updatedAt']]);
-  routines.setFrozenRows(1);
- }
- return {schedules:schedules,routines:routines};
+ return gpsfmWithScriptLock_(function(){
+  const ss=gpsfmDb_();
+  let schedules=ss.getSheetByName('ActivityDutySchedules');
+  if(!schedules){
+   schedules=ss.insertSheet('ActivityDutySchedules');
+   schedules.getRange(1,1,1,11).setValues([['scheduleId','activityId','dutyDate','teacherIdsJson','status','source','notes','createdBy','createdAt','updatedBy','updatedAt']]);
+   schedules.setFrozenRows(1);
+  }
+  let routines=ss.getSheetByName('ActivityDutyRoutines');
+  if(!routines){
+   routines=ss.insertSheet('ActivityDutyRoutines');
+   routines.getRange(1,1,1,9).setValues([['routineId','activityId','weekday','teacherIdsJson','active','createdBy','createdAt','updatedBy','updatedAt']]);
+   routines.setFrozenRows(1);
+  }
+  return {schedules:schedules,routines:routines};
+ },10000,false);
 }
 function gpsfmActivityDutyContext_(token,activityId){
  const s=gpsfmSession_(token),activity=gpsfmActivity_(activityId);
@@ -1439,24 +1463,26 @@ function apiSaveActivityDutyRoutine(token,data){
  }finally{lock.releaseLock();}
  return {ok:true};
 }
-function gpsfmEnsureOccurrenceSheet_(){
- const ss=gpsfmDb_();let sh=ss.getSheetByName('ActivityOccurrences');
- if(!sh){
-  sh=ss.insertSheet('ActivityOccurrences');
-  sh.getRange(1,1,1,9).setValues([['occurrenceId','activityId','occurrenceDate','status','reason','teacherIdsJson','updatedBy','updatedAt','createdAt']]);
-  sh.setFrozenRows(1);
- }
- return sh;
+function gpsfmEnsureOccurrenceSheet_(lockAlreadyHeld){
+ return gpsfmWithScriptLock_(function(){
+  const ss=gpsfmDb_();let sh=ss.getSheetByName('ActivityOccurrences');
+  if(!sh){
+   sh=ss.insertSheet('ActivityOccurrences');
+   sh.getRange(1,1,1,9).setValues([['occurrenceId','activityId','occurrenceDate','status','reason','teacherIdsJson','updatedBy','updatedAt','createdAt']]);
+   sh.setFrozenRows(1);
+  }
+  return sh;
+ },10000,!!lockAlreadyHeld);
 }
-function gpsfmGetOccurrence_(activityId,date){
- gpsfmEnsureOccurrenceSheet_();
+function gpsfmGetOccurrence_(activityId,date,lockAlreadyHeld){
+ gpsfmEnsureOccurrenceSheet_(!!lockAlreadyHeld);
  return gpsfmFindRowByCriteria_('ActivityOccurrences', {activityId:String(activityId),occurrenceDate:String(date)}, {occurrenceDate:'date'});
 }
 function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds,lockAlreadyHeld){
  const lock=lockAlreadyHeld?null:LockService.getScriptLock();
  if(lock)lock.waitLock(10000);
  try{
-  const old=gpsfmGetOccurrence_(activityId,date),now=gpsfmNow_(),values={activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now};
+  const old=gpsfmGetOccurrence_(activityId,date,true),now=gpsfmNow_(),values={activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now};
   if(old)gpsfmUpdateRow_('ActivityOccurrences',old._row,values);
   else gpsfmAppend_('ActivityOccurrences',{occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now,createdAt:now});
  } finally {if(lock)lock.releaseLock();}
@@ -1477,7 +1503,7 @@ function gpsfmSnapshotPastOccurrences_(activityId,teacherIds,lockAlreadyHeld){
   earliest.setUTCDate(earliest.getUTCDate()-730);
   const cursor=start<earliest?earliest:start;
   cursor.setUTCHours(12,0,0,0);
-  gpsfmEnsureOccurrenceSheet_();
+  gpsfmEnsureOccurrenceSheet_(true);
   const lock=lockAlreadyHeld?null:LockService.getScriptLock();
   if(lock)lock.waitLock(10000);
   try {
