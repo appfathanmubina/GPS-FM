@@ -561,7 +561,7 @@ function gpsfmRunScheduledPushNotifications() {
     const teacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(a) { return gpsfmBool_(a.active); });
     const pjAssignments = gpsfmRows_('ActivityPJ').filter(function(a) { return gpsfmBool_(a.active); });
     const attendanceByActivityDate = {};
-    gpsfmRows_('Attendance').forEach(function(a) {
+    gpsfmRowsByDatePrefix_('Attendance','attendanceDate',today).forEach(function(a) {
       const key = String(a.activityId)+'|'+gpsfmDateKey_(a.attendanceDate);
       if (!attendanceByActivityDate[key]) attendanceByActivityDate[key] = {};
       attendanceByActivityDate[key][String(a.teacherId)] = true;
@@ -570,8 +570,8 @@ function gpsfmRunScheduledPushNotifications() {
     // harus diutamakan agar perubahan penugasan tidak mengubah peserta tanggal lampau/hari ini.
     const occurrencesByActivity = {};
     gpsfmEnsureOccurrenceSheet_();
-    gpsfmRows_('ActivityOccurrences').forEach(function(o) {
-      if (gpsfmDateKey_(o.occurrenceDate) === today) occurrencesByActivity[String(o.activityId)] = o;
+    gpsfmRowsByDatePrefix_('ActivityOccurrences','occurrenceDate',today).forEach(function(o) {
+      occurrencesByActivity[String(o.activityId)] = o;
     });
     const subscriptionsByUser = {};
     gpsfmRows_('PushSubscriptions').forEach(function(p) {
@@ -581,7 +581,7 @@ function gpsfmRunScheduledPushNotifications() {
       }
     });
     const sent = {};
-    gpsfmRows_('PushDeliveryLog').forEach(function(r) { if (String(r.status) === 'sent') sent[String(r.dedupeKey)] = true; });
+    gpsfmRowsByDatePrefix_('PushDeliveryLog','occurrenceDate',today).forEach(function(r) { if (String(r.status) === 'sent') sent[String(r.dedupeKey)] = true; });
     const results = {activitiesChecked:activities.length,teacherNotifications:0,pjNotifications:0,failed:0,skippedNoTime:0};
     const pendingLogs = [];
 
