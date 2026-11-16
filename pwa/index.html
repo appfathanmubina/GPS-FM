@@ -211,16 +211,14 @@
         }
       } catch (error) { console.warn('Sinkronisasi langganan OneSignal tertunda:', error); }
     }
-    // Tampilkan ajakan izin hanya jika pengguna belum menentukan izin.
+    // Jangan munculkan pop-up izin otomatis saat aplikasi dibuka.
+    // Permintaan izin hanya dilakukan setelah pengguna menekan Aktifkan Notifikasi
+    // dari menu profil. Browser tetap mensyaratkan persetujuan eksplisit pengguna.
     const notificationPrompt = document.getElementById('gpsNotificationPrompt');
     const enableNotificationButton = document.getElementById('gpsEnableNotifications');
     const dismissNotificationButton = document.getElementById('gpsDismissNotifications');
-    const dismissed = localStorage.getItem('gpsfm_notification_prompt_dismissed') === '1';
     const supported = 'Notification' in window && 'serviceWorker' in navigator;
-
-    if (notificationPrompt && supported && Notification.permission === 'default' && !dismissed) {
-      notificationPrompt.style.display = 'flex';
-    }
+    if (notificationPrompt) notificationPrompt.style.display = 'none';
 
     if (enableNotificationButton) {
       enableNotificationButton.addEventListener('click', async () => {
