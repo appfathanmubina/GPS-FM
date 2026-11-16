@@ -51,6 +51,46 @@ function gpsfmSheet_(name) {
   return sh;
 }
 
+/**
+ * Membaca baris berdasarkan awalan tanggal tanpa memuat seluruh kolom data.
+ * Kolom tanggal dipindai terlebih dahulu, lalu hanya baris yang cocok dibaca lengkap.
+ * Mendukung tanggal bertipe Date maupun teks ISO yang digunakan database.
+ */
+function gpsfmRowsByDatePrefix_(name, dateField, prefix) {
+  const sh = gpsfmSheet_(name), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  const headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
+  const dateIndex = headers.indexOf(dateField);
+  if (dateIndex < 0) throw new Error('Kolom database tidak ditemukan: ' + dateField + ' (' + name + ').');
+  const dateValues = sh.getRange(2,dateIndex+1,lastRow-1,1).getValues();
+  const matchingRows = [];
+  dateValues.forEach(function(item,index) {
+    if (gpsfmDateKey_(item[0]).slice(0,String(prefix).length) === String(prefix)) matchingRows.push(index+2);
+  });
+  if (!matchingRows.length) return [];
+  const result = [];
+  let start = matchingRows[0], previous = start, rows = [];
+  function flush() {
+    const values = sh.getRange(start,1,rows.length,lastCol).getValues();
+    values.forEach(function(row,index) {
+      const obj = {_row:start+index};
+      headers.forEach(function(header,column) { obj[header] = row[column]; });
+      result.push(obj);
+    });
+    rows = [];
+  }
+  matchingRows.forEach(function(rowNumber) {
+    if (rows.length && rowNumber !== previous+1) {
+      flush();
+      start = rowNumber;
+    }
+    rows.push(rowNumber);
+    previous = rowNumber;
+  });
+  if (rows.length) flush();
+  return result;
+}
+
 function gpsfmRows_(name) {
   const sh = gpsfmSheet_(name), lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
   if (lastRow < 2 || lastCol < 1) return [];
@@ -1587,7 +1627,7 @@ function apiGetSupervisorDashboard(token) {
   const teacherRows = gpsfmRows_('ActivityTeachers').filter(function(t) {
     return gpsfmBool_(t.active) && Object.prototype.hasOwnProperty.call(userMap, String(t.teacherId));
   });
-  const attendance = gpsfmRows_('Attendance').filter(function(a) { return gpsfmDateKey_(a.attendanceDate).slice(0,7) === prefix; });
+  const attendance = gpsfmRowsByDatePrefix_('Attendance','attendanceDate',prefix);
   const pjsByActivity = {}, teachersByActivity = {}, recordsByActivity = {}, pjUsers = {};
   pjRows.forEach(function(p) {
     const id=String(p.activityId), userId=String(p.userId);
@@ -1646,9 +1686,9 @@ function apiGetTodayScheduledActivities(token) {
   activities.forEach(function(a) { activityIds[String(a.activityId)] = true; });
 
   const attendanceByActivity = {};
-  gpsfmRows_('Attendance').forEach(function(row) {
+  gpsfmRowsByDatePrefix_('Attendance','attendanceDate',today).forEach(function(row) {
     const id = String(row.activityId);
-    if (activityIds[id] && gpsfmDateKey_(row.attendanceDate) === today) {
+    if (activityIds[id]) {
       if (!attendanceByActivity[id]) attendanceByActivity[id] = {};
       attendanceByActivity[id][String(row.teacherId)] = true;
     }
