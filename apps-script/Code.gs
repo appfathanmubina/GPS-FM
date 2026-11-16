@@ -490,8 +490,21 @@ const GPSFM_PUSH_SUBSCRIPTION_HEADERS = ['subscriptionId','userId','active','dev
 const GPSFM_PUSH_DELIVERY_HEADERS = ['dedupeKey','activityId','occurrenceDate','recipientUserId','notificationType','subscriptionIdsJson','status','response','createdAt'];
 
 function gpsfmEnsurePushSheets_(lockAlreadyHeld) {
+  const ss = gpsfmDb_();
+  const subscription = ss.getSheetByName('PushSubscriptions');
+  const delivery = ss.getSheetByName('PushDeliveryLog');
+  if (subscription && delivery) {
+    [
+      ['PushSubscriptions',subscription,GPSFM_PUSH_SUBSCRIPTION_HEADERS],
+      ['PushDeliveryLog',delivery,GPSFM_PUSH_DELIVERY_HEADERS]
+    ].forEach(function(def) {
+      const current = def[1].getLastRow() ? def[1].getRange(1,1,1,Math.max(def[1].getLastColumn(),def[2].length)).getDisplayValues()[0] : [];
+      const missing = def[2].filter(function(h) { return current.indexOf(h) < 0; });
+      if (missing.length) throw new Error('Struktur sheet ' + def[0] + ' tidak sesuai. Kolom hilang: ' + missing.join(', '));
+    });
+    return;
+  }
   return gpsfmWithScriptLock_(function() {
-    const ss = gpsfmDb_();
     [
       ['PushSubscriptions', GPSFM_PUSH_SUBSCRIPTION_HEADERS],
       ['PushDeliveryLog', GPSFM_PUSH_DELIVERY_HEADERS]
@@ -1314,15 +1327,17 @@ function gpsfmDateFromKey_(key){const p=String(key).split('-').map(Number);retur
 function gpsfmDateKeyUTC_(d){return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2);}
 function gpsfmWeekdayName_(key){return ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][gpsfmDateFromKey_(key).getUTCDay()];}
 function gpsfmEnsureActivityDutySheets_(){
+ const ss=gpsfmDb_();
+ let schedules=ss.getSheetByName('ActivityDutySchedules'),routines=ss.getSheetByName('ActivityDutyRoutines');
+ if(schedules&&routines)return {schedules:schedules,routines:routines};
  return gpsfmWithScriptLock_(function(){
-  const ss=gpsfmDb_();
-  let schedules=ss.getSheetByName('ActivityDutySchedules');
+  schedules=ss.getSheetByName('ActivityDutySchedules');
   if(!schedules){
    schedules=ss.insertSheet('ActivityDutySchedules');
    schedules.getRange(1,1,1,11).setValues([['scheduleId','activityId','dutyDate','teacherIdsJson','status','source','notes','createdBy','createdAt','updatedBy','updatedAt']]);
    schedules.setFrozenRows(1);
   }
-  let routines=ss.getSheetByName('ActivityDutyRoutines');
+  routines=ss.getSheetByName('ActivityDutyRoutines');
   if(!routines){
    routines=ss.insertSheet('ActivityDutyRoutines');
    routines.getRange(1,1,1,9).setValues([['routineId','activityId','weekday','teacherIdsJson','active','createdBy','createdAt','updatedBy','updatedAt']]);
@@ -1496,8 +1511,11 @@ function apiSaveActivityDutyRoutine(token,data){
  return {ok:true};
 }
 function gpsfmEnsureOccurrenceSheet_(lockAlreadyHeld){
+ const ss=gpsfmDb_();
+ let sh=ss.getSheetByName('ActivityOccurrences');
+ if(sh)return sh;
  return gpsfmWithScriptLock_(function(){
-  const ss=gpsfmDb_();let sh=ss.getSheetByName('ActivityOccurrences');
+  sh=ss.getSheetByName('ActivityOccurrences');
   if(!sh){
    sh=ss.insertSheet('ActivityOccurrences');
    sh.getRange(1,1,1,9).setValues([['occurrenceId','activityId','occurrenceDate','status','reason','teacherIdsJson','updatedBy','updatedAt','createdAt']]);
