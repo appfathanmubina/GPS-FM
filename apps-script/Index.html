@@ -692,6 +692,22 @@ body{touch-action:auto}
 try { if (window.self !== window.top) document.body.classList.add('embedded-app'); } catch (e) { document.body.classList.add('embedded-app'); }
 const $=id=>document.getElementById(id);
 let token='',me=null,bootstrap=null,currentPage='dashboard',users=[],activities=[],report=null;
+let gpsfmTodayScheduleCache=null,gpsfmTodayScheduleCacheAt=0,gpsfmTodayScheduleInFlight=null;
+async function gpsfmGetTodaySchedule(forceRefresh){
+ if(!forceRefresh&&gpsfmTodayScheduleCache&&Date.now()-gpsfmTodayScheduleCacheAt<8000)return gpsfmTodayScheduleCache;
+ if(gpsfmTodayScheduleInFlight)return gpsfmTodayScheduleInFlight;
+ const request=call('apiGetTodayScheduledActivities',token);
+ gpsfmTodayScheduleInFlight=request;
+ try{
+  const data=await request;
+  gpsfmTodayScheduleCache=data;
+  gpsfmTodayScheduleCacheAt=Date.now();
+  return data;
+ }finally{
+  if(gpsfmTodayScheduleInFlight===request)gpsfmTodayScheduleInFlight=null;
+ }
+}
+
 const gpsfmPageDomCache=Object.create(null);
 const gpsfmMutatingApi=/^(apiSave|apiAssign|apiSet|apiChange|apiDelete|apiLock|apiUnlock|apiClose|apiReopen|apiImport|apiReset)/;
 function gpsfmInvalidatePageCache(){Object.keys(gpsfmPageDomCache).forEach(k=>delete gpsfmPageDomCache[k]);}
@@ -864,12 +880,12 @@ function toggleProfilePopover(){const pop=$('profilePopover'),trigger=$('profile
  let gpsfmTodayNotificationData=null;
  function closeTodayNotificationPopover(){const pop=$('notificationPopover'),trigger=$('notificationMenuBtn');if(!pop||pop.classList.contains('hidden'))return;pop.classList.add('hidden');trigger.setAttribute('aria-expanded','false');}
  function toggleTodayNotificationPopover(){const pop=$('notificationPopover'),trigger=$('notificationMenuBtn'),open=pop.classList.contains('hidden');pop.classList.toggle('hidden',!open);trigger.setAttribute('aria-expanded',String(open));if(open)loadTodayNotificationBar();}
- async function loadTodayNotificationBar(){
+ async async function loadTodayNotificationBar(forceRefresh){
   const list=$('notificationList'),date=$('notificationDate'),count=$('notificationCount');
   if(!list||!token)return;
   list.innerHTML='<div class="notification-empty">Memuat kegiatan hari ini…</div>';
   try{
-   const data=await call('apiGetTodayScheduledActivities',token);
+   const data=await gpsfmGetTodaySchedule(!!forceRefresh);
    gpsfmTodayNotificationData=data;
    if(date)date.textContent=(data.weekday||'')+' · '+(data.date||'');
    const items=Array.isArray(data.activities)?data.activities:[];
@@ -888,7 +904,7 @@ function toggleProfilePopover(){const pop=$('profilePopover'),trigger=$('profile
   }
  }
  $('notificationMenuBtn').addEventListener('click',e=>{e.stopPropagation();closeProfilePopover();toggleTodayNotificationPopover();});
- $('notificationRefresh').addEventListener('click',e=>{e.stopPropagation();loadTodayNotificationBar();});
+ $('notificationRefresh').addEventListener('click',e=>{e.stopPropagation();loadTodayNotificationBar(true);});
 
  $('profileMenuBtn').addEventListener('click',e=>{e.stopPropagation();toggleProfilePopover();});
 $('profilePopoverClose').addEventListener('click',closeProfilePopover);
@@ -978,13 +994,13 @@ function todaySchedulePanelHtml(){
  const heading=['superadmin','supervisor','admin_administrasi'].indexOf(String(me.role))>=0?'Kegiatan Terjadwal Hari Ini':'Kegiatan Hari Ini';
  return '<div class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">'+heading+'</h3><button class="btn btn-light dashboard-icon-button" id="reloadTodaySchedule" type="button" aria-label="Muat ulang kegiatan hari ini" title="Muat ulang kegiatan hari ini">↻</button></div><p class="muted small" id="todayScheduleDate">Memuat jadwal hari ini…</p><div id="todayScheduleState" class="empty">Memuat kegiatan terjadwal…</div></div>';
 }
-async function loadTodaySchedule(root){
+async function loadTodaySchedule(root,forceRefresh){
  const button=root.querySelector('#reloadTodaySchedule'),state=root.querySelector('#todayScheduleState'),dateLabel=root.querySelector('#todayScheduleDate');
  if(!button||!state||!root.isConnected||currentPage!=='dashboard')return;
  if(button.dataset.loading==='1')return;
  button.dataset.loading='1';button.disabled=true;button.textContent='↻';button.setAttribute('aria-label','Memuat kegiatan hari ini…');
  try{
-  const data=await call('apiGetTodayScheduledActivities',token);
+  const data=await gpsfmGetTodaySchedule(!!forceRefresh);
   if(currentPage!=='dashboard'||!root.isConnected)return;
   if(dateLabel)dateLabel.textContent=data.weekday+' · '+data.date;
   state.innerHTML=data.activities.length?'<div class="table-wrap"><table><thead><tr><th>Kegiatan</th><th>Status</th></tr></thead><tbody>'+data.activities.map(a=>{
@@ -1002,7 +1018,7 @@ async function supervisorDashboard(root){
  root.innerHTML=title(isAdminAdministrasi?'Dashboard Administrasi':'Dashboard Supervisor','Ringkasan seluruh kegiatan, penanggung jawab, dan catatan absensi bulan berjalan.')+todaySchedulePanelHtml()+
  '<div class="grid" id="supervisorStats"><div class="stat"><div class="stat-label">Kegiatan aktif</div><div class="stat-value">…</div></div><div class="stat"><div class="stat-label">PJ aktif</div><div class="stat-value">…</div></div><div class="stat"><div class="stat-label">Catatan absensi bulan ini</div><div class="stat-value">…</div></div><div class="stat"><div class="stat-label">Cakupan peserta tercatat</div><div class="stat-value">…</div></div></div><div class="panel"><h3>Monitoring kegiatan dan PJ</h3><p class="muted small" id="supervisorMonth"></p><div id="supervisorActivityTable" class="empty">Memuat ringkasan seluruh kegiatan…</div></div><div class="panel"><h3>Evaluasi Diri</h3><p class="muted small">Lihat catatan absensi milik Anda sendiri. Data guru lain tidak ditampilkan.</p><button class="btn btn-primary" id="supervisorOpenReport">Buka Evaluasi Diri</button></div>';
  $('supervisorOpenReport').onclick=()=>renderPage('report');
- {const reload=root.querySelector('#reloadTodaySchedule');if(reload)reload.onclick=()=>loadTodaySchedule(root);loadTodaySchedule(root);}
+ {const reload=root.querySelector('#reloadTodaySchedule');if(reload)reload.onclick=()=>loadTodaySchedule(root,true);loadTodaySchedule(root);}
  try{
   const d=await call('apiGetSupervisorDashboard',token);
   if(currentPage!=='dashboard'||!root.isConnected)return;
