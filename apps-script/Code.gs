@@ -1985,7 +1985,7 @@ function apiGetMonthlyReport(token, year, month) {
   }).sort(function(a,b) { return a.date.localeCompare(b.date) || a.activityName.localeCompare(b.activityName) || a.teacherName.localeCompare(b.teacherName); });
   const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas Pondok':0,'C. Izin Pribadi':0,'D. Alfa':0};
   result.forEach(function(r) {
-    const raw = String(r.status || '').trim().replace(/^[A-D][.]\\s*/i, '').toLowerCase().replace(/\\s+/g, ' ');
+    const raw = String(r.status || '').trim().replace(/^[A-D][.]\s*/i, '').toLowerCase().replace(/\s+/g, ' ');
     let key = '';
     if (raw === 'hadir') key = 'Hadir';
     else if (raw === 'sakit') key = 'A. Sakit';
