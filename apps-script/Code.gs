@@ -325,19 +325,13 @@ function apiLogin(username, password, rememberMe) {
   password = String(password || '');
   if (!username || !password || password.length > 200) throw new Error('Username dan password wajib diisi.');
   const cache = CacheService.getScriptCache();
-  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username, Utilities.Charset.UTF_8);
-  const rateKey = 'gpsfm_login_fail_' + digest.map(function(b) { return ('0' + ((b+256)%256).toString(16)).slice(-2); }).join('');
-  const failures = Number(cache.get(rateKey) || 0);
-  if (failures >= 5) throw new Error('Terlalu banyak percobaan login. Coba lagi sekitar 15 menit.');
+  // Pembatasan jumlah percobaan login dinonaktifkan sementara.
+  // Verifikasi username, status akun, dan password tetap wajib dilakukan.
   // Cari satu akun secara langsung; tidak perlu membaca seluruh tabel Users.
   const user = gpsfmFindUserByUsername_(username);
   if (!user || !gpsfmBool_(user.active) || gpsfmHashPassword_(password, user.passwordSalt) !== String(user.passwordHash)) {
-    const nextFailures = failures + 1;
-    cache.put(rateKey, String(nextFailures), nextFailures >= 5 ? 900 : 600);
-    Utilities.sleep(350);
     throw new Error('Username atau password tidak sesuai.');
   }
-  cache.remove(rateKey);
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g,'');
   const issuedAt = Date.now();
   const expiresIn = gpsfmBool_(rememberMe) ? GPSFM_REMEMBER_SESSION_TTL : GPSFM_SESSION_TTL;
