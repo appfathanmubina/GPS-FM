@@ -1081,14 +1081,15 @@ function apiGetActivityTeachers(token, activityId, attendanceDate) {
 
 function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
+  // Snapshot histori dibuat di lock tersendiri sebelum assignment berubah.
+  // Setelah snapshot pertama terbentuk, pemanggilan bersamaan tidak menimpa riwayat itu.
+  gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId));
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
     const teacher = gpsfmFindRowByCriteria_('Users', {userId:String(teacherId)});
     if (!activity || !teacher || !gpsfmBool_(teacher.active) || !gpsfmIsParticipantRole_(teacher.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
-    // Snapshot dan perubahan assignment berada dalam satu lock agar tidak saling mendahului.
-    gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId), true);
     const old = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
     if (old) gpsfmUpdateRow_('ActivityTeachers',old._row,{active:!!assigned,updatedAt:gpsfmNow_()});
     else if (assigned) gpsfmAppend_('ActivityTeachers',{assignmentId:gpsfmId_(),activityId:activityId,teacherId:teacherId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId,updatedAt:gpsfmNow_()});
@@ -1097,7 +1098,6 @@ function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
     return {ok:true};
   } finally { lock.releaseLock(); }
 }
-
 function apiGetAttendanceForDate(token,activityId,date){
   const s=gpsfmSession_(token);
   date=gpsfmText_(date,10);
