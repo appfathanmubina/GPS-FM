@@ -275,32 +275,37 @@ function gpsfmTokenKey_(token) {
   const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(token), Utilities.Charset.UTF_8);
   return 'gpsfm_session_' + bytes.map(function(b) { return ('0' + ((b+256)%256).toString(16)).slice(-2); }).join('');
 }
-function gpsfmEnsureSessionSheet_() {
+function gpsfmEnsureSessionSheet_(lockAlreadyHeld) {
   const ss = gpsfmDb_();
   let sh = ss.getSheetByName('UserSessions');
-  if (!sh) {
-    sh = ss.insertSheet('UserSessions');
-    sh.getRange(1,1,1,GPSFM_SESSION_HEADERS.length).setValues([GPSFM_SESSION_HEADERS]);
-    sh.setFrozenRows(1);
-    sh.getRange(1,1,1,GPSFM_SESSION_HEADERS.length).setFontWeight('bold');
-  }
-  return sh;
+  if (sh) return sh;
+  return gpsfmWithScriptLock_(function() {
+    sh = ss.getSheetByName('UserSessions');
+    if (!sh) {
+      sh = ss.insertSheet('UserSessions');
+      sh.getRange(1,1,1,GPSFM_SESSION_HEADERS.length).setValues([GPSFM_SESSION_HEADERS]);
+      sh.setFrozenRows(1);
+      sh.getRange(1,1,1,GPSFM_SESSION_HEADERS.length).setFontWeight('bold');
+    }
+    return sh;
+  },10000,!!lockAlreadyHeld);
 }
-function gpsfmFindSessionRow_(tokenHash) {
-  const sh = gpsfmEnsureSessionSheet_();
+function gpsfmFindSessionRow_(tokenHash,lockAlreadyHeld) {
+  const sh = gpsfmEnsureSessionSheet_(!!lockAlreadyHeld);
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return null;
-  const match = sh.getRange(2,1,lastRow-1,1).createTextFinder(String(tokenHash)).matchEntireCell(true).matchCase(true).findNext();
-  if (!match) return null;
-  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0].map(String);
-  const values = sh.getRange(match.getRow(),1,1,headers.length).getValues()[0];
-  const data = {_row:match.getRow()};
-  headers.forEach(function(h,i){data[h]=values[i];});
-  return data;
+  const lastCol = sh.getLastColumn(),headers = sh.getRange(1,1,1,lastCol).getDisplayValues()[0].map(String);
+  const keyIndex = headers.indexOf('tokenHash');
+  if (keyIndex < 0) throw new Error('Kolom tokenHash tidak ditemukan pada UserSessions.');
+  const matches = sh.getRange(2,keyIndex+1,lastRow-1,1).createTextFinder(String(tokenHash)).matchEntireCell(true).matchCase(true).findAll();
+  if (!matches.length) return null;
+  const rowNumber = matches[0].getRow(),row = sh.getRange(rowNumber,1,1,lastCol).getValues()[0],obj={_row:rowNumber};
+  headers.forEach(function(h,i){obj[h]=row[i];});
+  return obj;
 }
 function gpsfmSaveSession_(tokenHash, session, lockAlreadyHeld) {
   return gpsfmWithScriptLock_(function() {
-    const sh = gpsfmEnsureSessionSheet_();
+    const sh = gpsfmEnsureSessionSheet_(true);
     const values = {
       tokenHash:tokenHash,userId:String(session.userId),passwordHash:String(session.passwordHash),
       issuedAt:Number(session.issuedAt),expiresAt:Number(session.expiresAt),active:true,updatedAt:gpsfmNow_()
@@ -343,7 +348,7 @@ function gpsfmSession_(token, allowForcedPasswordChange) {
 function gpsfmRefreshCurrentSessionPasswordHash_(token, userId, passwordHash) {
   if (!token || String(token).length < 30) return false;
   const tokenHash = gpsfmTokenKey_(token);
-  const session = gpsfmFindSessionRow_(tokenHash);
+  const session = gpsfmFindSessionRow_(tokenHash,true);
   if (!session || String(session.userId || '') !== String(userId) || !gpsfmBool_(session.active)) return false;
   gpsfmUpdateRow_('UserSessions',session._row,{passwordHash:String(passwordHash),updatedAt:gpsfmNow_()});
   CacheService.getScriptCache().put(tokenHash,JSON.stringify({
@@ -351,6 +356,7 @@ function gpsfmRefreshCurrentSessionPasswordHash_(token, userId, passwordHash) {
   }),GPSFM_SESSION_TTL);
   return true;
 }
+
 
 function gpsfmRequireAdmin_(session) {
   if (String(session.user.role) !== 'superadmin') throw new Error('Akses ditolak. Fitur ini hanya untuk superadmin.');
@@ -449,7 +455,7 @@ function apiLogout(token) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
-    session = gpsfmFindSessionRow_(key);
+    session = gpsfmFindSessionRow_(key,true);
     if (session) gpsfmUpdateRow_('UserSessions',session._row,{active:false,updatedAt:gpsfmNow_()});
   } catch (e) {
     console.error('[GPSFM_LOGOUT_REVOKE_FAILED] '+e.message);
@@ -466,6 +472,13 @@ function apiLogout(token) {
   } catch (e) {}
   return {ok:true};
 }
+
+
+/**
+ * Jalankan satu kali dari editor Apps Script untuk memicu permintaan
+ * otorisasi scope script.external_request.
+ * Endpoint tetap dan tanpa kredensial; respons HTTP non-2xx tidak menggagalkan otorisasi.
+ */
 
 
 /**
