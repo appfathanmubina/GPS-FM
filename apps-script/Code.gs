@@ -1452,13 +1452,14 @@ function gpsfmGetOccurrence_(activityId,date){
  gpsfmEnsureOccurrenceSheet_();
  return gpsfmFindRowByCriteria_('ActivityOccurrences', {activityId:String(activityId),occurrenceDate:String(date)}, {occurrenceDate:'date'});
 }
-function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds){
- const lock=LockService.getScriptLock();lock.waitLock(10000);
+function gpsfmSaveOccurrence_(activityId,date,status,reason,actorId,teacherIds,lockAlreadyHeld){
+ const lock=lockAlreadyHeld?null:LockService.getScriptLock();
+ if(lock)lock.waitLock(10000);
  try{
   const old=gpsfmGetOccurrence_(activityId,date),now=gpsfmNow_(),values={activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now};
   if(old)gpsfmUpdateRow_('ActivityOccurrences',old._row,values);
   else gpsfmAppend_('ActivityOccurrences',{occurrenceId:gpsfmId_(),activityId:String(activityId),occurrenceDate:String(date),status:status,reason:reason||'',teacherIdsJson:JSON.stringify(teacherIds||[]),updatedBy:actorId||'',updatedAt:now,createdAt:now});
- } finally {lock.releaseLock();}
+ } finally {if(lock)lock.releaseLock();}
  return gpsfmGetOccurrence_(activityId,date);
 }
 function gpsfmActiveTeacherIds_(activityId){
@@ -1591,9 +1592,14 @@ function apiSetOccurrenceException(token,activityId,date,status,reason){
  if(['holiday','cancelled','scheduled'].indexOf(status)<0)throw new Error('Status pengecualian tidak valid.');
  if((status==='holiday'||status==='cancelled')&&!reason)throw new Error('Alasan libur atau pembatalan wajib diisi.');
  if(key>Utilities.formatDate(new Date(),'Asia/Jakarta','yyyy-MM-dd'))throw new Error('Pengecualian hanya dapat ditetapkan untuk pertemuan hari ini atau yang sudah lewat.');
- const old=gpsfmGetOccurrence_(id,key),ids=gpsfmOccurrenceTeacherIds_(old,id);
- gpsfmSaveOccurrence_(id,key,status,status==='scheduled'?'':reason,s.user.userId,ids);
- gpsfmAudit_(s.user.userId,'SET_OCCURRENCE_EXCEPTION','ActivityOccurrences',id,{date:key,status:status,reason:reason});return {ok:true};
+ const lock=LockService.getScriptLock();lock.waitLock(20000);
+ try{
+  const old=gpsfmGetOccurrence_(id,key),ids=gpsfmOccurrenceTeacherIds_(old,id);
+  gpsfmSaveOccurrence_(id,key,status,status==='scheduled'?'':reason,s.user.userId,ids,true);
+  try{gpsfmAudit_(s.user.userId,'SET_OCCURRENCE_EXCEPTION','ActivityOccurrences',id,{date:key,status:status,reason:reason});}
+  catch(auditError){console.error('[GPSFM_AUDIT_FAILED] apiSetOccurrenceException: '+auditError.message);}
+  return {ok:true};
+ }finally{lock.releaseLock();}
 }
 
 function apiListMyAttendanceActivities(token) {
