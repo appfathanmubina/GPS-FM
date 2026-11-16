@@ -1529,7 +1529,7 @@ function apiGetAttendanceTargets(token){
   // berulang kali untuk setiap kegiatan.
   const pjRows=admin?[]:gpsfmRows_('ActivityPJ'),pjActivityIds={};
   if(!admin)pjRows.forEach(function(row){if(gpsfmBool_(row.active)&&String(row.userId)===String(s.user.userId))pjActivityIds[String(row.activityId)]=true;});
-  const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||!!pjActivityIds[String(a.activityId)]);}),attendance=gpsfmRows_('Attendance');
+  const activities=gpsfmRows_('Activities').filter(function(a){return gpsfmBool_(a.active)&&(admin||!!pjActivityIds[String(a.activityId)]);}),attendance=gpsfmRowsByDatePrefix_('Attendance','attendanceDate',today.slice(0,7));
   // Target ditentukan per kegiatan dan tanggal jadwal, bukan per guru.
   // Satu catatan absensi apa pun untuk kegiatan/tanggal tersebut menandakan target sudah diisi.
   const attendanceDates={};
@@ -1541,7 +1541,7 @@ function apiGetAttendanceTargets(token){
   // Jika ada duplikat lama, pertahankan perilaku lama: gunakan baris pertama yang cocok.
   gpsfmEnsureOccurrenceSheet_();
   const occurrenceByKey={};
-  gpsfmRows_('ActivityOccurrences').forEach(function(row){
+  gpsfmRowsByDatePrefix_('ActivityOccurrences','occurrenceDate',today.slice(0,7)).forEach(function(row){
     const key=String(row.activityId)+'|'+gpsfmDateKey_(row.occurrenceDate);
     if(!Object.prototype.hasOwnProperty.call(occurrenceByKey,key))occurrenceByKey[key]=row;
   });
@@ -1695,9 +1695,9 @@ function apiGetTodayScheduledActivities(token) {
 
   gpsfmEnsureOccurrenceSheet_();
   const occurrenceByActivity = {};
-  gpsfmRows_('ActivityOccurrences').forEach(function(row) {
+  gpsfmRowsByDatePrefix_('ActivityOccurrences','occurrenceDate',today).forEach(function(row) {
     const id = String(row.activityId);
-    if (activityIds[id] && gpsfmDateKey_(row.occurrenceDate) === today && !occurrenceByActivity[id]) {
+    if (activityIds[id] && !occurrenceByActivity[id]) {
       occurrenceByActivity[id] = row;
     }
   });
