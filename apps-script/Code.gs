@@ -358,17 +358,20 @@ function apiLogin(username, password, rememberMe) {
 }
 
 function apiLogout(token) {
-  // Revoke token directly so logout also works during mandatory password change
-  // or when the account has just been disabled. Never affect other tab tokens.
+  // Revoke token directly so logout also works during mandatory password change.
   if (!token || String(token).length < 30) return {ok:true};
-  const cache = CacheService.getScriptCache();
-  const key = gpsfmTokenKey_(token);
+  const cache = CacheService.getScriptCache(), key = gpsfmTokenKey_(token);
   let session = null;
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
     session = gpsfmFindSessionRow_(key);
     if (session) gpsfmUpdateRow_('UserSessions',session._row,{active:false,updatedAt:gpsfmNow_()});
-  } catch (e) {}
-  // Revoke both persistent and cached copies before audit logging.
+  } catch (e) {
+    console.error('[GPSFM_LOGOUT_REVOKE_FAILED] '+e.message);
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
   cache.remove(key);
   try {
     if (session && session.userId) {
@@ -424,32 +427,31 @@ function gpsfmEnsurePushSheets_() {
 function apiRegisterPushSubscription(token, subscriptionId, deviceLabel) {
   const session = gpsfmSession_(token);
   subscriptionId = gpsfmText_(subscriptionId,100);
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subscriptionId)) {
-    throw new Error('ID langganan OneSignal tidak valid.');
-  }
-  gpsfmEnsurePushSheets_();
-  const rows = gpsfmRows_('PushSubscriptions');
-  const old = rows.find(function(r) { return String(r.subscriptionId) === subscriptionId; });
-  const now = gpsfmNow_();
-  const values = {subscriptionId:subscriptionId,userId:String(session.user.userId),active:true,
-    deviceLabel:gpsfmText_(deviceLabel,180),updatedAt:now,lastSeenAt:now};
-  if (old) gpsfmUpdateRow_('PushSubscriptions',old._row,values);
-  else {
-    values.createdAt = now;
-    gpsfmAppend_('PushSubscriptions',values);
-  }
-  return {ok:true,registered:true};
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subscriptionId)) throw new Error('ID langganan OneSignal tidak valid.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    gpsfmEnsurePushSheets_();
+    const old = gpsfmFindRowByCriteria_('PushSubscriptions', {subscriptionId:subscriptionId});
+    const now = gpsfmNow_();
+    const values = {subscriptionId:subscriptionId,userId:String(session.user.userId),active:true,deviceLabel:gpsfmText_(deviceLabel,180),updatedAt:now,lastSeenAt:now};
+    if (old) gpsfmUpdateRow_('PushSubscriptions',old._row,values);
+    else { values.createdAt = now; gpsfmAppend_('PushSubscriptions',values); }
+    return {ok:true,registered:true};
+  } finally { lock.releaseLock(); }
 }
 
 function apiUnregisterPushSubscription(token, subscriptionId) {
   const session = gpsfmSession_(token);
   subscriptionId = gpsfmText_(subscriptionId,100);
-  gpsfmEnsurePushSheets_();
-  const old = gpsfmRows_('PushSubscriptions').find(function(r) {
-    return String(r.subscriptionId) === subscriptionId && String(r.userId) === String(session.user.userId) && gpsfmBool_(r.active);
-  });
-  if (old) gpsfmUpdateRow_('PushSubscriptions',old._row,{active:false,updatedAt:gpsfmNow_()});
-  return {ok:true,unregistered:!!old};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    gpsfmEnsurePushSheets_();
+    const old = gpsfmFindRowByCriteria_('PushSubscriptions', {subscriptionId:subscriptionId,userId:String(session.user.userId)});
+    if (old && gpsfmBool_(old.active)) gpsfmUpdateRow_('PushSubscriptions',old._row,{active:false,updatedAt:gpsfmNow_()});
+    return {ok:true,unregistered:!!(old && gpsfmBool_(old.active))};
+  } finally { lock.releaseLock(); }
 }
 
 function gpsfmPushDeliveryKey_(activityId,date,userId,type) {
@@ -776,24 +778,29 @@ function apiSaveUser(token, data) {
   if (!/^[a-z0-9._-]{3,50}$/.test(username)) throw new Error('Username 3–50 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.');
   if (!fullName) throw new Error('Nama lengkap wajib diisi.');
   if (['gps','supervisor','admin_administrasi','superadmin'].indexOf(role) < 0) throw new Error('Role tidak valid.');
-  const duplicate = gpsfmFindRowByCriteria_('Users', {username:username}, {username:'lower'}, function(u) {
-    return String(u.userId) !== String(data.userId || '');
-  });
-  if (duplicate && String(duplicate.userId) !== String(data.userId || '')) throw new Error('Username sudah digunakan.');
-  const now = gpsfmNow_(), existing = data.userId ? gpsfmFindRowByCriteria_('Users', {userId:String(data.userId)}) : null;
-  let record;
-  if (existing) {
-    record = {username:username,fullName:fullName,role:role,active:data.active !== false,updatedAt:now};
-    gpsfmUpdateRow_('Users', existing._row, record);
-  } else {
-    const password = String(data.password || '');
-    if (password.length < 6) throw new Error('Password awal minimal 6 karakter.');
-    const salt = gpsfmId_().replace(/-/g,'');
-    record = {userId:gpsfmId_(),username:username,fullName:fullName,role:role,passwordSalt:salt,passwordHash:gpsfmHashPassword_(password,salt),mustChangePassword:true,active:true,createdAt:now,updatedAt:now};
-    gpsfmAppend_('Users', record);
-  }
-  gpsfmAudit_(s.user.userId, existing ? 'UPDATE_USER' : 'CREATE_USER', 'Users', existing ? existing.userId : record.userId, {username:username,role:role});
-  return {ok:true};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const duplicate = gpsfmFindRowByCriteria_('Users', {username:username}, {username:'lower'}, function(u) {
+      return String(u.userId) !== String(data.userId || '');
+    });
+    if (duplicate) throw new Error('Username sudah digunakan.');
+    const now = gpsfmNow_(), existing = data.userId ? gpsfmFindRowByCriteria_('Users', {userId:String(data.userId)}) : null;
+    let record;
+    if (existing) {
+      record = {username:username,fullName:fullName,role:role,active:data.active !== false,updatedAt:now};
+      gpsfmUpdateRow_('Users', existing._row, record);
+    } else {
+      const password = String(data.password || '');
+      if (password.length < 6) throw new Error('Password awal minimal 6 karakter.');
+      const salt = gpsfmId_().replace(/-/g,'');
+      record = {userId:gpsfmId_(),username:username,fullName:fullName,role:role,passwordSalt:salt,passwordHash:gpsfmHashPassword_(password,salt),mustChangePassword:true,active:true,createdAt:now,updatedAt:now};
+      gpsfmAppend_('Users', record);
+    }
+    try { gpsfmAudit_(s.user.userId, existing ? 'UPDATE_USER' : 'CREATE_USER', 'Users', existing ? existing.userId : record.userId, {username:username,role:role}); }
+    catch (auditError) { console.error('[GPSFM_AUDIT_FAILED] apiSaveUser: '+auditError.message); }
+    return {ok:true};
+  } finally { lock.releaseLock(); }
 }
 
 function apiSetUserPassword(token, userId, newPassword) {
@@ -862,23 +869,33 @@ function apiSaveActivity(token, data) {
   const allowedModes = ['regular','flexible_monthly','weekly_routine','combined'];
   const schedulingMode = String(data.schedulingMode || 'regular');
   if (allowedModes.indexOf(schedulingMode) < 0) throw new Error('Pola penjadwalan tidak valid.');
-  const now = gpsfmNow_(), existing = data.activityId ? gpsfmFindRowByCriteria_('Activities', {activityId:String(data.activityId)}) : null;
-  if (existing) gpsfmUpdateRow_('Activities',existing._row,{name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),schedulingMode:schedulingMode,active:data.active !== false,updatedAt:now});
-  else gpsfmAppend_('Activities',{activityId:gpsfmId_(),name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),schedulingMode:schedulingMode,active:true,createdAt:now,updatedAt:now});
-  gpsfmAudit_(s.user.userId,existing?'UPDATE_ACTIVITY':'CREATE_ACTIVITY','Activities',existing?existing.activityId:name,{name:name,schedulingMode:schedulingMode});
-  return {ok:true};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const now = gpsfmNow_(), existing = data.activityId ? gpsfmFindRowByCriteria_('Activities', {activityId:String(data.activityId)}) : null;
+    if (existing) gpsfmUpdateRow_('Activities',existing._row,{name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),schedulingMode:schedulingMode,active:data.active !== false,updatedAt:now});
+    else gpsfmAppend_('Activities',{activityId:gpsfmId_(),name:name,description:gpsfmText_(data.description,500),schedule:gpsfmText_(data.schedule,120),schedulingMode:schedulingMode,active:true,createdAt:now,updatedAt:now});
+    try { gpsfmAudit_(s.user.userId,existing?'UPDATE_ACTIVITY':'CREATE_ACTIVITY','Activities',existing?existing.activityId:name,{name:name,schedulingMode:schedulingMode}); }
+    catch (auditError) { console.error('[GPSFM_AUDIT_FAILED] apiSaveActivity: '+auditError.message); }
+    return {ok:true};
+  } finally { lock.releaseLock(); }
 }
 
 function apiAssignPJ(token, activityId, userId, assigned) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
-  const user = gpsfmFindRowByCriteria_('Users', {userId:String(userId)});
-  if (!activity || !user || !gpsfmBool_(user.active) || !gpsfmIsParticipantRole_(user.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
-  const old = gpsfmFindRowByCriteria_('ActivityPJ', {activityId:String(activityId),userId:String(userId)});
-  if (old) gpsfmUpdateRow_('ActivityPJ',old._row,{active:!!assigned});
-  else if (assigned) gpsfmAppend_('ActivityPJ',{assignmentId:gpsfmId_(),activityId:activityId,userId:userId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId});
-  gpsfmAudit_(s.user.userId,assigned?'ASSIGN_PJ':'UNASSIGN_PJ','ActivityPJ',activityId,{userId:userId});
-  return {ok:true};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
+    const user = gpsfmFindRowByCriteria_('Users', {userId:String(userId)});
+    if (!activity || !user || !gpsfmBool_(user.active) || !gpsfmIsParticipantRole_(user.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
+    const old = gpsfmFindRowByCriteria_('ActivityPJ', {activityId:String(activityId),userId:String(userId)});
+    if (old) gpsfmUpdateRow_('ActivityPJ',old._row,{active:!!assigned});
+    else if (assigned) gpsfmAppend_('ActivityPJ',{assignmentId:gpsfmId_(),activityId:activityId,userId:userId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId});
+    try { gpsfmAudit_(s.user.userId,assigned?'ASSIGN_PJ':'UNASSIGN_PJ','ActivityPJ',activityId,{userId:userId}); }
+    catch (auditError) { console.error('[GPSFM_AUDIT_FAILED] apiAssignPJ: '+auditError.message); }
+    return {ok:true};
+  } finally { lock.releaseLock(); }
 }
 
 function apiGetPJAssignments(token, activityId) {
@@ -970,16 +987,22 @@ function apiGetActivityTeachers(token, activityId, attendanceDate) {
 
 function apiAssignActivityTeacher(token, activityId, teacherId, assigned) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
-  const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
-  const teacher = gpsfmFindRowByCriteria_('Users', {userId:String(teacherId)});
-  if (!activity || !teacher || !gpsfmBool_(teacher.active) || !gpsfmIsParticipantRole_(teacher.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
-  const old = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
-  // Bekukan roster occurrence lampau sebelum perubahan penugasan guru.
+  // Snapshot riwayat dibuat terlebih dahulu oleh helper yang memiliki lock sendiri.
+  // Perubahan assignment kemudian diserialisasi agar tidak ada append/update bersamaan.
   gpsfmSnapshotPastOccurrences_(activityId, gpsfmActiveTeacherIds_(activityId));
-  if (old) gpsfmUpdateRow_('ActivityTeachers',old._row,{active:!!assigned,updatedAt:gpsfmNow_()});
-  else if (assigned) gpsfmAppend_('ActivityTeachers',{assignmentId:gpsfmId_(),activityId:activityId,teacherId:teacherId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId,updatedAt:gpsfmNow_()});
-  gpsfmAudit_(s.user.userId,assigned?'ASSIGN_ACTIVITY_TEACHER':'UNASSIGN_ACTIVITY_TEACHER','ActivityTeachers',activityId,{teacherId:teacherId});
-  return {ok:true};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const activity = gpsfmFindRowByCriteria_('Activities', {activityId:String(activityId)});
+    const teacher = gpsfmFindRowByCriteria_('Users', {userId:String(teacherId)});
+    if (!activity || !teacher || !gpsfmBool_(teacher.active) || !gpsfmIsParticipantRole_(teacher.role)) throw new Error('Kegiatan atau akun peserta tidak valid.');
+    const old = gpsfmFindRowByCriteria_('ActivityTeachers', {activityId:String(activityId),teacherId:String(teacherId)});
+    if (old) gpsfmUpdateRow_('ActivityTeachers',old._row,{active:!!assigned,updatedAt:gpsfmNow_()});
+    else if (assigned) gpsfmAppend_('ActivityTeachers',{assignmentId:gpsfmId_(),activityId:activityId,teacherId:teacherId,active:true,assignedAt:gpsfmNow_(),assignedBy:s.user.userId,updatedAt:gpsfmNow_()});
+    try { gpsfmAudit_(s.user.userId,assigned?'ASSIGN_ACTIVITY_TEACHER':'UNASSIGN_ACTIVITY_TEACHER','ActivityTeachers',activityId,{teacherId:teacherId}); }
+    catch (auditError) { console.error('[GPSFM_AUDIT_FAILED] apiAssignActivityTeacher: '+auditError.message); }
+    return {ok:true};
+  } finally { lock.releaseLock(); }
 }
 
 function apiGetAttendanceForDate(token,activityId,date){
@@ -1980,11 +2003,16 @@ function apiSetPeriodLock(token, year, month, locked) {
   const s = gpsfmSession_(token); gpsfmRequireAdmin_(s);
   year=Number(year); month=Number(month);
   if (!Number.isInteger(year) || year < 2020 || year > 2100 || !Number.isInteger(month) || month<1 || month>12) throw new Error('Periode tidak valid.');
-  const list = gpsfmRows_('Periods'), old = list.find(function(p) { return Number(p.year)===year && Number(p.month)===month; });
-  const record = {periodId:old?old.periodId:gpsfmId_(),year:year,month:month,status:locked?'locked':'open',lockedAt:locked?gpsfmNow_():'',lockedBy:locked?s.user.userId:''};
-  if (old) gpsfmUpdateRow_('Periods',old._row,record); else gpsfmAppend_('Periods',record);
-  gpsfmAudit_(s.user.userId,locked?'LOCK_PERIOD':'UNLOCK_PERIOD','Periods',record.periodId,{year:year,month:month});
-  return {ok:true};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const list = gpsfmRows_('Periods'), old = list.find(function(p) { return Number(p.year)===year && Number(p.month)===month; });
+    const record = {periodId:old?old.periodId:gpsfmId_(),year:year,month:month,status:locked?'locked':'open',lockedAt:locked?gpsfmNow_():'',lockedBy:locked?s.user.userId:''};
+    if (old) gpsfmUpdateRow_('Periods',old._row,record); else gpsfmAppend_('Periods',record);
+    try { gpsfmAudit_(s.user.userId,locked?'LOCK_PERIOD':'UNLOCK_PERIOD','Periods',record.periodId,{year:year,month:month}); }
+    catch (auditError) { console.error('[GPSFM_AUDIT_FAILED] apiSetPeriodLock: '+auditError.message); }
+    return {ok:true};
+  } finally { lock.releaseLock(); }
 }
 
 function apiChangeOwnPassword(token, oldPassword, newPassword) {
