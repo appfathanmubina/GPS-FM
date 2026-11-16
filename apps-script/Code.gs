@@ -1963,13 +1963,18 @@ function apiGetMonthlyReport(token, year, month) {
   const userMap = {}, actMap = {};
   users.forEach(function(u) { userMap[String(u.userId)] = String(u.fullName); });
   allActivities.forEach(function(a) { actMap[String(a.activityId)] = String(a.name); });
-  const attendance = gpsfmRowsByDatePrefix_('Attendance','attendanceDate',prefix), allowedActivityIds = {}, rows = [];
-  attendance.forEach(function(a) {
+  // Riwayat personal dipakai untuk daftar kegiatan; baris periode dibaca terpisah agar tidak memindai seluruh Attendance.
+  const allUserAttendance = gpsfmRowsMatchingValue_('Attendance','teacherId',String(s.user.userId));
+  const periodAttendance = gpsfmRowsByDatePrefix_('Attendance','attendanceDate',prefix);
+  const allowedActivityIds = {}, rows = [];
+  allUserAttendance.forEach(function(a) {
+    const activityId=String(a.activityId);
+    if (Object.prototype.hasOwnProperty.call(actMap,activityId)) allowedActivityIds[activityId]=true;
+  });
+  periodAttendance.forEach(function(a) {
     const activityId=String(a.activityId);
     if(String(a.teacherId)!==String(s.user.userId) || !Object.prototype.hasOwnProperty.call(actMap,activityId))return;
-    allowedActivityIds[activityId]=true;
-    const date=gpsfmDateKey_(a.attendanceDate);
-    if(date.slice(0,7)===prefix)rows.push(a);
+    rows.push(a);
   });
   const activities = allActivities.filter(function(a) { return !!allowedActivityIds[String(a.activityId)]; }).map(function(a) {
     return {activityId:String(a.activityId), activityName:String(a.name)};
@@ -1980,7 +1985,7 @@ function apiGetMonthlyReport(token, year, month) {
   }).sort(function(a,b) { return a.date.localeCompare(b.date) || a.activityName.localeCompare(b.activityName) || a.teacherName.localeCompare(b.teacherName); });
   const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas Pondok':0,'C. Izin Pribadi':0,'D. Alfa':0};
   result.forEach(function(r) {
-    const raw = String(r.status || '').trim().replace(/^[A-D][.]\s*/i, '').toLowerCase().replace(/\s+/g, ' ');
+    const raw = String(r.status || '').trim().replace(/^[A-D][.]\\s*/i, '').toLowerCase().replace(/\\s+/g, ' ');
     let key = '';
     if (raw === 'hadir') key = 'Hadir';
     else if (raw === 'sakit') key = 'A. Sakit';
@@ -1991,7 +1996,6 @@ function apiGetMonthlyReport(token, year, month) {
   });
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
-
 function gpsfmExportStatusKey_(value) {
   const raw=String(value||'').trim().replace(/^[A-D][.]\s*/i,'').toLowerCase().replace(/\s+/g,' ');
   if(raw==='hadir')return 'Hadir';
