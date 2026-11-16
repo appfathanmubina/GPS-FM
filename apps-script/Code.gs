@@ -1118,6 +1118,9 @@ function apiSaveAttendanceBatch(token, data) {
   lock.waitLock(10000);
   timing.lockWaitMs=Date.now()-lockRequestedAt;mark=Date.now();
   try{
+    // Re-check inside the same project lock used by period locking; prevents a save racing with a lock operation.
+    const lockedPeriod= gpsfmRows_('Periods').find(function(x){return Number(x.year)===Number(period[0])&&Number(x.month)===Number(period[1]);});
+    if(lockedPeriod&&String(lockedPeriod.status)==='locked')throw new Error('Periode laporan sudah dikunci. Muat ulang halaman sebelum menyimpan.');
     const attendanceSheet=gpsfmSheet_('Attendance');
     const attendanceHeaders=attendanceSheet.getRange(1,1,1,attendanceSheet.getLastColumn()).getDisplayValues()[0].map(String);
     const attendanceCols={};attendanceHeaders.forEach(function(h,i){attendanceCols[h]=i;});
@@ -1189,6 +1192,9 @@ function apiSaveAttendance(token, data) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    // Re-check period after obtaining the same lock used by apiSetPeriodLock.
+    const lockedPeriod = gpsfmRows_('Periods').find(function(x) { return Number(x.year) === Number(period[0]) && Number(x.month) === Number(period[1]); });
+    if (lockedPeriod && String(lockedPeriod.status) === 'locked') throw new Error('Periode laporan sudah dikunci. Muat ulang halaman sebelum menyimpan.');
     const old = gpsfmFindRowByCriteria_('Attendance', {activityId:activityId,teacherId:teacherId,attendanceDate:date}, {attendanceDate:'date'});
     const now = gpsfmNow_();
     if (old) {
