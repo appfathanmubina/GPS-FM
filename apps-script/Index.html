@@ -692,19 +692,19 @@ body{touch-action:auto}
 try { if (window.self !== window.top) document.body.classList.add('embedded-app'); } catch (e) { document.body.classList.add('embedded-app'); }
 const $=id=>document.getElementById(id);
 let token='',me=null,bootstrap=null,currentPage='dashboard',users=[],activities=[],report=null;
-let gpsfmTodayScheduleCache=null,gpsfmTodayScheduleCacheAt=0,gpsfmTodayScheduleInFlight=null;
+let gpsfmTodayScheduleCache=null,gpsfmTodayScheduleCacheAt=0,gpsfmTodayScheduleCacheToken='',gpsfmTodayScheduleInFlight=null,gpsfmTodayScheduleInFlightToken='';
 async function gpsfmGetTodaySchedule(forceRefresh){
- if(!forceRefresh&&gpsfmTodayScheduleCache&&Date.now()-gpsfmTodayScheduleCacheAt<8000)return gpsfmTodayScheduleCache;
- if(gpsfmTodayScheduleInFlight)return gpsfmTodayScheduleInFlight;
- const request=call('apiGetTodayScheduledActivities',token);
- gpsfmTodayScheduleInFlight=request;
+ const requestToken=token;
+ if(!forceRefresh&&gpsfmTodayScheduleCache&&gpsfmTodayScheduleCacheToken===requestToken&&Date.now()-gpsfmTodayScheduleCacheAt<8000)return gpsfmTodayScheduleCache;
+ if(gpsfmTodayScheduleInFlight&&gpsfmTodayScheduleInFlightToken===requestToken)return gpsfmTodayScheduleInFlight;
+ const request=call('apiGetTodayScheduledActivities',requestToken);
+ gpsfmTodayScheduleInFlight=request;gpsfmTodayScheduleInFlightToken=requestToken;
  try{
   const data=await request;
-  gpsfmTodayScheduleCache=data;
-  gpsfmTodayScheduleCacheAt=Date.now();
+  if(token===requestToken){gpsfmTodayScheduleCache=data;gpsfmTodayScheduleCacheToken=requestToken;gpsfmTodayScheduleCacheAt=Date.now();}
   return data;
  }finally{
-  if(gpsfmTodayScheduleInFlight===request)gpsfmTodayScheduleInFlight=null;
+  if(gpsfmTodayScheduleInFlight===request){gpsfmTodayScheduleInFlight=null;gpsfmTodayScheduleInFlightToken='';}
  }
 }
 
