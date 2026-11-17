@@ -1191,6 +1191,7 @@ function apiSaveAttendanceBatch(token, data) {
   data=data||{};
   const activityId=gpsfmText_(data.activityId,80),date=gpsfmText_(data.attendanceDate,10);
   const entries=Array.isArray(data.entries)?data.entries:[];
+  const correctionReason=gpsfmText_(data.correctionReason,300);
   if(u.role!=='superadmin'&&!gpsfmIsPJ_(u.userId,activityId))throw new Error('Anda bukan PJ untuk kegiatan ini.');
   const activity=gpsfmActivity_(activityId);
   if(!activity)throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
@@ -1276,7 +1277,7 @@ function apiSaveAttendanceBatch(token, data) {
     const auditSheet=gpsfmSheet_('AuditLogs');
     const auditHeaders=auditSheet.getRange(1,1,1,auditSheet.getLastColumn()).getDisplayValues()[0];
     function makeAudit(action,entityId,status){
-      const obj={logId:gpsfmId_(),actorId:u.userId,action:action,entityType:'Attendance',entityId:entityId,details:JSON.stringify({status:status,date:date,bulk:true}),createdAt:now};
+      const obj={logId:gpsfmId_(),actorId:u.userId,action:action,entityType:'Attendance',entityId:entityId,details:JSON.stringify({status:status,date:date,bulk:true,correctionReason:correctionReason||''}),createdAt:now};
       auditRows.push(auditHeaders.map(function(h){return Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:'';}));
     }
     normalized.forEach(function(e){
@@ -1293,6 +1294,7 @@ function apiSaveAttendanceBatch(token, data) {
         makeAudit('CREATE_ATTENDANCE',id,e.status);
       }
     });
+    if(updateRows.length&&!correctionReason)throw new Error('Ada absensi yang sudah tersimpan. Untuk mengubahnya, PJ wajib mengisi alasan koreksi terlebih dahulu.');
     updateRows.sort(function(a,b){return a.rowNumber-b.rowNumber;});
     let runStart=0;
     while(runStart<updateRows.length){
