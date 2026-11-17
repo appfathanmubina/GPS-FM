@@ -110,7 +110,7 @@ test('Excel attendance import requires the complete current roster and rejects d
   const batch = source.slice(batchStart, batchEnd);
   const lockAt = batch.indexOf('lock.waitLock(10000)');
   const duplicateGuardAt = batch.indexOf('if(data.rejectExisting===true)');
-  const rosterGuardAt = batch.indexOf('if(data.requireCompleteRoster===true)');
+  const rosterGuardAt = batch.lastIndexOf('if(data.requireCompleteRoster===true)');
   assert.notEqual(lockAt, -1);
   assert.ok(duplicateGuardAt > lockAt, 'duplicate check must run while holding the script lock');
   assert.ok(rosterGuardAt > lockAt, 'current roster must be revalidated while holding the script lock');
