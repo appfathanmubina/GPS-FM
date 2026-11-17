@@ -100,3 +100,31 @@ test('batch attendance uses the same ISO date pattern as single attendance', () 
   assert.equal(datePattern.test('2026/11/02'), false);
   assert.equal(datePattern.test('02-11-2026'), false);
 });
+
+test('Excel attendance import requires the complete current roster and rejects duplicates under lock', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const batchStart = source.indexOf('function apiSaveAttendanceBatch(');
+  const batchEnd = source.indexOf('\nfunction apiSaveAttendance(', batchStart);
+  assert.notEqual(batchStart, -1);
+  assert.notEqual(batchEnd, -1);
+  const batch = source.slice(batchStart, batchEnd);
+  const lockAt = batch.indexOf('lock.waitLock(10000)');
+  const duplicateGuardAt = batch.indexOf('if(data.rejectExisting===true)');
+  const rosterGuardAt = batch.indexOf('if(data.requireCompleteRoster===true)');
+  assert.notEqual(lockAt, -1);
+  assert.ok(duplicateGuardAt > lockAt, 'duplicate check must run while holding the script lock');
+  assert.ok(rosterGuardAt > lockAt, 'current roster must be revalidated while holding the script lock');
+  assert.match(batch, /normalized\.length!==currentRoster\.length/);
+  assert.match(batch, /Tidak ada data yang diubah/);
+});
+
+test('attendance corrections require a reason and include it in the audit trail', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  assert.match(source, /if\(updateRows\.length&&!correctionReason\)/);
+  assert.match(source, /correctionReason:correctionReason\|\|''/);
+  const singleStart = source.indexOf('function apiSaveAttendance(token, data)');
+  const singleEnd = source.indexOf('\n}', singleStart);
+  const single = source.slice(singleStart, singleEnd);
+  assert.match(single, /if\(!correctionReason\)throw new Error/);
+  assert.match(single, /correctionReason:correctionReason/);
+});
