@@ -1090,6 +1090,7 @@ async function dashboard(root){
 async function attendancePage(root){
  root.innerHTML=title('Input Absensi','Pilih kegiatan dan tanggal absensi.','<button id="reloadAttendanceActivities" class="btn btn-light dashboard-icon-button" type="button" aria-label="Muat ulang daftar kegiatan" title="Muat ulang daftar kegiatan">↻</button>')+
  '<div class="panel"><form id="attendanceForm"><div class="row"><div class="field"><label>Kegiatan</label><select id="aActivity" required><option value="">Pilih kegiatan...</option></select></div><div class="field"><label>Tanggal</label><input id="aDate" type="date" value="'+dateDefault()+'" required></div></div></form></div>'+
+ '<div class="panel"><h3>Input Absensi melalui Excel</h3><p class="muted small">Unduh template sesuai kegiatan dan tanggal, isi status seluruh guru, lalu unggah kembali untuk diperiksa sebelum disimpan.</p><div class="row" style="align-items:center"><button id="downloadAttendanceTemplate" class="btn btn-light" type="button" disabled>Unduh Template Excel</button><div class="field"><label for="attendanceExcelFile">Unggah file Excel (.xlsx)</label><input id="attendanceExcelFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled></div></div><div id="attendanceExcelPreview" style="margin-top:12px"></div></div>'+
  '<div id="attendanceTeachers" class="panel"><div class="empty">Silahkan pilih kegiatan dan tanggalnya.</div></div>';
  async function loadTeachers(){
    const box=$('attendanceTeachers');box.innerHTML='<div class="empty">Memuat daftar guru...</div>';
@@ -1120,6 +1121,128 @@ async function attendancePage(root){
      };
    }catch(err){box.innerHTML='<h3>Daftar guru</h3><p class="muted">'+esc(err.message)+'</p><button class="btn btn-light" id="retryAttendanceTeachers">Muat Ulang</button>';$('retryAttendanceTeachers').onclick=loadTeachers;}
  }
+ let pendingExcelImport=null;
+ function attendanceExcelStatusHtml(){
+  return '<div class="muted small" style="margin-top:8px">Status yang diperbolehkan: '+(bootstrap.statuses||[]).map(esc).join(' · ')+'</div>';
+ }
+ async function downloadAttendanceTemplate(){
+  if(!window.XLSX||!XLSX.utils||!XLSX.write)throw new Error('Pustaka Excel belum berhasil dimuat. Periksa koneksi internet lalu muat ulang aplikasi.');
+  const activityId=$('aActivity').value,date=$('aDate').value;
+  if(!activityId||!date)throw new Error('Pilih kegiatan dan tanggal terlebih dahulu.');
+  const teachers=await call('apiGetActivityTeachers',token,activityId,date);
+  if(!teachers.length)throw new Error('Tidak ada guru yang ditugaskan pada kegiatan dan tanggal ini.');
+  const activityName=$('aActivity').selectedOptions[0].textContent;
+  const rows=[
+   ['GPS FM — TEMPLATE INPUT ABSENSI'],
+   ['Isi kolom STATUS dan KETERANGAN. Jangan mengubah ID GURU, NAMA GURU, urutan, atau identitas kegiatan.'],
+   ['ACTIVITY_ID',activityId],
+   ['NAMA_KEGIATAN',activityName],
+   ['TANGGAL',date],
+   ['TEMPLATE_VERSION','GPSFM_ATTENDANCE_V1'],
+   [],
+   ['NO','ID_GURU','NAMA GURU','STATUS','KETERANGAN'],
+   ...teachers.map((t,i)=>[i+1,String(t.userId),String(t.fullName),'',''])
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:2,hidden:true},{wch:32},{wch:24},{wch:38}];
+  ws['!freeze']={xSplit:3,ySplit:8};
+  ws['!autofilter']={ref:'A8:E'+(8+teachers.length)};
+  const border={top:{style:'thin',color:{rgb:'D9C9DF'}},bottom:{style:'thin',color:{rgb:'D9C9DF'}},left:{style:'thin',color:{rgb:'D9C9DF'}},right:{style:'thin',color:{rgb:'D9C9DF'}}};
+  function styleCell(ref,style){if(ws[ref])ws[ref].s=Object.assign({border:border,alignment:{vertical:'center',wrapText:true}},style||{});}
+  ['A1','B1','C1','D1','E1'].forEach(ref=>styleCell(ref,{font:{name:'Arial',sz:15,bold:true,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'650065'}}}));
+  for(let col=0;col<5;col++)styleCell(XLSX.utils.encode_cell({r:7,c:col}),{font:{name:'Arial',sz:10,bold:true,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:'800080'}},alignment:{horizontal:'center',vertical:'center',wrapText:true}});
+  for(let r=8;r<8+teachers.length;r++){
+   for(let col=0;col<5;col++)styleCell(XLSX.utils.encode_cell({r:r,c:col}),{font:{name:'Arial',sz:10,color:{rgb:'242033'}},fill:{patternType:'solid',fgColor:{rgb:r%2?'FFFFFF':'FAF6FC'}}});
+  }
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Input Absensi');
+  const help=XLSX.utils.aoa_to_sheet([
+   ['PETUNJUK PENGISIAN ABSENSI GPS FM'],
+   ['1. Isi STATUS untuk seluruh guru yang tercantum pada sheet Input Absensi.'],
+   ['2. Gunakan salah satu status berikut:'],
+   ...(bootstrap.statuses||[]).map(s=>['   • '+s]),
+   ['3. Isi KETERANGAN bila diperlukan (maksimal 300 karakter).'],
+   ['4. Jangan mengubah ID_GURU, NAMA GURU, urutan baris, tanggal, atau kode kegiatan.'],
+   ['5. Simpan sebagai file Excel .xlsx, lalu unggah kembali ke GPS FM.'],
+   ['6. Jika absensi kegiatan dan tanggal ini sudah pernah disimpan, impor akan ditolak untuk mencegah penimpaan data.']
+  ]);
+  help['!cols']=[{wch:110}];XLSX.utils.book_append_sheet(wb,help,'Petunjuk');
+  const output=XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true});
+  const blob=new Blob([output],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='GPSFM_Absensi_'+activityId+'_'+date+'.xlsx';document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+ }
+ async function inspectAttendanceExcel(file){
+  const preview=$('attendanceExcelPreview');pendingExcelImport=null;
+  if(!file) {preview.innerHTML='';return;}
+  try{
+   if(!window.XLSX||!XLSX.read||!XLSX.utils)throw new Error('Pustaka Excel belum berhasil dimuat. Periksa koneksi internet lalu muat ulang aplikasi.');
+   if(!$('aActivity').value||!$('aDate').value)throw new Error('Pilih kegiatan dan tanggal terlebih dahulu.');
+   if(file.size>5*1024*1024)throw new Error('Ukuran file maksimal 5 MB.');
+   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+   const ws=wb.Sheets['Input Absensi'];
+   if(!ws)throw new Error('Sheet "Input Absensi" tidak ditemukan. Gunakan template GPS FM terbaru.');
+   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+   const activityId=String(rows[2]&&rows[2][1]||'').trim(),activityName=String(rows[3]&&rows[3][1]||'').trim();
+   const date=String(rows[4]&&rows[4][1]||'').trim(),version=String(rows[5]&&rows[5][1]||'').trim();
+   if(version!=='GPSFM_ATTENDANCE_V1')throw new Error('Versi template tidak dikenali. Unduh template terbaru dari GPS FM.');
+   if(activityId!==$('aActivity').value||date!==$('aDate').value)throw new Error('Kegiatan atau tanggal pada file berbeda dari pilihan di aplikasi. Pilih kegiatan dan tanggal yang sesuai.');
+   if(activityName!==$('aActivity').selectedOptions[0].textContent)throw new Error('Nama kegiatan pada file tidak sesuai dengan database.');
+   const header=(rows[7]||[]).slice(0,5).map(x=>String(x||'').trim());
+   if(header.join('|')!=='NO|ID_GURU|NAMA GURU|STATUS|KETERANGAN')throw new Error('Struktur kolom tidak sesuai template GPS FM.');
+   const entries=[],fileIds={},fileNames={};
+   for(let i=8;i<rows.length;i++){
+    const row=rows[i]||[];
+    if(row.every(v=>String(v==null?'':v).trim()===''))continue;
+    const teacherId=String(row[1]||'').trim(),fullName=String(row[2]||'').trim(),status=String(row[3]||'').trim(),note=String(row[4]||'').trim();
+    if(!teacherId||!fullName)throw new Error('Identitas guru pada baris Excel '+(i+1)+' tidak lengkap.');
+    if(fileIds[teacherId])throw new Error('Guru tercantum lebih dari satu kali: '+fullName+'.');
+    if((bootstrap.statuses||[]).indexOf(status)<0)throw new Error('Status pada baris '+(i+1)+' tidak valid. Pilih status yang tersedia di sheet Petunjuk.');
+    if(note.length>300)throw new Error('Keterangan pada baris '+(i+1)+' melebihi 300 karakter.');
+    fileIds[teacherId]=true;fileNames[teacherId]=fullName;
+    entries.push({teacherId:teacherId,status:status,note:note});
+   }
+   if(!entries.length)throw new Error('Tidak ada data guru yang dapat diimpor.');
+   const [teachers,existing]=await Promise.all([
+    call('apiGetActivityTeachers',token,activityId,date),
+    call('apiGetAttendanceForDate',token,activityId,date)
+   ]);
+   const current={};teachers.forEach(t=>current[String(t.userId)]=String(t.fullName));
+   const missing=teachers.filter(t=>!fileIds[String(t.userId)]).map(t=>t.fullName);
+   const unexpected=entries.filter(e=>!Object.prototype.hasOwnProperty.call(current,e.teacherId)).map(e=>fileNames[e.teacherId]||e.teacherId);
+   const renamed=entries.filter(e=>current[e.teacherId]&&current[e.teacherId]!==fileNames[e.teacherId]).map(e=>fileNames[e.teacherId]);
+   if(missing.length||unexpected.length||renamed.length)throw new Error('Daftar guru pada file tidak sama dengan roster kegiatan. '+(missing.length?'Belum tercantum: '+missing.join(', ')+'. ':'')+(unexpected.length?'Tidak terdaftar: '+unexpected.join(', ')+'. ':'')+(renamed.length?'Nama berubah: '+renamed.join(', ')+'. ':'')+'Unduh template terbaru.');
+   if(entries.length!==teachers.length)throw new Error('Jumlah guru pada file tidak sesuai roster kegiatan.');
+   const existingIds={};existing.forEach(x=>existingIds[String(x.teacherId)]=true);
+   const duplicates=entries.filter(e=>existingIds[e.teacherId]).map(e=>current[e.teacherId]);
+   if(duplicates.length)throw new Error('Impor dibatalkan karena absensi sudah tercatat untuk: '+duplicates.join(', ')+'. Tidak ada data yang diubah.');
+   pendingExcelImport={activityId:activityId,date:date,entries:entries};
+   const counts={};entries.forEach(e=>counts[e.status]=(counts[e.status]||0)+1);
+   preview.innerHTML='<div class="panel" style="margin:0;background:#f8fff9;border-color:#ccebd8"><h3>Hasil pemeriksaan file</h3><div class="row" style="gap:8px;align-items:center"><b>'+entries.length+' guru siap diimpor</b><span class="pill Hadir">Tidak ada duplikasi</span></div><p class="muted small">'+Object.keys(counts).map(k=>esc(k)+': '+counts[k]).join(' · ')+'</p><div class="table-wrap"><table style="min-width:420px"><thead><tr><th>Nama Guru</th><th>Status</th><th>Keterangan</th></tr></thead><tbody>'+entries.map(e=>'<tr><td>'+esc(current[e.teacherId])+'</td><td>'+esc(e.status)+'</td><td>'+esc(e.note||'—')+'</td></tr>').join('')+'</tbody></table></div><button id="confirmAttendanceExcelImport" class="btn btn-primary" type="button" style="margin-top:14px">Konfirmasi dan Simpan Absensi</button></div>';
+   $('confirmAttendanceExcelImport').onclick=async()=>{
+    const btn=$('confirmAttendanceExcelImport');busy(btn,true,'Memeriksa dan menyimpan...');
+    processNotice('Menyimpan absensi dari Excel','Memvalidasi ulang roster, periode, dan duplikasi sebelum menyimpan…','working');
+    try{
+     const result=await call('apiSaveAttendanceBatch',token,{activityId:pendingExcelImport.activityId,attendanceDate:pendingExcelImport.date,entries:pendingExcelImport.entries,rejectExisting:true,requireCompleteRoster:true});
+     pendingExcelImport=null;$('attendanceExcelFile').value='';preview.innerHTML='';
+     processNotice('Impor absensi berhasil',result.saved+' catatan guru berhasil disimpan.','success');
+     await loadTeachers();
+    }catch(err){processNotice('Impor absensi gagal',err.message||'Data tidak berhasil disimpan.','error');}
+    finally{busy(btn,false);}
+   };
+  }catch(err){
+   pendingExcelImport=null;
+   preview.innerHTML='<div class="error">'+esc(err.message||'File Excel tidak dapat diproses.')+'</div>';
+  }
+ }
+ $('downloadAttendanceTemplate').onclick=async()=>{
+  const btn=$('downloadAttendanceTemplate');busy(btn,true,'Menyiapkan Excel...');
+  processNotice('Membuat template absensi','Mengambil roster guru untuk kegiatan dan tanggal terpilih…','working');
+  try{await downloadAttendanceTemplate();processNotice('Template Excel siap','Unduhan template absensi dimulai.','success');}
+  catch(err){processNotice('Template Excel gagal dibuat',err.message||'Terjadi kesalahan.','error');}
+  finally{busy(btn,false);}
+ };
+ $('attendanceExcelFile').onchange=()=>inspectAttendanceExcel($('attendanceExcelFile').files[0]);
  let activityOptionsLoaded=false,activityOptionsLoading=false;
  async function loadActivityOptions(forceReload){
   if(activityOptionsLoading||(!forceReload&&activityOptionsLoaded))return;
@@ -1143,6 +1266,8 @@ async function attendancePage(root){
    if(activities.some(a=>String(a.activityId)===String(previousActivity)))select.value=previousActivity;
    if(window.gpsfmPendingAttendance){const pending=window.gpsfmPendingAttendance;dateInput.value=pending.date;window.gpsfmPendingAttendance=null;}
    activityOptionsLoaded=true;
+   $('downloadAttendanceTemplate').disabled=!select.value||!dateInput.value;
+   $('attendanceExcelFile').disabled=!select.value||!dateInput.value;
    if(!select.value)box.innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';
   }catch(err){
    activityOptionsLoaded=false;
@@ -1155,8 +1280,8 @@ async function attendancePage(root){
   }
  }
  $('reloadAttendanceActivities').onclick=()=>loadActivityOptions(true);
- $('aActivity').onchange=()=>{if($('aActivity').value)loadTeachers();else $('attendanceTeachers').innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';};
- $('aDate').onchange=()=>{if($('aActivity').value)loadTeachers();};
+ $('aActivity').onchange=()=>{pendingExcelImport=null;$('attendanceExcelPreview').innerHTML='';$('attendanceExcelFile').value='';$('downloadAttendanceTemplate').disabled=!$('aActivity').value||!$('aDate').value;$('attendanceExcelFile').disabled=!$('aActivity').value||!$('aDate').value;if($('aActivity').value)loadTeachers();else $('attendanceTeachers').innerHTML='<div class="empty">Pilih kegiatan untuk memuat daftar guru dan catatan absensi.</div>';};
+ $('aDate').onchange=()=>{pendingExcelImport=null;$('attendanceExcelPreview').innerHTML='';$('attendanceExcelFile').value='';$('downloadAttendanceTemplate').disabled=!$('aActivity').value||!$('aDate').value;$('attendanceExcelFile').disabled=!$('aActivity').value||!$('aDate').value;if($('aActivity').value)loadTeachers();};
  // Daftar kegiatan tersedia sejak halaman dibuka; tombol dapat memuat ulang kapan saja.
  loadActivityOptions();
 }
