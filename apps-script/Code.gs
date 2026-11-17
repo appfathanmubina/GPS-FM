@@ -1230,6 +1230,9 @@ function apiSaveAttendanceBatch(token, data) {
     if(!activityTeachers[teacherId])throw new Error('Ada guru yang tidak ditugaskan pada kegiatan ini. Muat ulang daftar guru.');
     normalized.push({teacherId:teacherId,status:status,note:gpsfmText_(e.note,300)});
   });
+  if(data.requireCompleteRoster===true){
+    if(normalized.length!==rosterIds.length||rosterIds.some(function(id){return !seen[String(id)];}))throw new Error('File Excel harus memuat seluruh guru yang terlibat tepat satu kali. Unduh template terbaru dan periksa kembali isinya.');
+  }
   timing.entryValidationMs=Date.now()-mark;mark=Date.now();
 
   const lock=LockService.getScriptLock();
@@ -1252,6 +1255,13 @@ function apiSaveAttendanceBatch(token, data) {
       const teacherKey=String(item.values[attendanceCols.teacherId]);
       if(!Object.prototype.hasOwnProperty.call(existingByTeacher,teacherKey))existingByTeacher[teacherKey]=item;
     });
+    if(data.rejectExisting===true){
+      const duplicateIds=normalized.filter(function(entry){return !!existingByTeacher[entry.teacherId];}).map(function(entry){return entry.teacherId;});
+      if(duplicateIds.length){
+        const duplicateNames=duplicateIds.map(function(id){return userById[id]?String(userById[id].fullName):id;});
+        throw new Error('Impor dibatalkan. Absensi sudah tercatat untuk: '+duplicateNames.join(', ')+'. Tidak ada data yang diubah. Gunakan mekanisme koreksi yang tersedia atau periksa rekap absensi.');
+      }
+    }
     timing.attendanceLookupMs=Date.now()-mark;mark=Date.now();
 
     const now=gpsfmNow_(),updateRows=[],insertRows=[],auditRows=[];
