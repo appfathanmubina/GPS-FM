@@ -1113,9 +1113,16 @@ async function attendancePage(root){
        const selected=checks.filter(x=>x.checked);
        if(!selected.length){toast('Centang minimal satu guru yang akan disimpan.');return;}
        const entries=selected.map(x=>({teacherId:x.value,status:box.querySelector('.attendanceTeacherStatus[data-teacher="'+x.value+'"]').value,note:box.querySelector('.attendanceTeacherNote[data-teacher="'+x.value+'"]').value}));
+       const correctionTargets=selected.filter(x=>!!saved[x.value]);let correctionReason='';
+       if(correctionTargets.length){
+        correctionReason=await gpsfmPromptModal('Koreksi Absensi','Ada '+correctionTargets.length+' guru yang sudah memiliki catatan absensi. Jelaskan alasan perubahan agar tercatat di Audit Log.','Alasan koreksi','','text');
+        if(correctionReason===null)return;
+        correctionReason=String(correctionReason||'').trim();
+        if(!correctionReason){toast('Alasan koreksi wajib diisi.');return;}
+       }
        const btn=$('saveAttendanceBatch');busy(btn,true,'Menyimpan '+selected.length+' guru...');
        processNotice('Menyimpan absensi','Mengirim '+selected.length+' catatan guru. Mohon jangan tutup aplikasi…','working');
-       try{const result=await call('apiSaveAttendanceBatch',token,{activityId:$('aActivity').value,attendanceDate:$('aDate').value,entries:entries});selected.forEach(x=>{const row=x.closest('.checkitem');const info=row&&row.querySelector('.muted');if(info)info.textContent='Sudah ada catatan: '+box.querySelector('.attendanceTeacherStatus[data-teacher="'+x.value+'"]').value;});processNotice('Absensi berhasil disimpan',result.saved+' catatan guru berhasil disimpan.','success');}
+       try{const result=await call('apiSaveAttendanceBatch',token,{activityId:$('aActivity').value,attendanceDate:$('aDate').value,entries:entries,correctionReason:correctionReason});selected.forEach(x=>{const row=x.closest('.checkitem');const info=row&&row.querySelector('.muted');if(info)info.textContent='Sudah ada catatan: '+box.querySelector('.attendanceTeacherStatus[data-teacher="'+x.value+'"]').value;});processNotice('Absensi berhasil disimpan',result.saved+' catatan guru berhasil disimpan.','success');}
        catch(err){processNotice('Penyimpanan absensi gagal','Permintaan untuk '+selected.length+' guru tidak berhasil dikonfirmasi. Pesan sistem: '+(err.message||'Kesalahan tidak diketahui')+'. Periksa kembali data sebelum mencoba ulang.','error');}
        finally{busy(btn,false);}
      };
