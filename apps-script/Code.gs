@@ -1268,7 +1268,7 @@ function apiSaveAttendanceBatch(token, data) {
       const duplicateIds=normalized.filter(function(entry){return !!existingByTeacher[entry.teacherId];}).map(function(entry){return entry.teacherId;});
       if(duplicateIds.length){
         const duplicateNames=duplicateIds.map(function(id){return userById[id]?String(userById[id].fullName):id;});
-        throw new Error('Impor dibatalkan. Absensi sudah tercatat untuk: '+duplicateNames.join(', ')+'. Tidak ada data yang diubah. Gunakan mekanisme koreksi yang tersedia atau periksa rekap absensi.');
+        throw new Error('Impor dibatalkan. Absensi sudah tercatat untuk: '+duplicateNames.join(', ')+'. Tidak ada data yang diubah. Untuk mengubah catatan, gunakan Input Absensi Langsung pada halaman ini; aplikasi akan meminta alasan koreksi.');
       }
     }
     timing.attendanceLookupMs=Date.now()-mark;mark=Date.now();
