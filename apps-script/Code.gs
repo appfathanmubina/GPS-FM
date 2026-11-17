@@ -1243,6 +1243,14 @@ function apiSaveAttendanceBatch(token, data) {
     // Re-check inside the same project lock used by period locking; prevents a save racing with a lock operation.
     const lockedPeriod= gpsfmRows_('Periods').find(function(x){return Number(x.year)===Number(period[0])&&Number(x.month)===Number(period[1]);});
     if(lockedPeriod&&String(lockedPeriod.status)==='locked')throw new Error('Periode laporan sudah dikunci. Muat ulang halaman sebelum menyimpan.');
+    if(data.requireCompleteRoster===true){
+      const currentUsers=gpsfmRows_('Users'),currentAssignments=gpsfmRows_('ActivityTeachers'),currentAssigned={};
+      currentAssignments.forEach(function(a){if(String(a.activityId)===activityId&&gpsfmBool_(a.active))currentAssigned[String(a.teacherId)]=true;});
+      const currentBase=currentUsers.filter(function(x){return currentAssigned[String(x.userId)]&&gpsfmBool_(x.active)&&gpsfmIsParticipantRole_(x.role);}).map(function(x){return String(x.userId);});
+      const currentRoster=gpsfmAttendanceTeacherIds_(activityId,date,activity,currentBase),currentRosterMap={};
+      currentRoster.forEach(function(id){currentRosterMap[String(id)]=true;});
+      if(normalized.length!==currentRoster.length||normalized.some(function(entry){return !currentRosterMap[entry.teacherId];}))throw new Error('Daftar guru kegiatan berubah saat file diproses. Unduh template terbaru dan ulangi pemeriksaan.');
+    }
     const attendanceSheet=gpsfmSheet_('Attendance');
     const attendanceHeaders=attendanceSheet.getRange(1,1,1,attendanceSheet.getLastColumn()).getDisplayValues()[0].map(String);
     const attendanceCols={};attendanceHeaders.forEach(function(h,i){attendanceCols[h]=i;});
