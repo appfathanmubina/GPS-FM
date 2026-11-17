@@ -864,7 +864,7 @@ async function gpsfmAutofillBrowserCredentials_(){
  // Ambil kredensial dari Password Manager browser; fallback tetap memakai autocomplete native.
  try{
   if(!window.isSecureContext||!navigator.credentials||typeof navigator.credentials.get!=='function')return false;
-  if($('username').value||$('password').value)return false;
+  if($('password').value)return false;
   const credential=await navigator.credentials.get({password:true,mediation:'silent'});
   if(!credential||!credential.password)return false;
   $('username').value=credential.id||'';
