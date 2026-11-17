@@ -1317,7 +1317,7 @@ function apiSaveAttendance(token, data) {
   const s = gpsfmSession_(token), u = s.user;
   data = data || {};
   const activityId = gpsfmText_(data.activityId,80), teacherId = gpsfmText_(data.teacherId,80);
-  const date = gpsfmText_(data.attendanceDate,10), status = gpsfmText_(data.status,20);
+  const date = gpsfmText_(data.attendanceDate,10), status = gpsfmText_(data.status,20), correctionReason = gpsfmText_(data.correctionReason,300);
   if (u.role !== 'superadmin' && !gpsfmIsPJ_(u.userId,activityId)) throw new Error('Anda bukan PJ untuk kegiatan ini.');
   if (!gpsfmActivity_(activityId)) throw new Error('Kegiatan tidak aktif atau tidak ditemukan.');
   const teacher = gpsfmRows_('Users').find(function(x) { return String(x.userId) === teacherId && gpsfmBool_(x.active) && gpsfmIsParticipantRole_(x.role); });
@@ -1337,8 +1337,9 @@ function apiSaveAttendance(token, data) {
     const old = gpsfmFindRowByCriteria_('Attendance', {activityId:activityId,teacherId:teacherId,attendanceDate:date}, {attendanceDate:'date'});
     const now = gpsfmNow_();
     if (old) {
+      if(!correctionReason)throw new Error('Absensi sudah tersimpan. Alasan koreksi wajib diisi sebelum mengubah data.');
       gpsfmUpdateRow_('Attendance',old._row,{status:status,note:gpsfmText_(data.note,300),recordedBy:u.userId,updatedAt:now});
-      gpsfmAudit_(u.userId,'UPDATE_ATTENDANCE','Attendance',old.attendanceId,{status:status,date:date});
+      gpsfmAudit_(u.userId,'UPDATE_ATTENDANCE','Attendance',old.attendanceId,{status:status,date:date,correctionReason:correctionReason});
     } else {
       const id = gpsfmId_();
       gpsfmAppend_('Attendance',{attendanceId:id,activityId:activityId,teacherId:teacherId,attendanceDate:date,status:status,note:gpsfmText_(data.note,300),recordedBy:u.userId,createdAt:now,updatedAt:now});
