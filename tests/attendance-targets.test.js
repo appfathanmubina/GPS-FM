@@ -84,7 +84,7 @@ test('single and batch attendance share strict calendar-date validation', () => 
   assert.notEqual(helperStart, -1, 'shared date validator must exist');
   assert.notEqual(helperEnd, -1, 'shared date validator must be complete');
   const helper = source.slice(helperStart, helperEnd);
-  assert.match(helper, /\^\\\\d\{4\}-\\\\d\{2\}-\\\\d\{2\}\$/);
+  assert.ok(helper.includes(String.raw`value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/)`));
   assert.match(helper, /check\.getUTCFullYear\(\) === year/);
   const singleStart = source.indexOf('function apiSaveAttendance(token, data)');
   const singleEnd = source.indexOf('\n}', singleStart);
