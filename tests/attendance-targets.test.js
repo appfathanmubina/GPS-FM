@@ -77,28 +77,21 @@ test('PJ access is limited to assigned activities; superadmin can manage all', (
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('batch attendance uses the same ISO date pattern as single attendance', () => {
+test('single and batch attendance share strict calendar-date validation', () => {
   const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
-  function getDatePattern(functionName) {
-    const start = source.indexOf('function ' + functionName);
-    assert.notEqual(start, -1, functionName + ' must exist');
-    const end = source.indexOf('\n}', start);
-    const body = source.slice(start, end);
-    const marker = 'if (!/';
-    const position = body.indexOf(marker);
-    assert.notEqual(position, -1, functionName + ' date validation must exist');
-    const patternStart = position + marker.length;
-    const patternEnd = body.indexOf('/.test(date)', patternStart);
-    assert.notEqual(patternEnd, -1, functionName + ' date pattern must be complete');
-    return body.slice(patternStart, patternEnd);
-  }
-  const singlePattern = getDatePattern('apiSaveAttendance(');
-  const batchPattern = getDatePattern('apiSaveAttendanceBatch(');
-  assert.equal(batchPattern, singlePattern, 'batch and single attendance must use identical date patterns');
-  const datePattern = new RegExp('^' + batchPattern + '$');
-  assert.equal(datePattern.test('2026-11-02'), true);
-  assert.equal(datePattern.test('2026/11/02'), false);
-  assert.equal(datePattern.test('02-11-2026'), false);
+  const helperStart = source.indexOf('function gpsfmIsValidAttendanceDate_(date)');
+  const helperEnd = source.indexOf('\n}', helperStart);
+  assert.notEqual(helperStart, -1, 'shared date validator must exist');
+  assert.notEqual(helperEnd, -1, 'shared date validator must be complete');
+  const helper = source.slice(helperStart, helperEnd);
+  assert.match(helper, /value\.match/);
+  assert.match(helper, /check\.getUTCFullYear\(\) === year/);
+  const singleStart = source.indexOf('function apiSaveAttendance(token, data)');
+  const singleEnd = source.indexOf('\n}', singleStart);
+  const batchStart = source.indexOf('function apiSaveAttendanceBatch(token, data)');
+  const batchEnd = source.indexOf('\nfunction apiSaveAttendance(', batchStart);
+  assert.match(source.slice(singleStart, singleEnd), /gpsfmIsValidAttendanceDate_\(date\)/);
+  assert.match(source.slice(batchStart, batchEnd), /gpsfmIsValidAttendanceDate_\(date\)/);
 });
 
 test('Excel attendance import requires the complete current roster and rejects duplicates under lock', () => {
