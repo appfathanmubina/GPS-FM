@@ -713,9 +713,9 @@ function gpsfmRunScheduledPushNotifications() {
       }
       const activity = activities[activityIndex];
       const activityId = String(activity.activityId), startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
-      if (startMinute === null) { results.skippedNoTime++; return; }
+      if (startMinute === null) { results.skippedNoTime++; continue; }
       const occurrenceStatus = String((occurrencesByActivity[activityId] || {}).status || 'scheduled');
-      if (['holiday','cancelled'].indexOf(occurrenceStatus) >= 0) return;
+      if (['holiday','cancelled'].indexOf(occurrenceStatus) >= 0) continue;
 
       const teachers = {};
       const occurrence = occurrencesByActivity[activityId] || null;
