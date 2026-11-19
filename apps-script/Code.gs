@@ -616,8 +616,20 @@ function gpsfmRunScheduledPushNotifications() {
     });
     const activeUsers = {};
     gpsfmRows_('Users').forEach(function(u) { if (gpsfmBool_(u.active)) activeUsers[String(u.userId)] = u; });
-    const teacherAssignments = gpsfmRows_('ActivityTeachers').filter(function(a) { return gpsfmBool_(a.active); });
-    const pjAssignments = gpsfmRows_('ActivityPJ').filter(function(a) { return gpsfmBool_(a.active); });
+    const teacherAssignmentsByActivity = {};
+    gpsfmRows_('ActivityTeachers').forEach(function(a) {
+      if (!gpsfmBool_(a.active)) return;
+      const key = String(a.activityId);
+      if (!teacherAssignmentsByActivity[key]) teacherAssignmentsByActivity[key] = [];
+      teacherAssignmentsByActivity[key].push(String(a.teacherId));
+    });
+    const pjAssignmentsByActivity = {};
+    gpsfmRows_('ActivityPJ').forEach(function(a) {
+      if (!gpsfmBool_(a.active)) return;
+      const key = String(a.activityId);
+      if (!pjAssignmentsByActivity[key]) pjAssignmentsByActivity[key] = [];
+      pjAssignmentsByActivity[key].push(String(a.userId));
+    });
     const attendanceByActivityDate = {};
     gpsfmRowsByDatePrefix_('Attendance','attendanceDate',today).forEach(function(a) {
       const key = String(a.activityId)+'|'+gpsfmDateKey_(a.attendanceDate);
@@ -640,8 +652,13 @@ function gpsfmRunScheduledPushNotifications() {
     });
     const sent = {};
     gpsfmRowsByDatePrefix_('PushDeliveryLog','occurrenceDate',today).forEach(function(r) { if (String(r.status) === 'sent') sent[String(r.dedupeKey)] = true; });
-    const results = {activitiesChecked:activities.length,teacherNotifications:0,pjNotifications:0,failed:0,skippedNoTime:0};
-    const pendingLogs = [];
+    const results = {activitiesChecked:activities.length,teacherNotifications:0,pjNotifications:0,failed:0,skippedNoTime:0,deferredActivities:0};
+    // Sisakan waktu untuk menyimpan log dan melepas lock sebelum batas eksekusi Apps Script.
+    // Trigger menit berikutnya melanjutkan aktivitas yang belum diproses; log 'sent' mencegah duplikasi.
+    const deadline = Date.now() + 270000;
+    const deliverySheet = gpsfmSheet_('PushDeliveryLog');
+    const deliveryHeaders = deliverySheet.getRange(1,1,1,deliverySheet.getLastColumn()).getDisplayValues()[0];
+    let nextDeliveryRow = deliverySheet.getLastRow() + 1;
 
     function deliver(activity,type,userIds,title,message) {
       const ids = [], recipients = [], processedUsers = {};
@@ -669,17 +686,32 @@ function gpsfmRunScheduledPushNotifications() {
       } catch (error) {
         status = 'failed'; detail = String(error.message || error).slice(0,500); results.failed++;
       }
-      recipients.forEach(function(item) {
+      const loggedAt = gpsfmNow_();
+      const logRows = recipients.map(function(item) {
         if (status === 'sent') sent[item.key] = true;
-        pendingLogs.push({dedupeKey:item.key,activityId:String(activity.activityId),occurrenceDate:today,
+        const values = {dedupeKey:item.key,activityId:String(activity.activityId),occurrenceDate:today,
           recipientUserId:item.userId,notificationType:type,subscriptionIdsJson:JSON.stringify(item.subscriptionIds),
-          status:status,response:detail,createdAt:gpsfmNow_()});
+          status:status,response:detail,createdAt:loggedAt};
+        return deliveryHeaders.map(function(header) {
+          return Object.prototype.hasOwnProperty.call(values,header) ? values[header] : '';
+        });
       });
+      // Simpan hasil setiap request segera. Jika eksekusi berhenti di tengah proses,
+      // notifikasi yang sudah diterima OneSignal tidak dikirim ulang pada trigger berikutnya.
+      if (logRows.length) {
+        deliverySheet.getRange(nextDeliveryRow,1,logRows.length,deliveryHeaders.length).setValues(logRows);
+        nextDeliveryRow += logRows.length;
+      }
       if (status === 'sent' && type === 'activity') results.teacherNotifications += recipients.length;
       if (status === 'sent' && type === 'attendance') results.pjNotifications += recipients.length;
     }
 
-    activities.forEach(function(activity) {
+    for (let activityIndex = 0; activityIndex < activities.length; activityIndex++) {
+      if (Date.now() >= deadline) {
+        results.deferredActivities = activities.length - activityIndex;
+        break;
+      }
+      const activity = activities[activityIndex];
       const activityId = String(activity.activityId), startMinute = gpsfmScheduleStartMinutes_(activity.schedule);
       if (startMinute === null) { results.skippedNoTime++; return; }
       const occurrenceStatus = String((occurrencesByActivity[activityId] || {}).status || 'scheduled');
@@ -687,9 +719,7 @@ function gpsfmRunScheduledPushNotifications() {
 
       const teachers = {};
       const occurrence = occurrencesByActivity[activityId] || null;
-      let candidateTeacherIds = teacherAssignments.filter(function(a) {
-        return String(a.activityId) === activityId;
-      }).map(function(a) { return String(a.teacherId); });
+      let candidateTeacherIds = (teacherAssignmentsByActivity[activityId] || []).slice();
       if (occurrence && occurrence.teacherIdsJson) {
         try {
           const snapshotIds = JSON.parse(String(occurrence.teacherIdsJson));
@@ -702,9 +732,8 @@ function gpsfmRunScheduledPushNotifications() {
       });
       const teacherIds = Object.keys(teachers);
       const pjs = {};
-      pjAssignments.forEach(function(a) {
-        const id = String(a.userId);
-        if (String(a.activityId) === activityId && activeUsers[id]) pjs[id] = true;
+      (pjAssignmentsByActivity[activityId] || []).forEach(function(id) {
+        if (activeUsers[id]) pjs[id] = true;
       });
       // Pengingat kegiatan dikirim kepada seluruh guru roster dan PJ aktif.
       // Daftar roster tetap dipisahkan agar pemeriksaan kelengkapan absensi akurat.
@@ -728,12 +757,6 @@ function gpsfmRunScheduledPushNotifications() {
         if (pjIds.length) deliver(activity,'attendance',pjIds,'Pengingat Input Absensi GPS FM',
           'Anda bertugas sebagai PJ kegiatan ' + String(activity.name || 'GPS FM') + '. Masih ada absensi guru yang belum lengkap. Mohon lengkapi input absensi pada GPS FM.');
       }
-    });
-
-    if (pendingLogs.length) {
-      const sh = gpsfmSheet_('PushDeliveryLog'), headers = sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
-      const rows = pendingLogs.map(function(obj) { return headers.map(function(h) { return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; }); });
-      sh.getRange(sh.getLastRow()+1,1,rows.length,headers.length).setValues(rows);
     }
     return results;
   } finally { lock.releaseLock(); }
