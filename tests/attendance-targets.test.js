@@ -161,7 +161,7 @@ test('saving a duty date updates an existing normalized date row instead of dupl
 test('published attendance roster prefers active schedule rows when duplicate inactive rows exist', () => {
   const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
   const start = source.indexOf('function gpsfmPublishedDutyTeacherIds_(');
-  const end = source.indexOf('\\n}', start);
+  const end = source.indexOf('\n}', start);
   const fn = source.slice(start, end);
   assert.match(fn, /gpsfmFindRowByCriteria_\\('ActivityDutySchedules',[\\s\\S]*?function\\(row\\)\\{return gpsfmBool_\\(row\\.active\\);\\}\\)/);
 });
