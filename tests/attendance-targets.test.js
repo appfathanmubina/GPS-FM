@@ -121,3 +121,38 @@ test('attendance corrections require a reason and include it in the audit trail'
   assert.match(single, /if\(!correctionReason\)throw new Error/);
   assert.match(single, /correctionReason:correctionReason/);
 });
+
+
+test('duty schedule sheet migrates legacy rows to active without dropping assignments', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const start = source.indexOf('function gpsfmEnsureActivityDutySheets_()');
+  const end = source.indexOf('\n}', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const helper = source.slice(start, end);
+  assert.match(helper, /indexOf\('active'\)/);
+  assert.match(helper, /setValue\('active'\)/);
+  assert.match(helper, /setValues\(Array\.from\(\{length:lastRow-1\}.*\[true\]/s);
+  assert.match(helper, /'updatedAt','active'/);
+});
+
+test('published duty roster matches normalized spreadsheet dates', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const resolverStart = source.indexOf('function gpsfmPublishedDutyTeacherIds_(');
+  const resolverEnd = source.indexOf('\n}', resolverStart);
+  const resolver = source.slice(resolverStart, resolverEnd);
+  assert.match(resolver, /dutyDate:String\(date\)\},\{dutyDate:'date'\}\)/);
+  const monthStart = source.indexOf('function apiGetActivityDutyMonth(');
+  const monthEnd = source.indexOf('\n}', monthStart);
+  const monthApi = source.slice(monthStart, monthEnd);
+  assert.match(monthApi, /gpsfmDateKey_\(r\.dutyDate\)\.slice\(0,7\)/);
+  assert.match(monthApi, /overrides\[gpsfmDateKey_\(r\.dutyDate\)\]/);
+});
+
+test('saving a duty date updates an existing normalized date row instead of duplicating it', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const start = source.indexOf('function apiSaveActivityDutyDate(');
+  const end = source.indexOf('\n}', start);
+  const saveApi = source.slice(start, end);
+  assert.match(saveApi, /gpsfmFindRowByCriteria_\('ActivityDutySchedules',\{activityId:activityId,dutyDate:date\},\{dutyDate:'date'\}\)/);
+});
