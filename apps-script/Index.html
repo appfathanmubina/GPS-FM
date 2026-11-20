@@ -1051,10 +1051,12 @@ async function dashboard(root){
  // Statistik dimuat terpisah supaya komponen Dashboard yang datanya sudah tersedia dapat langsung digunakan.
  (async()=>{
   try{
-   const r=await call('apiGetMonthlyReport',token,dashboardDateParts[0],dashboardDateParts[1]);
+   const summaryApi=me.role==='superadmin'?'apiGetSuperadminDashboardSummary':'apiGetMonthlyReport';
+   const r=await call(summaryApi,token,dashboardDateParts[0],dashboardDateParts[1]);
    if(currentPage!=='dashboard'||!root.isConnected)return;
    const s=r.summary;
-   $('dashboardStats').innerHTML='<div class="stat dashboard-total"><div class="stat-label">Total catatan</div><div class="stat-value">'+Object.values(s).reduce((a,b)=>a+Number(b||0),0)+'</div></div><div class="dashboard-status-grid">'+[['Hadir',s.Hadir||0],['Sakit',s['A. Sakit']||0],['Izin Pribadi',s['C. Izin Pribadi']||0],['Alfa',s['D. Alfa']||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div></div>').join('')+'</div>';
+   const totalRecords=Number.isFinite(Number(r.totalRecords))?Number(r.totalRecords):Object.values(s).reduce((a,b)=>a+Number(b||0),0);
+   $('dashboardStats').innerHTML='<div class="stat dashboard-total"><div class="stat-label">Total catatan</div><div class="stat-value">'+totalRecords+'</div></div><div class="dashboard-status-grid">'+[['Hadir',s.Hadir||0],['Sakit',s['A. Sakit']||0],['Izin Pribadi',s['C. Izin Pribadi']||0],['Alfa',s['D. Alfa']||0]].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div></div>').join('')+'</div>';
   }catch(e){
    if(currentPage==='dashboard'&&root.isConnected){$('dashboardStats').innerHTML='<div class="panel"><div class="empty">Statistik belum berhasil dimuat: '+esc(e.message||'Terjadi kesalahan.')+' <button class="btn btn-light" id="retryDashboardStats" type="button">Muat Ulang</button></div></div>';$('retryDashboardStats').onclick=()=>renderPage('dashboard');}
   }

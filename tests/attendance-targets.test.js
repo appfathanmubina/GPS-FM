@@ -156,3 +156,27 @@ test('saving a duty date updates an existing normalized date row instead of dupl
   const saveApi = source.slice(start, end);
   assert.match(saveApi, /gpsfmFindRowByCriteria_\('ActivityDutySchedules',\{activityId:activityId,dutyDate:date\},\{dutyDate:'date'\}\)/);
 });
+
+
+test('superadmin dashboard uses a dedicated global summary without changing personal monthly report', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const index = fs.readFileSync(path.join(__dirname, '../apps-script/Index.html'), 'utf8');
+  const start = source.indexOf('function apiGetSuperadminDashboardSummary(');
+  const end = source.indexOf('\n}', start);
+  assert.notEqual(start, -1, 'dedicated superadmin summary endpoint must exist');
+  assert.notEqual(end, -1, 'dedicated endpoint must be complete');
+  const api = source.slice(start, end);
+  assert.match(api, /s\.user\.role\) !== 'superadmin'/);
+  assert.match(api, /gpsfmRowsByDatePrefix_\('Attendance', 'attendanceDate', prefix\)/);
+  assert.match(api, /totalRecords:attendance\.length/);
+  assert.doesNotMatch(api, /teacherId.*s\.user\.userId/);
+  const personalStart = source.indexOf('function apiGetMonthlyReport(');
+  const personalEnd = source.indexOf('\nfunction apiGetSuperadminDashboardSummary(', personalStart);
+  const personalApi = source.slice(personalStart, personalEnd);
+  assert.match(personalApi, /String\(a\.teacherId\)!==String\(s\.user\.userId\)/, 'Evaluasi Diri remains personal');
+  const dashboardStart = index.indexOf('async function dashboard(root)');
+  const dashboardEnd = index.indexOf('\nfunction ', dashboardStart + 10);
+  const dashboard = index.slice(dashboardStart, dashboardEnd);
+  assert.match(dashboard, /me\.role==='superadmin'\?'apiGetSuperadminDashboardSummary':'apiGetMonthlyReport'/);
+  assert.match(dashboard, /r\.totalRecords/);
+});
