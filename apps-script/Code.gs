@@ -2082,6 +2082,35 @@ function apiGetMonthlyReport(token, year, month) {
   });
   return {year:year,month:month,summary:summary,rows:result,activities:activities};
 }
+
+/**
+ * Ringkasan global khusus Dashboard Superadmin.
+ * Endpoint ini dipisahkan dari apiGetMonthlyReport agar Evaluasi Diri
+ * tetap membatasi data pada akun yang sedang login.
+ */
+function apiGetSuperadminDashboardSummary(token, year, month) {
+  const s = gpsfmSession_(token);
+  if (String(s.user.role) !== 'superadmin') throw new Error('Akses ditolak. Fitur ini hanya untuk superadmin.');
+  year = Number(year); month = Number(month);
+  if (!Number.isInteger(year) || year < 2020 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error('Periode ringkasan Dashboard tidak valid.');
+  }
+  const prefix = year + '-' + ('0' + month).slice(-2);
+  const attendance = gpsfmRowsByDatePrefix_('Attendance', 'attendanceDate', prefix);
+  const summary = {'Hadir':0,'A. Sakit':0,'B. Tugas Pondok':0,'C. Izin Pribadi':0,'D. Alfa':0};
+  attendance.forEach(function(row) {
+    const raw = String(row.status || '').trim().replace(/^[A-D][.]\s*/i, '').toLowerCase().replace(/\s+/g, ' ');
+    let key = '';
+    if (raw === 'hadir') key = 'Hadir';
+    else if (raw === 'sakit') key = 'A. Sakit';
+    else if (raw === 'tugas' || raw === 'tugas pondok') key = 'B. Tugas Pondok';
+    else if (raw === 'izin' || raw === 'izin pribadi') key = 'C. Izin Pribadi';
+    else if (raw === 'alpa' || raw === 'alfa') key = 'D. Alfa';
+    if (key) summary[key]++;
+  });
+  return {year:year, month:month, totalRecords:attendance.length, summary:summary};
+}
+
 function gpsfmExportStatusKey_(value) {
   const raw=String(value||'').trim().replace(/^[A-D][.]\s*/i,'').toLowerCase().replace(/\s+/g,' ');
   if(raw==='hadir')return 'Hadir';
