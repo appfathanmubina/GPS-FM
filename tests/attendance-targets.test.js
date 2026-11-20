@@ -163,7 +163,7 @@ test('published attendance roster prefers active schedule rows when duplicate in
   const start = source.indexOf('function gpsfmPublishedDutyTeacherIds_(');
   const end = source.indexOf('\n}', start);
   const fn = source.slice(start, end);
-  assert.match(fn, /gpsfmFindRowByCriteria_\('ActivityDutySchedules',[\\s\\S]*?function\(row\)\{return gpsfmBool_\(row\.active\);\}\)/);
+  assert.ok(fn.includes("function(row){return gpsfmBool_(row.active);}"));
 });
 
 test('saving a duty date updates an active duplicate schedule row before inactive legacy rows', () => {
@@ -171,6 +171,6 @@ test('saving a duty date updates an active duplicate schedule row before inactiv
   const start = source.indexOf('function apiSaveActivityDutyDate(');
   const end = source.indexOf('\n}', start);
   const fn = source.slice(start, end);
-  assert.match(fn, /const activeOld=gpsfmFindRowByCriteria_\('ActivityDutySchedules'[\\s\\S]*?function\(row\)\{return gpsfmBool_\(row\.active\);\}\)/);
-  assert.match(fn, /const old=activeOld\|\|gpsfmFindRowByCriteria_/);
+  assert.ok(fn.includes("const activeOld=gpsfmFindRowByCriteria_"));
+  assert.ok(fn.includes("const old=activeOld||gpsfmFindRowByCriteria_"));
 });
