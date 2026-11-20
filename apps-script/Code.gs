@@ -1058,7 +1058,7 @@ function gpsfmPublishedDutyTeacherIds_(activity,date,baseTeacherIds){
  if(String(activity.schedulingMode||'regular')==='regular')return base;
  if(!gpsfmIsValidAttendanceDate_(date)||gpsfmParseScheduleDays_(activity.schedule).indexOf(gpsfmWeekdayName_(date))<0)return [];
  gpsfmEnsureActivityDutySheets_();
- const override=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:String(activity.activityId),dutyDate:String(date)});
+ const override=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:String(activity.activityId),dutyDate:String(date)},{dutyDate:'date'});
  const mode=String(activity.schedulingMode||'');
  if(override&&gpsfmBool_(override.active)&&(String(override.source||'manual')==='manual'||String(override.source)==='snapshot')){
   if(String(override.status||'draft')==='published'){
@@ -1386,13 +1386,23 @@ function gpsfmWeekdayName_(key){return ['Minggu','Senin','Selasa','Rabu','Kamis'
 function gpsfmEnsureActivityDutySheets_(){
  const ss=gpsfmDb_();
  let schedules=ss.getSheetByName('ActivityDutySchedules'),routines=ss.getSheetByName('ActivityDutyRoutines');
- if(schedules&&routines)return {schedules:schedules,routines:routines};
+ function hasActiveColumn(sheet){
+  if(!sheet)return false;
+  return sheet.getRange(1,1,1,sheet.getLastColumn()).getDisplayValues()[0].map(String).indexOf('active')>=0;
+ }
+ if(schedules&&routines&&hasActiveColumn(schedules))return {schedules:schedules,routines:routines};
  return gpsfmWithScriptLock_(function(){
   schedules=ss.getSheetByName('ActivityDutySchedules');
   if(!schedules){
    schedules=ss.insertSheet('ActivityDutySchedules');
-   schedules.getRange(1,1,1,11).setValues([['scheduleId','activityId','dutyDate','teacherIdsJson','status','source','notes','createdBy','createdAt','updatedBy','updatedAt']]);
+   schedules.getRange(1,1,1,12).setValues([['scheduleId','activityId','dutyDate','teacherIdsJson','status','source','notes','createdBy','createdAt','updatedBy','updatedAt','active']]);
    schedules.setFrozenRows(1);
+  }else if(!hasActiveColumn(schedules)){
+   // Jadwal lama tidak memiliki kolom active; seluruh baris yang sudah ada
+   // dianggap aktif agar migrasi tidak menghilangkan penugasan yang tersimpan.
+   const activeColumn=schedules.getLastColumn()+1,lastRow=schedules.getLastRow();
+   schedules.getRange(1,activeColumn).setValue('active');
+   if(lastRow>1)schedules.getRange(2,activeColumn,lastRow-1,1).setValues(Array.from({length:lastRow-1},function(){return [true];}));
   }
   routines=ss.getSheetByName('ActivityDutyRoutines');
   if(!routines){
@@ -1441,9 +1451,9 @@ function apiGetActivityDutyMonth(token,activityId,month){
  });
  const overrides={};
  gpsfmRows_('ActivityDutySchedules').forEach(function(r){
-  if(String(r.activityId)!==String(activityId)||!gpsfmBool_(r.active)||String(r.dutyDate).slice(0,7)!==parts.prefix)return;
+  if(String(r.activityId)!==String(activityId)||!gpsfmBool_(r.active)||gpsfmDateKey_(r.dutyDate).slice(0,7)!==parts.prefix)return;
   let ids=[];try{ids=JSON.parse(String(r.teacherIdsJson||'[]'));}catch(e){}
-  overrides[String(r.dutyDate)]={teacherIds:Array.isArray(ids)?ids.map(String):[],status:String(r.status||'draft'),source:String(r.source||'manual'),notes:String(r.notes||''),updatedAt:String(r.updatedAt||'')};
+  overrides[gpsfmDateKey_(r.dutyDate)]={teacherIds:Array.isArray(ids)?ids.map(String):[],status:String(r.status||'draft'),source:String(r.source||'manual'),notes:String(r.notes||''),updatedAt:String(r.updatedAt||'')};
  });
  const lastDay=new Date(Date.UTC(parts.year,parts.month,0)).getUTCDate(),days=[];
  for(let day=1;day<=lastDay;day++){
@@ -1474,7 +1484,7 @@ function apiSaveActivityDutyDate(token,data){
  gpsfmEnsureActivityDutySheets_();
  const lock=LockService.getScriptLock();lock.waitLock(30000);
  try{
-  const old=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date}),now=gpsfmNow_();
+  const old=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date},{dutyDate:'date'}),now=gpsfmNow_();
   if(useRoutine){
    if(old)gpsfmUpdateRow_('ActivityDutySchedules',old._row,{active:false,updatedBy:ctx.session.user.userId,updatedAt:now});
   }else if(old){
