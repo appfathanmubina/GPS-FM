@@ -141,7 +141,7 @@ test('published duty roster matches normalized spreadsheet dates', () => {
   const resolverStart = source.indexOf('function gpsfmPublishedDutyTeacherIds_(');
   const resolverEnd = source.indexOf('\n}', resolverStart);
   const resolver = source.slice(resolverStart, resolverEnd);
-  assert.match(resolver, /dutyDate:String\(date\)\},\{dutyDate:'date'\}\)/);
+  assert.ok(resolver.includes("dutyDate:String(date)},{dutyDate:'date'},function(row){return gpsfmBool_(row.active);}"));
   const monthStart = source.indexOf('function apiGetActivityDutyMonth(');
   const monthEnd = source.indexOf('\n}', monthStart);
   const monthApi = source.slice(monthStart, monthEnd);
@@ -155,4 +155,22 @@ test('saving a duty date updates an existing normalized date row instead of dupl
   const end = source.indexOf('\n}', start);
   const saveApi = source.slice(start, end);
   assert.match(saveApi, /gpsfmFindRowByCriteria_\('ActivityDutySchedules',\{activityId:activityId,dutyDate:date\},\{dutyDate:'date'\}\)/);
+});
+
+
+test('published attendance roster prefers active schedule rows when duplicate inactive rows exist', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const start = source.indexOf('function gpsfmPublishedDutyTeacherIds_(');
+  const end = source.indexOf('\n}', start);
+  const fn = source.slice(start, end);
+  assert.ok(fn.includes("function(row){return gpsfmBool_(row.active);}"));
+});
+
+test('saving a duty date updates an active duplicate schedule row before inactive legacy rows', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8');
+  const start = source.indexOf('function apiSaveActivityDutyDate(');
+  const end = source.indexOf('\n}', start);
+  const fn = source.slice(start, end);
+  assert.ok(fn.includes("const activeOld=gpsfmFindRowByCriteria_"));
+  assert.ok(fn.includes("const old=activeOld||gpsfmFindRowByCriteria_"));
 });

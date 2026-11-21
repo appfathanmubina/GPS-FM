@@ -1058,7 +1058,7 @@ function gpsfmPublishedDutyTeacherIds_(activity,date,baseTeacherIds){
  if(String(activity.schedulingMode||'regular')==='regular')return base;
  if(!gpsfmIsValidAttendanceDate_(date)||gpsfmParseScheduleDays_(activity.schedule).indexOf(gpsfmWeekdayName_(date))<0)return [];
  gpsfmEnsureActivityDutySheets_();
- const override=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:String(activity.activityId),dutyDate:String(date)},{dutyDate:'date'});
+ const override=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:String(activity.activityId),dutyDate:String(date)},{dutyDate:'date'},function(row){return gpsfmBool_(row.active);});
  const mode=String(activity.schedulingMode||'');
  if(override&&gpsfmBool_(override.active)&&(String(override.source||'manual')==='manual'||String(override.source)==='snapshot')){
   if(String(override.status||'draft')==='published'){
@@ -1484,7 +1484,8 @@ function apiSaveActivityDutyDate(token,data){
  gpsfmEnsureActivityDutySheets_();
  const lock=LockService.getScriptLock();lock.waitLock(30000);
  try{
-  const old=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date},{dutyDate:'date'}),now=gpsfmNow_();
+  const activeOld=gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date},{dutyDate:'date'},function(row){return gpsfmBool_(row.active);});
+  const old=activeOld||gpsfmFindRowByCriteria_('ActivityDutySchedules',{activityId:activityId,dutyDate:date},{dutyDate:'date'}),now=gpsfmNow_();
   if(useRoutine){
    if(old)gpsfmUpdateRow_('ActivityDutySchedules',old._row,{active:false,updatedBy:ctx.session.user.userId,updatedAt:now});
   }else if(old){
