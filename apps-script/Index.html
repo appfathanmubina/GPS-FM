@@ -1122,8 +1122,24 @@ async function attendancePage(root){
        }
        const btn=$('saveAttendanceBatch');busy(btn,true,'Menyimpan '+selected.length+' guru...');
        processNotice('Menyimpan absensi','Mengirim '+selected.length+' catatan guru. Mohon jangan tutup aplikasi…','working');
-       try{const result=await call('apiSaveAttendanceBatch',token,{activityId:$('aActivity').value,attendanceDate:$('aDate').value,entries:entries,correctionReason:correctionReason});selected.forEach(x=>{const row=x.closest('.checkitem');const info=row&&row.querySelector('.muted');if(info)info.textContent='Sudah ada catatan: '+box.querySelector('.attendanceTeacherStatus[data-teacher="'+x.value+'"]').value;});processNotice('Absensi berhasil disimpan',result.saved+' catatan guru berhasil disimpan.','success');}
-       catch(err){processNotice('Penyimpanan absensi gagal','Permintaan untuk '+selected.length+' guru tidak berhasil dikonfirmasi. Pesan sistem: '+(err.message||'Kesalahan tidak diketahui')+'. Periksa kembali data sebelum mencoba ulang.','error');}
+       const savePayload={activityId:$('aActivity').value,attendanceDate:$('aDate').value,entries:entries,correctionReason:correctionReason};
+       try{
+        let result;
+        try{result=await call('apiSaveAttendanceBatch',token,savePayload);}
+        catch(firstError){
+         // Server menjadi sumber kebenaran terakhir: jika data lama ditemukan
+         // saat simpan tetapi tidak terdeteksi saat pemuatan form, minta alasan
+         // koreksi lalu ulangi sekali dengan payload yang sama.
+         if(!/absensi yang sudah tersimpan/i.test(String(firstError&&firstError.message||firstError)))throw firstError;
+         const retryReason=await gpsfmPromptModal('Koreksi Absensi','Server menemukan catatan lama untuk guru yang dipilih. Jelaskan alasan perubahan agar tercatat di Audit Log.','Alasan koreksi','','text');
+         if(retryReason===null)throw new Error('Koreksi dibatalkan. Tidak ada data yang diubah.');
+         savePayload.correctionReason=String(retryReason||'').trim();
+         if(!savePayload.correctionReason)throw new Error('Alasan koreksi wajib diisi.');
+         result=await call('apiSaveAttendanceBatch',token,savePayload);
+        }
+        selected.forEach(x=>{const row=x.closest('.checkitem');const info=row&&row.querySelector('.muted');if(info)info.textContent='Sudah ada catatan: '+box.querySelector('.attendanceTeacherStatus[data-teacher="'+x.value+'"]').value;});
+        processNotice('Absensi berhasil disimpan',result.saved+' catatan guru berhasil disimpan.','success');
+       }catch(err){processNotice('Penyimpanan absensi gagal','Permintaan untuk '+selected.length+' guru tidak berhasil dikonfirmasi. Pesan sistem: '+(err.message||'Kesalahan tidak diketahui')+'. Periksa kembali data sebelum mencoba ulang.','error');}
        finally{busy(btn,false);}
      };
    }catch(err){box.innerHTML='<h3>Daftar guru</h3><p class="muted">'+esc(err.message)+'</p><button class="btn btn-light" id="retryAttendanceTeachers">Muat Ulang</button>';$('retryAttendanceTeachers').onclick=loadTeachers;}
